@@ -310,6 +310,12 @@
   padding: 2rem;
 }
 
+/* Parent pages render their own sidebar/layout and must start at x=0 */
+.main-content.parent-layout {
+  margin-left: 0 !important;
+  padding: 0 !important;
+}
+
 .main-content.sidebar-open {
   margin-left: 260px;
 }

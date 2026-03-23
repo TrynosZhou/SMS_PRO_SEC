@@ -1,17 +1,33 @@
 <div class="parent-dashboard-page">
-  <header class="pd-hero">
-    <div class="pd-hero-copy">
-      <p class="pd-kicker">Parent Dashboard</p>
-      <h1>{{ getWelcomeGreeting() }}, {{ parentName }}</h1>
-      <p class="pd-date">{{ getTodayDisplayDate() }}</p>
-    </div>
-    <div class="pd-hero-actions">
-      <button class="btn btn-light" (click)="manageAccount()">My Account</button>
-      <button class="btn btn-primary" (click)="linkMoreStudents()">Link Child (Student ID)</button>
-    </div>
-  </header>
+  <div class="pd-layout">
+    <aside class="pd-sidebar">
+      <div class="pd-sidebar-header">
+        <h3>Parent Portal</h3>
+      </div>
+      <nav class="pd-sidebar-nav">
+        <a routerLink="/parent/dashboard" routerLinkActive="active">📊 Dashboard</a>
+        <a routerLink="/parent/inbox">🧿 My Inbox</a>
+        <a (click)="openInbox()">✉️ Send Message</a>
+        <a (click)="openOutbox()">📤 Outbox</a>
+        <a (click)="viewCurrentInvoice()">🧾 My Invoice Statement</a>
+        <a (click)="viewReportCardForFirstStudent()">🎓 Student Portal</a>
+      </nav>
+    </aside>
 
-  <section class="pd-summary" *ngIf="!loading">
+    <main class="pd-main">
+      <header class="pd-hero">
+        <div class="pd-hero-copy">
+          <p class="pd-kicker">Parent Dashboard</p>
+          <h1>{{ getWelcomeGreeting() }}, {{ parentName }}</h1>
+          <p class="pd-date">{{ getTodayDisplayDate() }}</p>
+        </div>
+        <div class="pd-hero-actions">
+          <button class="btn btn-primary btn-link-students" (click)="linkMoreStudents()">+ Link Students</button>
+          <button class="btn btn-light" (click)="manageAccount()">👤 My Account</button>
+        </div>
+      </header>
+
+      <section class="pd-summary" *ngIf="!loading">
     <article class="pd-stat">
       <p>Linked Children</p>
       <h3>{{ getTotalStudents() }}</h3>
@@ -28,9 +44,9 @@
       <p>Pending Balances</p>
       <h3>{{ getPendingFeesCount() }}</h3>
     </article>
-  </section>
+      </section>
 
-  <section class="pd-actions" *ngIf="!loading && students.length > 0">
+      <section class="pd-actions" *ngIf="!loading && students.length > 0">
     <button class="action-tile" (click)="viewReportCardForFirstStudent()">
       <span>Report Cards</span>
       <small>View latest results</small>
@@ -47,12 +63,12 @@
       <span>Outbox</span>
       <small>Sent messages</small>
     </button>
-  </section>
+      </section>
 
-  <div class="alert alert-error" *ngIf="error">{{ error }}</div>
-  <div class="loading-message" *ngIf="loading">Loading dashboard...</div>
+      <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+      <div class="loading-message" *ngIf="loading">Loading dashboard...</div>
 
-  <section class="pd-children" *ngIf="!loading && students.length > 0">
+      <section class="pd-children" *ngIf="!loading && students.length > 0">
     <div class="pd-children-head">
       <h2>Your Children</h2>
       <div class="pd-tools">
@@ -113,15 +129,17 @@
         </tbody>
       </table>
     </div>
-  </section>
+      </section>
 
-  <section class="empty-state" *ngIf="!loading && students.length === 0">
-    <h2>No linked children yet</h2>
-    <p>Use Student ID to link your child and start tracking reports and billing.</p>
-    <button class="btn btn-primary" (click)="linkMoreStudents()">Link Child by Student ID</button>
-  </section>
+      <section class="empty-state" *ngIf="!loading && students.length === 0">
+        <h2>No linked children yet</h2>
+        <p>Use Student ID to link your child and start tracking reports and billing.</p>
+        <button class="btn btn-primary" (click)="linkMoreStudents()">Link Child by Student ID</button>
+      </section>
 
-  <footer class="pd-footer">
-    <button class="ghost-link" (click)="logout()">Logout</button>
-  </footer>
+      <footer class="pd-footer">
+        <button class="ghost-link" (click)="logout()">Logout</button>
+      </footer>
+    </main>
+  </div>
 </div>

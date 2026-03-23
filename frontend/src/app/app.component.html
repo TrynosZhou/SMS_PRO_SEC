@@ -422,6 +422,10 @@
 </button>
 
 <!-- Main Content -->
-<main class="main-content" [class.sidebar-open]="!sidebarCollapsed" [class.menu-open]="mobileMenuOpen">
+<main
+  class="main-content"
+  [class.sidebar-open]="!sidebarCollapsed && !isParent()"
+  [class.menu-open]="mobileMenuOpen"
+  [class.parent-layout]="isParent()">
   <router-outlet></router-outlet>
 </main>
