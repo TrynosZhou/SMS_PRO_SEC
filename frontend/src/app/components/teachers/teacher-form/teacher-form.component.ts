@@ -14,6 +14,7 @@ export class TeacherFormComponent implements OnInit {
   teacher: any = {
     firstName: '',
     lastName: '',
+    gender: '',
     phoneNumber: '',
     address: '',
     dateOfBirth: '',

@@ -19,8 +19,14 @@ import { PublishResultsComponent } from './components/exams/publish-results/publ
 import { InvoiceListComponent } from './components/finance/invoice-list/invoice-list.component';
 import { InvoiceFormComponent } from './components/finance/invoice-form/invoice-form.component';
 import { InvoiceStatementsComponent } from './components/finance/invoice-statements/invoice-statements.component';
+import { CreditNoteComponent } from './components/finance/credit-note/credit-note.component';
+import { DebitNoteComponent } from './components/finance/debit-note/debit-note.component';
+import { PrepaidAdjustComponent } from './components/finance/prepaid-adjust/prepaid-adjust.component';
+import { UniformListComponent } from './components/finance/uniform-list/uniform-list.component';
 import { RecordPaymentComponent } from './components/finance/record-payment/record-payment.component';
 import { OutstandingBalanceComponent } from './components/finance/outstanding-balance/outstanding-balance.component';
+import { BalanceEnquiryComponent } from './components/finance/balance-enquiry/balance-enquiry.component';
+import { TransactionAuditComponent } from './components/finance/transaction-audit/transaction-audit.component';
 import { ClassListComponent } from './components/classes/class-list/class-list.component';
 import { ClassFormComponent } from './components/classes/class-form/class-form.component';
 import { ClassListsComponent } from './components/classes/class-lists/class-lists.component';
@@ -33,12 +39,17 @@ import { ParentInboxComponent } from './components/parent/parent-inbox/parent-in
 import { ManageAccountComponent } from './components/teachers/manage-account/manage-account.component';
 import { ManageAccountsComponent } from './components/admin/manage-accounts/manage-accounts.component';
 import { ClassPromotionComponent } from './components/admin/class-promotion/class-promotion.component';
+import { ElearningComponent } from './components/elearning/elearning.component';
+import { ParentManagementComponent } from './components/admin/parent-management/parent-management.component';
 import { MarkAttendanceComponent } from './components/attendance/mark-attendance/mark-attendance.component';
 import { AttendanceReportsComponent } from './components/attendance/attendance-reports/attendance-reports.component';
 import { RecordBookComponent } from './components/teacher/record-book/record-book.component';
 import { MyClassesComponent } from './components/teacher/my-classes/my-classes.component';
 import { TeacherRecordBookComponent } from './components/admin/teacher-record-book/teacher-record-book.component';
+import { EtaskComponent } from './components/teacher/etask/etask.component';
+import { EtaskSubmissionsComponent } from './components/teacher/etask-submissions/etask-submissions.component';
 import { TeacherDashboardComponent } from './components/teacher/teacher-dashboard/teacher-dashboard.component';
+import { StudentElearningTasksComponent } from './components/student/student-elearning-tasks/student-elearning-tasks.component';
 import { TransferFormComponent } from './components/transfers/transfer-form/transfer-form.component';
 import { TransferHistoryComponent } from './components/transfers/transfer-history/transfer-history.component';
 import { EnrollStudentComponent } from './components/enrollments/enroll-student/enroll-student.component';
@@ -54,22 +65,29 @@ import { TimetableViewComponent } from './components/timetable/timetable-view/ti
 import { StudentDashboardComponent } from './components/student/student-dashboard/student-dashboard.component';
 import { StudentReportCardComponent } from './components/student/student-report-card/student-report-card.component';
 import { StudentInvoiceStatementComponent } from './components/student/student-invoice-statement/student-invoice-statement.component';
+import { UserLogComponent } from './components/settings/user-log/user-log.component';
+import { PayrollManagementComponent } from './components/payroll/payroll-management/payroll-management.component';
+import { SalaryAssignmentsComponent } from './components/payroll/salary-assignments/salary-assignments.component';
 
 const routes: Routes = [
   { path: '', component: SplashComponent },
   { path: 'login', component: LoginComponent },
   { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
   { path: 'parent/dashboard', component: ParentDashboardComponent, canActivate: [AuthGuard] },
-  { path: 'teacher/dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
+  { path: 'teacher/dashboard', component: TeacherDashboardComponent, canActivate: [AuthGuard] },
   { path: 'parent/inbox', component: ParentInboxComponent, canActivate: [AuthGuard] },
   { path: 'parent/link-students', component: LinkStudentsComponent, canActivate: [AuthGuard] },
   { path: 'parent/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },
   { path: 'teacher/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },
   { path: 'teacher/record-book', component: RecordBookComponent, canActivate: [AuthGuard] },
   { path: 'teacher/my-classes', component: MyClassesComponent, canActivate: [AuthGuard] },
+  { path: 'etask/submissions', component: EtaskSubmissionsComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'recordBook' } },
+  { path: 'etask', component: EtaskComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'recordBook' } },
   { path: 'admin/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },
   { path: 'admin/manage-accounts', component: ManageAccountsComponent, canActivate: [AuthGuard] },
   { path: 'admin/class-promotion', component: ClassPromotionComponent, canActivate: [AuthGuard] },
+  { path: 'elearning', component: ElearningComponent, canActivate: [AuthGuard] },
+  { path: 'admin/parent-management', component: ParentManagementComponent, canActivate: [AuthGuard] },
   { path: 'admin/teacher-record-book', component: TeacherRecordBookComponent, canActivate: [AuthGuard] },
   { path: 'students', component: StudentListComponent, canActivate: [AuthGuard] },
   { path: 'students/new', component: StudentFormComponent, canActivate: [AuthGuard] },
@@ -90,8 +108,22 @@ const routes: Routes = [
   { path: 'invoices', component: InvoiceListComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'invoices/new', component: InvoiceFormComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'invoices/statements', component: InvoiceStatementsComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  { path: 'invoices/creditnote', component: CreditNoteComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  { path: 'invoices/debitnote', component: DebitNoteComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  { path: 'invoices/prepaid_adjust', component: PrepaidAdjustComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  { path: 'invoices/uniform_list', component: UniformListComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'payments/record', component: RecordPaymentComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'outstanding-balance', component: OutstandingBalanceComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  { path: 'balance_enquiry', component: BalanceEnquiryComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  { path: 'audit_log', component: TransactionAuditComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  { path: 'payroll', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'overview' } },
+  { path: 'payroll/employees', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'employees' } },
+  { path: 'payroll/structures/new', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'structures', structurePage: 'new' } },
+  { path: 'payroll/structures', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'structures', structurePage: 'list' } },
+  { path: 'payroll/assignments', component: SalaryAssignmentsComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  { path: 'payroll/process', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'process' } },
+  { path: 'payroll/payslips', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'payslips' } },
+  { path: 'payroll/reports', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'reports' } },
   { path: 'classes', component: ClassListComponent, canActivate: [AuthGuard] },
   { path: 'classes/new', component: ClassFormComponent, canActivate: [AuthGuard] },
   { path: 'classes/:id/edit', component: ClassFormComponent, canActivate: [AuthGuard] },
@@ -115,9 +147,11 @@ const routes: Routes = [
   { path: 'timetable/config', component: TimetableConfigComponent, canActivate: [AuthGuard] },
   { path: 'timetable', component: TimetableViewComponent, canActivate: [AuthGuard] },
   { path: 'settings', component: SettingsComponent, canActivate: [AuthGuard] },
+  { path: 'user_log', component: UserLogComponent, canActivate: [AuthGuard] },
   { path: 'student/dashboard', component: StudentDashboardComponent, canActivate: [AuthGuard] },
   { path: 'student/report-card', component: StudentReportCardComponent, canActivate: [AuthGuard] },
-  { path: 'student/invoice-statement', component: StudentInvoiceStatementComponent, canActivate: [AuthGuard] }
+  { path: 'student/invoice-statement', component: StudentInvoiceStatementComponent, canActivate: [AuthGuard] },
+  { path: 'student/elearning', component: StudentElearningTasksComponent, canActivate: [AuthGuard] }
 ];
 
 @NgModule({

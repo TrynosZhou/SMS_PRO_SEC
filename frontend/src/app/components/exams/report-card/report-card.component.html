@@ -1,5 +1,13 @@
 <div class="container">
   <div class="report-card-wrapper">
+    <!-- Top banner: School Logo 1 from settings (full width) -->
+    <div class="report-cards-page-banner" *ngIf="schoolLogo">
+      <img [src]="schoolLogo" alt="School banner" class="banner-logo-img" />
+    </div>
+    <div class="report-cards-page-banner banner-fallback" *ngIf="!schoolLogo && schoolName">
+      <span class="banner-school-name">{{ schoolName }}</span>
+    </div>
+
     <!-- Header Section -->
     <div class="form-header">
       <div class="header-content">
@@ -238,25 +246,29 @@
             </div>
           </div>
           
-          <!-- School Header -->
-          <div *ngIf="reportCard.settings || schoolLogo || schoolLogo2" class="school-header">
-            <div class="school-logo-wrapper school-logo-left" *ngIf="schoolLogo">
-              <img [src]="schoolLogo" alt="School Logo" class="school-logo">
+          <!-- School header: banner (Logo 1 only) + details — no second logo -->
+          <div *ngIf="reportCard.settings || schoolLogo" class="school-header-block">
+            <div class="report-card-school-banner" *ngIf="schoolLogo">
+              <img [src]="schoolLogo" alt="School banner" class="banner-logo-img" />
             </div>
-            <div class="school-text">
-              <h3 *ngIf="reportCard.settings?.schoolName">{{ reportCard.settings.schoolName }}</h3>
-              <p *ngIf="reportCard.settings?.schoolAddress" class="school-address">
-                {{ reportCard.settings.schoolAddress }}
-              </p>
-              <p *ngIf="reportCard.settings?.schoolPhone" class="school-phone">
-                Phone: {{ reportCard.settings.schoolPhone }}
-              </p>
-              <p *ngIf="reportCard.settings?.academicYear" class="academic-year">
-                Academic Year: {{ reportCard.settings.academicYear }}
-              </p>
+            <div
+              class="report-card-school-banner banner-fallback"
+              *ngIf="!schoolLogo && reportCard.settings?.schoolName">
+              <span class="banner-school-name">{{ reportCard.settings.schoolName }}</span>
             </div>
-            <div class="school-logo-wrapper school-logo-right" *ngIf="schoolLogo2">
-              <img [src]="schoolLogo2" alt="School Logo 2" class="school-logo">
+            <div class="school-header-details">
+              <div class="school-text">
+                <h3 *ngIf="reportCard.settings?.schoolName">{{ reportCard.settings.schoolName }}</h3>
+                <p *ngIf="reportCard.settings?.schoolAddress" class="school-address">
+                  {{ reportCard.settings.schoolAddress }}
+                </p>
+                <p *ngIf="reportCard.settings?.schoolPhone" class="school-phone">
+                  Phone: {{ reportCard.settings.schoolPhone }}
+                </p>
+                <p *ngIf="reportCard.settings?.academicYear" class="academic-year">
+                  Academic Year: {{ reportCard.settings.academicYear }}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -451,11 +463,7 @@
         </div>
         <div class="grade-scale-grid">
           <div class="grade-scale-item">
-            <span class="grade-range">90 – 100</span>
-            <span class="grade-label">{{ gradeLabels.excellent || 'OUTSTANDING' }}</span>
-          </div>
-          <div class="grade-scale-item">
-            <span class="grade-range">80 – 89</span>
+            <span class="grade-range">80 – 100</span>
             <span class="grade-label">{{ gradeLabels.veryGood || 'VERY HIGH' }}</span>
           </div>
           <div class="grade-scale-item">

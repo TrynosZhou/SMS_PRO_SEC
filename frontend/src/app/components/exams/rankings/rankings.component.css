@@ -1,5 +1,14 @@
 /* Rankings Component Styles */
 
+.pdf-error {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #c62828;
+  font-size: 14px;
+}
+
 .rankings-container {
   max-width: 1400px;
   margin: 0 auto;

@@ -28,9 +28,25 @@ export class LoginComponent implements OnInit {
   signupLastName = '';
   signupContactNumber = '';
   signupEmail = '';
+  /** Self-registration as Student */
+  signupDateOfBirth = '';
+  signupGender = '';
+  /** Self-registration as Parent */
+  signupParentGender = '';
   
   // Password Reset fields
   resetEmail = '';
+  /** student | teacher | email (parents/staff) */
+  resetType: 'student' | 'teacher' | 'email' = 'student';
+  resetPasswordStep: 1 | 2 = 1;
+  resetPasswordToken = '';
+  resetStudentId = '';
+  resetStudentDob = '';
+  resetTeacherEmployeeId = '';
+  resetNewPassword = '';
+  resetConfirmPassword = '';
+  showResetNewPassword = false;
+  showResetConfirmPassword = false;
   
   error = '';
   success = '';
@@ -80,7 +96,47 @@ export class LoginComponent implements OnInit {
     this.signupLastName = '';
     this.signupContactNumber = '';
     this.signupEmail = '';
+    this.signupDateOfBirth = '';
+    this.signupGender = '';
+    this.signupParentGender = '';
     this.resetEmail = '';
+    this.resetType = 'student';
+    this.resetPasswordStep = 1;
+    this.resetPasswordToken = '';
+    this.resetStudentId = '';
+    this.resetStudentDob = '';
+    this.resetTeacherEmployeeId = '';
+    this.resetNewPassword = '';
+    this.resetConfirmPassword = '';
+    this.showResetNewPassword = false;
+    this.showResetConfirmPassword = false;
+  }
+
+  setResetType(t: 'student' | 'teacher' | 'email') {
+    this.resetType = t;
+    this.resetPasswordStep = 1;
+    this.resetPasswordToken = '';
+    this.resetNewPassword = '';
+    this.resetConfirmPassword = '';
+    this.error = '';
+    this.success = '';
+  }
+
+  backToResetVerifyStep() {
+    this.resetPasswordStep = 1;
+    this.resetPasswordToken = '';
+    this.resetNewPassword = '';
+    this.resetConfirmPassword = '';
+    this.error = '';
+    this.success = '';
+  }
+
+  toggleResetNewPasswordVisibility() {
+    this.showResetNewPassword = !this.showResetNewPassword;
+  }
+
+  toggleResetConfirmPasswordVisibility() {
+    this.showResetConfirmPassword = !this.showResetConfirmPassword;
   }
 
   onSignIn() {
@@ -225,6 +281,21 @@ export class LoginComponent implements OnInit {
         this.error = 'Please enter a valid email address';
         return;
       }
+      if (!this.signupParentGender) {
+        this.error = 'Please select gender';
+        return;
+      }
+    }
+
+    if (this.signupRole === 'STUDENT') {
+      if (!this.signupDateOfBirth) {
+        this.error = 'Please enter your date of birth';
+        return;
+      }
+      if (!this.signupGender) {
+        this.error = 'Please select gender';
+        return;
+      }
     }
 
     if (this.signupPassword.length < 8) {
@@ -237,8 +308,8 @@ export class LoginComponent implements OnInit {
       return;
     }
 
-    // Validate role
-    const validRoles = ['SUPERADMIN', 'ADMIN', 'ACCOUNTANT', 'PARENT'];
+    // Only Student and Parent may self-register; staff accounts are created in Manage Accounts
+    const validRoles = ['STUDENT', 'PARENT'];
     if (!validRoles.includes(this.signupRole)) {
       this.error = 'Please select a valid role';
       return;
@@ -250,37 +321,37 @@ export class LoginComponent implements OnInit {
     // Convert role to lowercase for backend enum
     const roleLower = this.signupRole.toLowerCase();
     
-    // Determine email per role
+    // Determine email per role (backend also enforces student.local for students)
     let generatedEmail = '';
     switch (this.signupRole) {
       case 'PARENT':
         generatedEmail = this.signupEmail.trim();
         break;
-      case 'ACCOUNTANT':
-        generatedEmail = `${this.signupUsername}@accountant.local`;
+      case 'STUDENT':
+        generatedEmail = `${this.signupUsername.trim()}@student.local`;
         break;
-      case 'SUPERADMIN':
-        generatedEmail = `${this.signupUsername}@superadmin.local`;
-        break;
-      case 'ADMIN':
       default:
-        generatedEmail = `${this.signupUsername}@admin.local`;
-        break;
+        this.error = 'Invalid role';
+        return;
     }
 
     const registerData: any = {
-      username: this.signupUsername,
+      username: this.signupUsername.trim(),
       password: this.signupPassword,
       email: generatedEmail,
       role: roleLower,
-      firstName: this.signupFirstName,
-      lastName: this.signupLastName,
-      phoneNumber: this.signupContactNumber
+      firstName: this.signupFirstName.trim(),
+      lastName: this.signupLastName.trim(),
+      phoneNumber: this.signupContactNumber.trim(),
+      contactNumber: this.signupContactNumber.trim()
     };
 
-    // Only add contact number for parents
+    if (this.signupRole === 'STUDENT') {
+      registerData.dateOfBirth = this.signupDateOfBirth;
+      registerData.gender = this.signupGender;
+    }
     if (this.signupRole === 'PARENT') {
-      registerData.contactNumber = this.signupContactNumber;
+      registerData.gender = this.signupParentGender;
     }
 
     this.authService.register(registerData).subscribe({
@@ -298,7 +369,8 @@ export class LoginComponent implements OnInit {
     });
   }
 
-  onResetPassword() {
+  /** Email-based reset (parents / staff with email on file) */
+  onResetPasswordEmail() {
     if (!this.resetEmail) {
       this.error = 'Please enter your email';
       return;
@@ -310,12 +382,111 @@ export class LoginComponent implements OnInit {
     this.authService.requestPasswordReset(this.resetEmail).subscribe({
       next: () => {
         this.loading = false;
-        this.success = 'Password reset instructions have been sent to your email.';
+        this.success = 'If the email exists, password reset instructions have been sent.';
       },
       error: (err: any) => {
         this.error = err.error?.message || 'Failed to send reset email';
         this.loading = false;
       }
+    });
+  }
+
+  verifyStudentForReset() {
+    if (!this.resetStudentId?.trim() || !this.resetStudentDob) {
+      this.error = 'Please enter Student ID and Date of Birth';
+      return;
+    }
+
+    this.loading = true;
+    this.error = '';
+    this.success = '';
+
+    this.authService
+      .verifyStudentPasswordReset(this.resetStudentId.trim(), this.resetStudentDob)
+      .subscribe({
+        next: (res: any) => {
+          this.loading = false;
+          if (res?.token) {
+            this.resetPasswordToken = res.token;
+            this.resetPasswordStep = 2;
+            this.success = res.message || 'Enter your new password below.';
+          } else {
+            this.error = 'Could not verify your details. Please try again.';
+          }
+        },
+        error: (err: any) => {
+          this.loading = false;
+          this.error = err.error?.message || 'Invalid Student ID or date of birth';
+        },
+      });
+  }
+
+  verifyTeacherForReset() {
+    if (!this.resetTeacherEmployeeId?.trim()) {
+      this.error = 'Please enter your Employee ID';
+      return;
+    }
+
+    this.loading = true;
+    this.error = '';
+    this.success = '';
+
+    this.authService.verifyTeacherPasswordReset(this.resetTeacherEmployeeId.trim()).subscribe({
+      next: (res: any) => {
+        this.loading = false;
+        if (res?.token) {
+          this.resetPasswordToken = res.token;
+          this.resetPasswordStep = 2;
+          this.success = res.message || 'Enter your new password below.';
+        } else {
+          this.error = 'Could not verify your details. Please try again.';
+        }
+      },
+      error: (err: any) => {
+        this.loading = false;
+        this.error = err.error?.message || 'Invalid Employee ID';
+      },
+    });
+  }
+
+  onResetPasswordSave() {
+    if (!this.resetPasswordToken) {
+      this.error = 'Please verify your identity first (go back to step 1).';
+      return;
+    }
+    if (!this.resetNewPassword || !this.resetConfirmPassword) {
+      this.error = 'Please enter and confirm your new password';
+      return;
+    }
+    if (this.resetNewPassword !== this.resetConfirmPassword) {
+      this.error = 'Passwords do not match';
+      return;
+    }
+    if (this.resetNewPassword.length < 8) {
+      this.error = 'Password must be at least 8 characters long';
+      return;
+    }
+
+    this.loading = true;
+    this.error = '';
+    this.success = '';
+
+    this.authService.resetPassword(this.resetPasswordToken, this.resetNewPassword).subscribe({
+      next: () => {
+        this.loading = false;
+        this.success = 'Password saved successfully. You can sign in with your new password.';
+        this.resetPasswordStep = 1;
+        this.resetPasswordToken = '';
+        this.resetNewPassword = '';
+        this.resetConfirmPassword = '';
+        setTimeout(() => {
+          this.setTab('signin');
+        }, 2000);
+      },
+      error: (err: any) => {
+        this.loading = false;
+        this.error = err.error?.message || 'Failed to save new password';
+      },
     });
   }
 

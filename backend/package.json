@@ -10,6 +10,8 @@
     "dev": "nodemon src/server.ts",
     "start": "node dist/server.js",
     "typeorm": "typeorm-ts-node-commonjs -d src/data-source.ts",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
+    "migration:show": "typeorm-ts-node-commonjs migration:show -d src/data-source.ts",
     "setup-db": "node scripts/create-database.js",
     "create-admin": "npx ts-node scripts/create-admin.ts",
     "create-demo": "npx ts-node scripts/create-demo.ts",
@@ -17,7 +19,8 @@
     "clear-invoices": "npx ts-node scripts/clear-invoices.ts",
     "check-login": "npx ts-node scripts/check-user-login.ts",
     "fix-all-teachers": "npx ts-node src/scripts/fix-all-teachers.ts",
-    "ensure:subject-category": "npx ts-node scripts/ensure-subject-category.ts"
+    "ensure:subject-category": "npx ts-node scripts/ensure-subject-category.ts",
+    "delete-payroll-runs-2026-mar-dec": "npx ts-node scripts/delete-payroll-runs-2026-mar-dec.ts"
   },
   "dependencies": {
     "@types/image-size": "^0.7.0",
@@ -26,11 +29,13 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "image-size": "^2.0.2",
+    "jpeg-js": "^0.4.4",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "openai": "^6.9.1",
     "pdfkit": "^0.14.0",
     "pg": "^8.11.1",
+    "pngjs": "^7.0.0",
     "qrcode": "^1.5.3",
     "reflect-metadata": "^0.1.13",
     "ts-node": "^10.9.1",

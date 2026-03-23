@@ -48,6 +48,10 @@ export class MarkSheetComponent implements OnInit {
   sortColumn = 'position';
   sortDirection: 'asc' | 'desc' = 'asc';
   showStatistics = true;
+
+  /** PDF: print preview vs file download */
+  pdfBusy: null | 'print' | 'download' = null;
+  pdfError = '';
   
   // Statistics
   statistics: any = {
@@ -334,54 +338,106 @@ export class MarkSheetComponent implements OnInit {
   }
 
   printMarkSheet() {
-    window.print();
+    if (!this.canRequestMarkSheetPdf()) {
+      return;
+    }
+
+    this.pdfError = '';
+    this.error = '';
+    this.pdfBusy = 'print';
+
+    this.examService
+      .getMarkSheetPdf(
+        this.selectedClassId,
+        this.selectedExamType,
+        this.selectedTerm,
+        this.selectedSubjectId || undefined,
+        { download: false }
+      )
+      .subscribe({
+        next: (blob: Blob) => {
+          const url = URL.createObjectURL(blob);
+          const win = window.open(url, '_blank', 'noopener,noreferrer');
+          if (!win) {
+            this.pdfError =
+              'Pop-up blocked. Allow pop-ups to open the PDF print preview, or use Download to save the file.';
+          }
+          setTimeout(() => URL.revokeObjectURL(url), 120000);
+          this.pdfBusy = null;
+        },
+        error: (err: any) => {
+          console.error('Error opening mark sheet PDF for print:', err);
+          this.pdfBusy = null;
+          this.pdfError =
+            err?.error?.message || err?.message || 'Could not open mark sheet PDF for printing.';
+          setTimeout(() => (this.pdfError = ''), 8000);
+        }
+      });
   }
 
   downloadPDF() {
-    if (!this.selectedClassId || !this.selectedExamType || !this.selectedTerm) {
-      this.error = 'Please select class, exam type, and term';
-      setTimeout(() => this.error = '', 5000);
+    if (!this.canRequestMarkSheetPdf()) {
       return;
     }
 
-    if (!this.markSheetData) {
-      this.error = 'Please generate mark sheet first';
-      setTimeout(() => this.error = '', 5000);
-      return;
-    }
-
-    this.loading = true;
+    this.pdfError = '';
     this.error = '';
     this.success = '';
+    this.pdfBusy = 'download';
 
-    this.examService.downloadMarkSheetPDF(
-      this.selectedClassId, 
-      this.selectedExamType, 
-      this.selectedTerm,
-      this.selectedSubjectId || undefined
-    ).subscribe({
-      next: (blob: Blob) => {
-        const fileURL = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = fileURL;
-        const className = this.markSheetData?.class?.name || 'class';
-        const examType = this.selectedExamType.replace('_', '-');
-        link.download = `mark-sheet-${className}-${examType}-${new Date().toISOString().split('T')[0]}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(fileURL);
-        this.loading = false;
-        this.success = 'Mark sheet PDF downloaded successfully';
-        setTimeout(() => this.success = '', 5000);
-      },
-      error: (err: any) => {
-        console.error('Error downloading mark sheet PDF:', err);
-        this.error = err.error?.message || 'Failed to download mark sheet PDF';
-        this.loading = false;
-        setTimeout(() => this.error = '', 5000);
-      }
-    });
+    this.examService
+      .getMarkSheetPdf(
+        this.selectedClassId,
+        this.selectedExamType,
+        this.selectedTerm,
+        this.selectedSubjectId || undefined,
+        { download: true }
+      )
+      .subscribe({
+        next: (blob: Blob) => {
+          const fileURL = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = fileURL;
+          const base = this.sanitizeFileName(this.markSheetData?.class?.name || 'class');
+          const exam = this.sanitizeFileName(this.selectedExamType.replace('_', '-'));
+          link.download = `mark-sheet-${base}-${exam}-${new Date().toISOString().split('T')[0]}.pdf`;
+          link.rel = 'noopener';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(fileURL);
+          this.pdfBusy = null;
+          this.success = 'Mark sheet PDF downloaded';
+          setTimeout(() => (this.success = ''), 4000);
+        },
+        error: (err: any) => {
+          console.error('Error downloading mark sheet PDF:', err);
+          this.pdfBusy = null;
+          const status = err?.status ? `HTTP ${err.status}` : '';
+          const message = err?.error?.message || err?.message || 'Failed to download mark sheet PDF';
+          this.pdfError = status ? `${status}: ${message}` : message;
+          setTimeout(() => (this.pdfError = ''), 8000);
+        }
+      });
+  }
+
+  private canRequestMarkSheetPdf(): boolean {
+    if (!this.selectedClassId || !this.selectedExamType || !this.selectedTerm) {
+      this.error = 'Please select class, exam type, and term';
+      setTimeout(() => (this.error = ''), 5000);
+      return false;
+    }
+    if (!this.markSheetData) {
+      this.error = 'Please generate the mark sheet first';
+      setTimeout(() => (this.error = ''), 5000);
+      return false;
+    }
+    return true;
+  }
+
+  private sanitizeFileName(name: string): string {
+    const s = String(name || 'class').trim() || 'class';
+    return s.replace(/[^a-zA-Z0-9-_]+/g, '_').replace(/^_|_$/g, '') || 'class';
   }
 
   exportToCSV() {
@@ -535,11 +591,12 @@ export class MarkSheetComponent implements OnInit {
     markSheet.forEach((row: any) => {
       // Count grades for each subject
       row.gradeCounts = {
-        aStar: 0,  // A*S (90-100)
-        a: 0,      // AS (80-89)
+        a: 0,      // As (80-100)
         b: 0,      // BS (70-79)
         c: 0,      // CS (60-69)
-        d: 0       // DS (50-59)
+        d: 0,      // Ds (50-59)
+        e: 0,      // Es (1-49)
+        u: 0       // Us (0 only)
       };
       row.passed = 0;
 
@@ -549,11 +606,12 @@ export class MarkSheetComponent implements OnInit {
           const percentage = subjectMark.percentage;
 
           // Count grades
-          if (percentage >= 90) row.gradeCounts.aStar++;
-          else if (percentage >= 80) row.gradeCounts.a++;
+          if (percentage >= 80) row.gradeCounts.a++;
           else if (percentage >= 70) row.gradeCounts.b++;
           else if (percentage >= 60) row.gradeCounts.c++;
           else if (percentage >= 50) row.gradeCounts.d++;
+          else if (percentage > 0) row.gradeCounts.e++;
+          else row.gradeCounts.u++;
 
           // Count passed subjects (>= 50%)
           if (percentage >= 50) row.passed++;
@@ -565,11 +623,12 @@ export class MarkSheetComponent implements OnInit {
   getGradeCount(row: any, grade: string): number {
     if (!row.gradeCounts) return 0;
     switch(grade) {
-      case 'aStar': return row.gradeCounts.aStar || 0;
       case 'a': return row.gradeCounts.a || 0;
       case 'b': return row.gradeCounts.b || 0;
       case 'c': return row.gradeCounts.c || 0;
       case 'd': return row.gradeCounts.d || 0;
+      case 'e': return row.gradeCounts.e || 0;
+      case 'u': return row.gradeCounts.u || 0;
       default: return 0;
     }
   }

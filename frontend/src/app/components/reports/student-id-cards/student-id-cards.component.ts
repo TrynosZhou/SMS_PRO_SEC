@@ -22,6 +22,9 @@ export class StudentIdCardsComponent implements OnInit {
   schoolPhone = '';
   schoolEmail = '';
   currentYear = '';
+  /** Which PDF action is running (for button labels) */
+  pdfBusy: null | 'print' | 'download' = null;
+  pdfError = '';
 
   constructor(
     private studentService: StudentService,
@@ -214,12 +217,61 @@ export class StudentIdCardsComponent implements OnInit {
   }
 
   printIdCards() {
-    window.print();
+    if (!this.selectedClassId || this.students.length === 0 || this.pdfBusy) {
+      return;
+    }
+    this.pdfError = '';
+    this.pdfBusy = 'print';
+    this.studentService.getClassStudentIdCardsPdf(this.selectedClassId, { download: false }).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!win) {
+          this.pdfError = 'Pop-up blocked. Allow pop-ups to open the PDF print preview, or use Download PDF.';
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 120000);
+        this.pdfBusy = null;
+      },
+      error: (err: any) => {
+        this.pdfBusy = null;
+        this.pdfError = err?.error?.message || err?.message || 'Could not open PDF for printing.';
+        setTimeout(() => (this.pdfError = ''), 8000);
+      }
+    });
   }
 
   downloadPDF() {
-    // TODO: Implement PDF download functionality
-    alert('PDF download functionality will be implemented soon');
+    if (!this.selectedClassId || this.students.length === 0 || this.pdfBusy) {
+      return;
+    }
+    this.pdfError = '';
+    this.pdfBusy = 'download';
+    this.studentService.getClassStudentIdCardsPdf(this.selectedClassId, { download: true }).subscribe({
+      next: (blob) => {
+        const base = this.sanitizeFileName(this.selectedClassName || 'class');
+        const filename = `${base}-student-id-cards.pdf`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        this.pdfBusy = null;
+      },
+      error: (err: any) => {
+        this.pdfBusy = null;
+        this.pdfError = err?.error?.message || err?.message || 'Could not download PDF.';
+        setTimeout(() => (this.pdfError = ''), 8000);
+      }
+    });
+  }
+
+  private sanitizeFileName(name: string): string {
+    const s = String(name || 'class').trim() || 'class';
+    return s.replace(/[^a-zA-Z0-9-_]+/g, '_').replace(/^_|_$/g, '') || 'class';
   }
 }
 

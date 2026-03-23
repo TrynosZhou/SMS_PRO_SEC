@@ -6,17 +6,38 @@
         <p class="subtitle">Generate and print student identification cards by class</p>
       </div>
       <div class="header-actions" *ngIf="students.length > 0">
-        <button class="btn btn-secondary" (click)="printIdCards()" [disabled]="loading">
-          <span>🖨️</span> Print
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="printIdCards()"
+          [disabled]="loading || !!pdfBusy"
+          title="Opens the official ID card PDF in a new tab — use the browser or PDF viewer Print button">
+          <span *ngIf="pdfBusy !== 'print'">🖨️</span>
+          <span *ngIf="pdfBusy === 'print'" class="btn-spinner" aria-hidden="true"></span>
+          {{ pdfBusy === 'print' ? 'Preparing…' : 'Print preview' }}
         </button>
-        <button class="btn btn-secondary" (click)="downloadPDF()" [disabled]="loading">
-          <span>📥</span> Download PDF
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="downloadPDF()"
+          [disabled]="loading || !!pdfBusy"
+          title="Download a multi-page PDF (one card per student)">
+          <span *ngIf="pdfBusy !== 'download'">📥</span>
+          <span *ngIf="pdfBusy === 'download'" class="btn-spinner" aria-hidden="true"></span>
+          {{ pdfBusy === 'download' ? 'Preparing…' : 'Download PDF' }}
         </button>
       </div>
     </div>
   </div>
 
   <div class="card">
+    <!-- PDF / API errors -->
+    <div class="alert alert-error" *ngIf="pdfError">
+      <span class="alert-icon">⚠️</span>
+      <span>{{ pdfError }}</span>
+      <button type="button" class="alert-close" (click)="pdfError = ''">&times;</button>
+    </div>
+
     <!-- Error Message -->
     <div class="alert alert-error" *ngIf="error">
       <span class="alert-icon">⚠️</span>
@@ -54,6 +75,14 @@
         <div *ngFor="let student of students" class="id-card">
           <!-- Top Header Band -->
           <div class="id-card-top-band">
+            <div class="top-band-logo" *ngIf="schoolLogo">
+              <img
+                [src]="schoolLogo"
+                alt="School Logo"
+                class="top-band-school-logo"
+                (error)="schoolLogo = null"
+              />
+            </div>
             <div class="school-name-header">{{ schoolName }}</div>
             <div class="school-contact-info">
               <div class="contact-line" *ngIf="schoolAddress">{{ schoolAddress }}</div>

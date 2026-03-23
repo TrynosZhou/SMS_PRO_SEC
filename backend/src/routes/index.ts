@@ -16,6 +16,14 @@ import recordBookRoutes from './recordBook.routes';
 import transferRoutes from './transfer.routes';
 import enrollmentRoutes from './enrollment.routes';
 import timetableRoutes from './timetable.routes';
+import paymentRoutes from './payment.routes';
+import paymentAuditRoutes from './paymentAudit.routes';
+import aiCommentRoutes from './aiComment.routes';
+import governmentReportsRoutes from './governmentReports.routes';
+import userActivityRoutes from './userActivity.routes';
+import payrollRoutes from './payroll.routes';
+import adminRoutes from './admin.routes';
+import etaskRoutes from './etask.routes';
 
 const router = Router();
 
@@ -23,6 +31,9 @@ router.use('/auth', authRoutes);
 router.use('/students', studentRoutes);
 router.use('/exams', examRoutes);
 router.use('/finance', financeRoutes);
+// Order matters: audit-logs must be mounted before the generic /:id endpoint.
+router.use('/payments', paymentAuditRoutes);
+router.use('/payments', paymentRoutes);
 router.use('/teachers', teacherRoutes);
 router.use('/classes', classRoutes);
 router.use('/subjects', subjectRoutes);
@@ -37,6 +48,12 @@ router.use('/transfers', transferRoutes);
 router.use('/student-transfers', transferRoutes); // Alias for /api/student-transfers
 router.use('/enrollments', enrollmentRoutes);
 router.use('/timetable', timetableRoutes);
+router.use('/ai-comments', aiCommentRoutes);
+router.use('/government-reports', governmentReportsRoutes);
+router.use('/activity', userActivityRoutes);
+router.use('/payroll', payrollRoutes);
+router.use('/admin', adminRoutes);
+router.use('/etasks', etaskRoutes);
 
 export default router;
 

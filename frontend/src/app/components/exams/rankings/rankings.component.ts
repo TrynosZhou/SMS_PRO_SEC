@@ -22,6 +22,8 @@ export class RankingsComponent implements OnInit {
   loading = false;
   hasSearched = false;
   availableGrades: string[] = [];
+  pdfBusy = false;
+  pdfError = '';
   
   examTypes = [
     { value: 'mid_term', label: 'Mid Term' },
@@ -222,6 +224,63 @@ export class RankingsComponent implements OnInit {
   }
 
   printRankings() {
-    window.print();
+    if (this.rankings.length === 0) {
+      return;
+    }
+    const examTypeLabel =
+      this.examTypes.find((e) => e.value === this.selectedExamType)?.label ||
+      this.selectedExamType ||
+      'Exam';
+
+    const filterSubtitle = this.buildRankingsPdfFilterSubtitle();
+
+    this.pdfBusy = true;
+    this.pdfError = '';
+    this.examService
+      .getRankingsPdf({
+        rankingType: this.rankingType,
+        examTypeLabel,
+        filterSubtitle,
+        rankings: this.rankings
+      })
+      .subscribe({
+        next: (blob) => {
+          this.pdfBusy = false;
+          const url = window.URL.createObjectURL(blob);
+          window.open(url, '_blank');
+          setTimeout(() => window.URL.revokeObjectURL(url), 120000);
+        },
+        error: (err: any) => {
+          this.pdfBusy = false;
+          const msg =
+            err?.error?.message ||
+            err?.message ||
+            (typeof err?.error === 'string' ? err.error : null) ||
+            'Could not generate PDF preview.';
+          this.pdfError = msg;
+          console.error(err);
+        }
+      });
+  }
+
+  private buildRankingsPdfFilterSubtitle(): string {
+    if (this.rankingType === 'class') {
+      const cls = this.classes.find((c) => c.id === this.selectedClass);
+      const name = cls?.name || 'Class';
+      return `Class: ${name}`;
+    }
+    if (this.rankingType === 'subject') {
+      const sub = this.subjects.find((s) => s.id === this.selectedSubject);
+      const label = sub
+        ? sub.code
+          ? `${sub.code} — ${sub.name}`
+          : sub.name
+        : 'Subject';
+      return `Subject: ${label}`;
+    }
+    if (this.rankingType === 'overall-performance') {
+      return `Form: ${this.selectedForm || '—'}`;
+    }
+    return '';
   }
 }

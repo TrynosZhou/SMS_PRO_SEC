@@ -24,6 +24,59 @@
   margin-bottom: 1.5rem;
 }
 
+/* Name Search Card (Admin/Accountant) */
+.name-search-card {
+  margin-top: 14px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.name-search-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.name-search-title {
+  font-weight: 900;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.name-search-subtitle {
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.name-search-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 180px;
+  gap: 10px;
+  align-items: end;
+}
+
+.name-search-results {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.results-label {
+  font-weight: 900;
+  color: #111827;
+  font-size: 13px;
+}
+
+.mt-10 {
+  margin-top: 10px;
+}
+
 .search-form label {
   display: block;
   font-weight: 600;
@@ -344,6 +397,101 @@
   margin: 0;
 }
 
+/* Modern quick-pay and preview UI */
+.quick-amounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.quick-label {
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 13px;
+  margin-right: 4px;
+}
+
+.quick-btn {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #111827;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-btn:hover {
+  transform: translateY(-1px);
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.quick-full {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+}
+
+.payment-preview {
+  margin-top: 18px;
+  background: #f0f7ff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.preview-label {
+  color: #2563eb;
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.preview-value {
+  font-weight: 900;
+  font-size: 18px;
+  color: #1f2937;
+  white-space: nowrap;
+}
+
+.preview-suffix {
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #4b5563;
+}
+
+.preview-help {
+  margin-top: 10px;
+  color: #4b5563;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.text-warning {
+  color: #b45309;
+}
+.text-danger {
+  color: #dc2626;
+}
+.text-success {
+  color: #16a34a;
+}
+
+.preview-help strong {
+  font-weight: 900;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .info-section {
@@ -360,6 +508,10 @@
 
   .input-group .btn {
     width: 100%;
+  }
+
+  .name-search-grid {
+    grid-template-columns: 1fr;
   }
 }
 

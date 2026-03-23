@@ -17,7 +17,14 @@ console.log('[Server] ✓ Database configuration imported');
 import routes from './routes';
 console.log('[Server] ✓ Routes loaded');
 
+import { syncStoredStudentNumbersWithSettingsPrefix } from './utils/syncStudentNumbersWithSettingsPrefix';
+import { syncStoredTeacherIdsWithSettingsPrefix } from './utils/syncStoredTeacherIdsWithSettingsPrefix';
+import { ensureETaskTable } from './utils/ensureETaskTable';
+import { ensureETaskSubmissionTable } from './utils/ensureETaskSubmissionTable';
+import { ensureTeacherGenderColumn } from './utils/ensureTeacherGenderColumn';
+
 import * as path from 'path';
+import * as fs from 'fs';
 
 // =================== ENVIRONMENT SETUP ===================
 dotenv.config();
@@ -91,6 +98,30 @@ const uploadsPath = path.join(__dirname, '../../uploads/students');
 console.log('[Server] Serving static files from:', uploadsPath);
 app.use('/uploads/students', express.static(uploadsPath));
 
+// Serve generated payroll PDFs
+const payrollUploadsPath = path.join(__dirname, '../../uploads/payrolls');
+console.log('[Server] Serving static files from:', payrollUploadsPath);
+try {
+  if (!fs.existsSync(payrollUploadsPath)) {
+    fs.mkdirSync(payrollUploadsPath, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[Server] Could not ensure payroll uploads directory exists:', e);
+}
+app.use('/uploads/payrolls', express.static(payrollUploadsPath));
+
+// E-learning task attachments (teachers upload; students download)
+const etaskUploadsPath = path.join(__dirname, '../../uploads/etasks');
+console.log('[Server] Serving static files from:', etaskUploadsPath);
+try {
+  if (!fs.existsSync(etaskUploadsPath)) {
+    fs.mkdirSync(etaskUploadsPath, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[Server] Could not ensure etasks uploads directory exists:', e);
+}
+app.use('/uploads/etasks', express.static(etaskUploadsPath));
+
 // =================== ROUTES ===================
 app.use('/api', routes);
 
@@ -158,6 +189,57 @@ async function bootstrap() {
     await AppDataSource.initialize();
     console.log('[Server] ✓ Database connected successfully');
     console.log('[Server] DataSource.isInitialized:', AppDataSource.isInitialized);
+
+    try {
+      await ensureETaskTable(AppDataSource);
+    } catch (etErr: any) {
+      console.error('[Server] ensureETaskTable failed (e-learning tasks may not work):', etErr?.message || etErr);
+    }
+
+    try {
+      await ensureETaskSubmissionTable(AppDataSource);
+    } catch (esErr: any) {
+      console.error('[Server] ensureETaskSubmissionTable failed (e-learning submissions may not work):', esErr?.message || esErr);
+    }
+
+    try {
+      await ensureTeacherGenderColumn(AppDataSource);
+    } catch (tgErr: any) {
+      console.warn('[Server] ensureTeacherGenderColumn:', tgErr?.message || tgErr);
+    }
+
+    // Ensure existing students use the student ID prefix from settings (one-time alignment per boot)
+    if (process.env.SKIP_STUDENT_ID_PREFIX_SYNC !== 'true') {
+      try {
+        const syncResult = await syncStoredStudentNumbersWithSettingsPrefix();
+        if (syncResult.updated > 0) {
+          console.log(
+            `[Server] Student ID prefix sync: updated ${syncResult.updated}, skipped ${syncResult.skipped}`
+          );
+        }
+        if (syncResult.errors.length > 0) {
+          console.warn('[Server] Student ID prefix sync:', syncResult.errors.join('; '));
+        }
+      } catch (syncErr: any) {
+        console.warn('[Server] Student ID prefix sync skipped/failed:', syncErr?.message || syncErr);
+      }
+    }
+
+    if (process.env.SKIP_TEACHER_ID_PREFIX_SYNC !== 'true') {
+      try {
+        const syncResult = await syncStoredTeacherIdsWithSettingsPrefix();
+        if (syncResult.updated > 0) {
+          console.log(
+            `[Server] Teacher ID prefix sync: updated ${syncResult.updated}, skipped ${syncResult.skipped}`
+          );
+        }
+        if (syncResult.errors.length > 0) {
+          console.warn('[Server] Teacher ID prefix sync:', syncResult.errors.join('; '));
+        }
+      } catch (syncErr: any) {
+        console.warn('[Server] Teacher ID prefix sync skipped/failed:', syncErr?.message || syncErr);
+      }
+    }
 
     // ========== SKIP MIGRATIONS ON STARTUP ==========
     // Migrations should be run manually using: npm run typeorm -- migration:run

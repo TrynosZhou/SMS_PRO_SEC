@@ -1,0 +1,94 @@
+<div class="balance-enquiry-container">
+  <div class="page-header">
+    <h1>Balance Enquiry</h1>
+  </div>
+
+  <div class="search-section">
+    <div class="search-form">
+      <label for="balanceSearch">Student ID / Student Number or First Name / Last Name</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="balanceSearch"
+          class="form-control"
+          placeholder="Enter Student ID / Student Number or name"
+          [(ngModel)]="searchValue"
+          (keyup.enter)="getBalance()"
+        />
+
+        <button type="button" class="btn btn-primary" (click)="getBalance()" [disabled]="loading">
+          <span class="icon">🔍</span> Get Balance
+        </button>
+
+        <button type="button" class="btn btn-secondary" (click)="clear()">
+          <span class="icon">🗑️</span> Clear
+        </button>
+      </div>
+    </div>
+
+    <div class="alert alert-error" *ngIf="error">
+      {{ error }}
+    </div>
+
+    <div
+      class="name-search-results"
+      *ngIf="canSearchByName() && showStudentPicker && nameSearchResults.length > 1"
+    >
+      <label class="results-label">Select Student</label>
+
+      <select class="form-control" [(ngModel)]="nameSearchSelectedStudentKey">
+        <option value="">-- Select --</option>
+        <option *ngFor="let s of nameSearchResults" [value]="s.id || s.studentNumber">
+          {{ s.firstName }} {{ s.lastName }} ({{ s.studentNumber }})
+        </option>
+      </select>
+
+      <button
+        type="button"
+        class="btn btn-primary mt-10"
+        (click)="confirmSelectedStudent()"
+        [disabled]="!nameSearchSelectedStudentKey || nameSearchLoading || loading"
+      >
+        Show Balance
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="studentData" class="info-container">
+    <div class="info-card">
+      <h2>Student Information</h2>
+
+      <div class="info-row">
+        <div class="info-item">
+          <label>Full Name:</label>
+          <div class="info-value">{{ studentData.fullName }}</div>
+        </div>
+        <div class="info-item">
+          <label>Student Number:</label>
+          <div class="info-value">{{ studentData.studentNumber }}</div>
+        </div>
+      </div>
+
+      <div class="info-row">
+        <div class="info-item">
+          <label>Current Balance:</label>
+          <div class="info-value balance-amount">
+            {{ currencySymbol }} {{ formatCurrency(studentData.balance) }}
+          </div>
+        </div>
+      </div>
+
+      <div class="info-row" *ngIf="studentData.lastInvoiceNumber">
+        <div class="info-item">
+          <label>Latest Invoice:</label>
+          <div class="info-value">{{ studentData.lastInvoiceNumber }}</div>
+        </div>
+        <div class="info-item">
+          <label>Latest Term:</label>
+          <div class="info-value">{{ studentData.lastInvoiceTerm }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

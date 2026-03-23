@@ -67,7 +67,8 @@ export class ReportCardComponent implements OnInit {
   loadingTerms = false;
   parentStudentClassName = '';
   schoolLogo: string | null = null;
-  schoolLogo2: string | null = null;
+  /** School name from settings (banner fallback / labels) */
+  schoolName = '';
   gradeThresholds: any = null;
   gradeLabels: any = null;
   
@@ -258,12 +259,38 @@ export class ReportCardComponent implements OnInit {
     });
   }
 
+  /** Normalize School Logo 1 / 2 from API (data URL, URL, or raw base64). */
+  private normalizeSchoolLogo(raw: string | null | undefined): string | null {
+    if (!raw || typeof raw !== 'string') {
+      return null;
+    }
+    const v = raw.trim();
+    if (!v || v === 'null' || v === 'undefined') {
+      return null;
+    }
+    if (v.startsWith('data:image')) {
+      return v;
+    }
+    if (v.startsWith('http://') || v.startsWith('https://')) {
+      return v;
+    }
+    if (v.length > 100) {
+      return v.startsWith('data:') ? v : `data:image/png;base64,${v}`;
+    }
+    return v;
+  }
+
   loadSettings() {
     this.settingsService.getSettings().subscribe({
-      next: (data: any) => {
+      next: (raw: any) => {
+        const data = Array.isArray(raw) && raw.length > 0 ? raw[0] : raw;
+        if (!data) {
+          return;
+        }
         this.currencySymbol = data.currencySymbol || 'KES';
-        this.schoolLogo = data.schoolLogo || null;
-        this.schoolLogo2 = data.schoolLogo2 || null;
+        this.schoolName = (data.schoolName && String(data.schoolName).trim()) || '';
+        // Logo 1 — full-width banner image (letterhead); Logo 2 is not used on report cards
+        this.schoolLogo = this.normalizeSchoolLogo(data.schoolLogo);
         this.gradeThresholds = data.gradeThresholds || {
           excellent: 90,
           veryGood: 80,

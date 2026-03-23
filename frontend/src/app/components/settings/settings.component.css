@@ -552,3 +552,17 @@ fieldset.demo-readonly {
   font-style: italic;
 }
 
+.danger-zone {
+  border: 2px solid #f8d7da;
+  background: #fff5f5;
+}
+
+.danger-zone h2 {
+  border-bottom-color: #dc3545;
+  color: #7f1d1d;
+}
+
+.reset-confirmation-group {
+  margin-bottom: 14px;
+}
+

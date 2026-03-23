@@ -15,6 +15,7 @@ import { Attendance, AttendanceStatus } from '../entities/Attendance';
 import { AuthRequest } from '../middleware/auth';
 import { createReportCardPDF } from '../utils/pdfGenerator';
 import { createMarkSheetPDF } from '../utils/markSheetPdfGenerator';
+import { createRankingsPDF } from '../utils/rankingsPdfGenerator';
 import OpenAI from 'openai';
 
 // Helper function to assign positions with proper tie handling
@@ -1455,7 +1456,7 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
 
       // Check if term balance allows access (term balance must be zero)
       if (termBalance > 0) {
-        const currencySymbol = settings?.currencySymbol || 'KES';
+        const currencySymbol = settings?.currencySymbol || '$';
         return res.status(403).json({ 
           message: `Report card access is restricted. Please clear the outstanding term balance of ${currencySymbol} ${termBalance.toFixed(2)} to view the report card.`,
           balance: termBalance
@@ -1692,9 +1693,6 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
     function getGradeInfo(percentage: number): { key: GradeKey; label: string } {
       if (percentage === 0) {
         return { key: 'fail', label: gradeLabels.fail || 'UNCLASSIFIED' };
-      }
-      if (percentage >= (thresholds.excellent || 90)) {
-        return { key: 'excellent', label: gradeLabels.excellent || 'OUTSTANDING' };
       }
       if (percentage >= (thresholds.veryGood || 80)) {
         return { key: 'veryGood', label: gradeLabels.veryGood || 'VERY HIGH' };
@@ -2233,7 +2231,7 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
 
       // Check if term balance allows access (term balance must be zero)
       if (termBalance > 0) {
-        const currencySymbol = settings?.currencySymbol || 'KES';
+        const currencySymbol = settings?.currencySymbol || '$';
         return res.status(403).json({ 
           message: `Report card access is restricted. Please clear the outstanding term balance of ${currencySymbol} ${termBalance.toFixed(2)} to view the report card.`,
           balance: termBalance
@@ -2295,7 +2293,6 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
 
     type GradeKeyPdf = keyof typeof gradePointsPdf;
     const getGradeInfoPdf = (percentage: number): { key: GradeKeyPdf; label: string } => {
-      if (percentage >= (thresholdsPdf.excellent || 90)) return { key: 'excellent', label: gradeLabelsPdf.excellent || 'Excellent' };
       if (percentage >= (thresholdsPdf.veryGood || 80)) return { key: 'veryGood', label: gradeLabelsPdf.veryGood || 'Very Good' };
       if (percentage >= (thresholdsPdf.good || 70)) return { key: 'good', label: gradeLabelsPdf.good || 'Good' };
       if (percentage >= (thresholdsPdf.satisfactory || 60)) return { key: 'satisfactory', label: gradeLabelsPdf.satisfactory || 'Satisfactory' };
@@ -3141,11 +3138,6 @@ export const generateMarkSheetPDF = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Class ID and exam type are required' });
     }
 
-    // For teachers, subjectId is required
-    if (isTeacher && !subjectId) {
-      return res.status(400).json({ message: 'Subject ID is required for teachers' });
-    }
-
     const studentRepository = AppDataSource.getRepository(Student);
     const examRepository = AppDataSource.getRepository(Exam);
     const marksRepository = AppDataSource.getRepository(Marks);
@@ -3359,11 +3351,72 @@ export const generateMarkSheetPDF = async (req: AuthRequest, res: Response) => {
     // Generate PDF
     const pdfBuffer = await createMarkSheetPDF(pdfData, settings);
 
+    const download =
+      req.query.download === '1' ||
+      req.query.download === 'true' ||
+      String(req.query.download || '').toLowerCase() === 'yes';
+
+    const safeClass = String(classEntity.name || 'class').replace(/[^a-zA-Z0-9-_]/g, '_');
+    const safeExam = String(examType || 'exam').replace(/[^a-zA-Z0-9-_]/g, '_');
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `mark-sheet-${safeClass}-${safeExam}-${dateStr}.pdf`;
+
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="mark-sheet-${classEntity.name}-${examType}-${new Date().toISOString().split('T')[0]}.pdf"`);
+    res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${fileName}"`);
     return res.send(pdfBuffer);
   } catch (error: any) {
     console.error('Error generating mark sheet PDF:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+/** POST body: rankingType, examTypeLabel, filterSubtitle, rankings — returns PDF preview (inline). */
+export const generateRankingsPDF = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { rankingType, examTypeLabel, filterSubtitle, rankings } = req.body;
+
+    if (!rankingType || !['class', 'subject', 'overall-performance'].includes(String(rankingType))) {
+      return res.status(400).json({ message: 'Valid rankingType is required (class, subject, or overall-performance)' });
+    }
+    if (examTypeLabel === undefined || examTypeLabel === null || String(examTypeLabel).trim() === '') {
+      return res.status(400).json({ message: 'examTypeLabel is required' });
+    }
+    if (filterSubtitle === undefined || filterSubtitle === null) {
+      return res.status(400).json({ message: 'filterSubtitle is required' });
+    }
+    if (!Array.isArray(rankings)) {
+      return res.status(400).json({ message: 'rankings must be an array' });
+    }
+
+    const settingsRepository = AppDataSource.getRepository(Settings);
+    const settingsList = await settingsRepository.find({
+      order: { createdAt: 'DESC' },
+      take: 1
+    });
+    const settings = settingsList.length > 0 ? settingsList[0] : null;
+
+    const pdfBuffer = await createRankingsPDF(
+      {
+        rankingType: rankingType as 'class' | 'subject' | 'overall-performance',
+        examTypeLabel: String(examTypeLabel).trim(),
+        filterSubtitle: String(filterSubtitle).trim() || '—',
+        rankings
+      },
+      settings
+    );
+
+    const safeType = String(rankingType).replace(/[^a-zA-Z0-9-_]/g, '_');
+    const fileName = `rankings-${safeType}-${new Date().toISOString().split('T')[0]}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    return res.send(pdfBuffer);
+  } catch (error: any) {
+    console.error('Error generating rankings PDF:', error);
     res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
   }
 };

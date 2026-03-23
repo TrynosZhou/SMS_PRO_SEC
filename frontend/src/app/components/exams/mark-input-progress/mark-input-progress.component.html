@@ -8,7 +8,7 @@
     <div class="filters-grid">
       <div class="filter-group">
         <label for="examSelect">Exam</label>
-        <select id="examSelect" [(ngModel)]="selectedExamId" class="form-control">
+        <select id="examSelect" [(ngModel)]="selectedExamId" class="form-control" (change)="onAnyFilterChange()">
           <option value="">All Exams</option>
           <option *ngFor="let exam of exams" [value]="exam.id">
             {{ exam.name }} ({{ exam.type }}) - {{ exam.term || 'N/A' }}
@@ -18,7 +18,7 @@
 
       <div class="filter-group">
         <label for="subjectSelect">Subject Name</label>
-        <select id="subjectSelect" [(ngModel)]="selectedSubjectId" (change)="onSubjectChange()" class="form-control">
+        <select id="subjectSelect" [(ngModel)]="selectedSubjectId" (change)="onSubjectChange(); onAnyFilterChange()" class="form-control">
           <option value="">All Subjects</option>
           <option *ngFor="let subject of subjects" [value]="subject.id">
             {{ subject.name }}
@@ -28,7 +28,7 @@
 
       <div class="filter-group">
         <label for="subjectCodeSelect">Subject Code</label>
-        <select id="subjectCodeSelect" [(ngModel)]="selectedSubjectCode" (change)="onSubjectCodeChange()" class="form-control">
+        <select id="subjectCodeSelect" [(ngModel)]="selectedSubjectCode" (change)="onSubjectCodeChange(); onAnyFilterChange()" class="form-control">
           <option value="">All Subject Codes</option>
           <option *ngFor="let subject of subjects" [value]="subject.code">
             {{ subject.code }}
@@ -38,7 +38,7 @@
 
       <div class="filter-group">
         <label for="examTypeSelect">Exam Type</label>
-        <select id="examTypeSelect" [(ngModel)]="selectedExamType" class="form-control">
+        <select id="examTypeSelect" [(ngModel)]="selectedExamType" class="form-control" (change)="onAnyFilterChange()">
           <option value="">All Types</option>
           <option *ngFor="let type of examTypes" [value]="type.value">
             {{ type.label }}
@@ -57,6 +57,17 @@
           readonly>
         <small class="form-text text-muted">Fetched from Settings (Active Term)</small>
       </div>
+
+      <div class="filter-group filter-search">
+        <label for="classSearch">Search Class</label>
+        <input
+          id="classSearch"
+          type="text"
+          class="form-control"
+          placeholder="e.g., Grade 2, 2B, ECD A..."
+          [(ngModel)]="classSearch"
+        />
+      </div>
     </div>
 
     <div class="filter-actions">
@@ -68,6 +79,13 @@
         Reset Filters
       </button>
     </div>
+
+    <div class="auto-load-row">
+      <label class="auto-load-label">
+        <input type="checkbox" [(ngModel)]="autoLoadProgress" />
+        Auto-load on filter change
+      </label>
+    </div>
   </div>
 
   <div class="alert alert-danger" *ngIf="error">
@@ -76,17 +94,61 @@
 
   <div class="progress-dashboard" *ngIf="progressData">
     <div class="dashboard-header">
-      <h3>Progress Dashboard</h3>
+      <div class="dashboard-title-row">
+        <h3>Progress Dashboard</h3>
+        <div class="dashboard-last-updated" *ngIf="lastLoadedAt">
+          Last updated: {{ lastLoadedAt | date:'short' }}
+        </div>
+      </div>
       <div class="filters-info" *ngIf="progressData.filters">
         <span *ngIf="progressData.filters.examId">Exam: Selected | </span>
         <span *ngIf="progressData.filters.subjectId">Subject: Selected | </span>
         <span *ngIf="progressData.filters.term">Term: {{ progressData.filters.term }} | </span>
         <span *ngIf="progressData.filters.examType">Type: {{ progressData.filters.examType }}</span>
       </div>
+
+      <div class="view-toggle">
+        <button type="button" class="btn btn-view" [class.active]="viewMode === 'cards'" (click)="viewMode = 'cards'">
+          Cards
+        </button>
+        <button type="button" class="btn btn-view" [class.active]="viewMode === 'table'" (click)="viewMode = 'table'">
+          Table
+        </button>
+      </div>
     </div>
 
-    <div class="streams-container" *ngIf="progressData.progress && progressData.progress.length > 0">
-      <div class="stream-card" *ngFor="let stream of progressData.progress">
+    <div class="quick-stats" *ngIf="filteredProgress.length > 0">
+      <div class="stat-card">
+        <div class="stat-label">Total Students</div>
+        <div class="stat-value">{{ overallStats.totalStudents }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Students With Marks</div>
+        <div class="stat-value">{{ overallStats.withMarks }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Overall Completion</div>
+        <div class="stat-value">{{ overallStats.completion }}%</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot legend-completed"></span> On Track (80+)
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-almost"></span> Almost Done (50+)
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-progress"></span> In Progress (25+)
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-started"></span> Started / Not started
+      </div>
+    </div>
+
+    <div class="streams-container" *ngIf="viewMode === 'cards' && filteredProgress.length > 0">
+      <div class="stream-card" *ngFor="let stream of filteredProgress">
         <div class="stream-header">
           <h4>{{ stream.stream }}</h4>
           <div class="stream-summary">
@@ -114,7 +176,9 @@
           <div class="class-card" *ngFor="let classData of stream.classes">
             <div class="class-header">
               <h5>{{ classData.className }}</h5>
-              <span class="class-completion">{{ classData.completionPercentage }}%</span>
+              <span class="class-completion">
+                {{ classData.completionPercentage }}%
+              </span>
             </div>
             
             <div class="class-progress-bar">
@@ -144,8 +208,52 @@
       </div>
     </div>
 
-    <div class="no-data" *ngIf="!progressData.progress || progressData.progress.length === 0">
+    <div class="no-data" *ngIf="viewMode === 'cards' && filteredProgress.length === 0">
       <p>No progress data available for the selected filters.</p>
+    </div>
+
+    <!-- Table view -->
+    <div class="table-view" *ngIf="viewMode === 'table'">
+      <div class="no-data" *ngIf="filteredProgress.length === 0">
+        <p>No progress data available for the selected filters.</p>
+      </div>
+
+      <div class="progress-table-wrap" *ngIf="filteredProgress.length > 0">
+        <table class="progress-table">
+          <thead>
+            <tr>
+              <th>Stream</th>
+              <th>Class</th>
+              <th>Total</th>
+              <th>With Marks</th>
+              <th>Completion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let stream of filteredProgress">
+              <tr *ngFor="let classData of stream.classes">
+                <td class="nowrap">{{ stream.stream }}</td>
+                <td>{{ classData.className }}</td>
+                <td>{{ classData.totalStudents }}</td>
+                <td>{{ classData.studentsWithMarks }}</td>
+                <td>
+                  <div class="completion-cell">
+                    <div class="completion-badge" [ngClass]="getCompletionStatus(classData.completionPercentage).cls">
+                      {{ classData.completionPercentage }}% - {{ getCompletionStatus(classData.completionPercentage).label }}
+                    </div>
+                    <div class="mini-bar">
+                      <div class="mini-fill"
+                        [style.width]="getProgressWidth(classData.completionPercentage)"
+                        [style.background-color]="getProgressColor(classData.completionPercentage)">
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 

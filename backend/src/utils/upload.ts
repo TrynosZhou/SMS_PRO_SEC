@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import { Request } from 'express';
 
 // Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../../uploads/students');
+// Must match server.ts: repo root uploads/ (src/utils → ../../../)
+const uploadsDir = path.join(__dirname, '../../../uploads/students');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }

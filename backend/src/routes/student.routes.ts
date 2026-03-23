@@ -10,12 +10,14 @@ import {
   deleteStudent,
   promoteStudents,
   generateStudentIdCard,
+  generateClassStudentIdCardsPDF,
   getDHServicesReport,
   getTransportServicesReport,
   generateClassListPDF,
   getStudentReportCard,
   getStudentInvoiceBalance,
-  downloadStudentReportCardPDF
+  downloadStudentReportCardPDF,
+  getCurrentStudent
 } from '../controllers/student.controller';
 import { upload } from '../utils/upload';
 
@@ -32,8 +34,11 @@ router.get('/reports/transport-services', authenticate, authorize(UserRole.SUPER
 router.get('/dashboard/report-card', authenticate, getStudentReportCard);
 router.get('/dashboard/report-card/pdf', authenticate, downloadStudentReportCardPDF);
 router.get('/dashboard/invoice-balance', authenticate, getStudentInvoiceBalance);
+// Current student profile — must be before /:id
+router.get('/me', authenticate, getCurrentStudent);
 // Class list PDF route - must be before /:id routes to avoid route conflicts
 router.get('/class-list/pdf', authenticate, generateClassListPDF);
+router.get('/class/:classId/id-cards-pdf', authenticate, generateClassStudentIdCardsPDF);
 router.get('/:id/id-card', authenticate, generateStudentIdCard);
 router.get('/:id', authenticate, getStudentById);
 router.put('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.DEMO_USER), upload.single('photo'), updateStudent);

@@ -4,7 +4,19 @@ import { Settings } from '../entities/Settings';
 import { Invoice, InvoiceStatus } from '../entities/Invoice';
 import { Student } from '../entities/Student';
 import { UniformItem } from '../entities/UniformItem';
+import { Teacher } from '../entities/Teacher';
+import { Payment } from '../entities/Payment';
+import { InvoiceUniformItem } from '../entities/InvoiceUniformItem';
+import { Marks } from '../entities/Marks';
+import { Attendance } from '../entities/Attendance';
+import { StudentTransfer } from '../entities/StudentTransfer';
+import { StudentEnrollment } from '../entities/StudentEnrollment';
+import { ReportCardRemarks } from '../entities/ReportCardRemarks';
+import { Message } from '../entities/Message';
+import { User, UserRole } from '../entities/User';
 import { AuthRequest } from '../middleware/auth';
+import { syncStoredStudentNumbersWithSettingsPrefix } from '../utils/syncStudentNumbersWithSettingsPrefix';
+import { syncStoredTeacherIdsWithSettingsPrefix } from '../utils/syncStoredTeacherIdsWithSettingsPrefix';
 
 const DEFAULT_MODULE_ACCESS: Settings['moduleAccess'] = {
   teachers: {
@@ -109,6 +121,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
         // Create default settings
         settings = settingsRepository.create({
           studentIdPrefix: 'JPS',
+          teacherIdPrefix: 'JPST',
           feesSettings: {
             dayScholarTuitionFee: 0,
             boarderTuitionFee: 0,
@@ -130,7 +143,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
           gradePoints: DEFAULT_GRADE_POINTS,
           academicYear: new Date().getFullYear().toString(),
           currentTerm: `Term 1 ${new Date().getFullYear()}`,
-          currencySymbol: 'KES',
+          currencySymbol: '$',
           moduleAccess: ensureModuleAccessDefaults()
         });
         await settingsRepository.save(settings);
@@ -139,6 +152,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
         // If we can't create settings, return default object
         return res.json({
           studentIdPrefix: 'JPS',
+          teacherIdPrefix: 'JPST',
           feesSettings: {
             dayScholarTuitionFee: 0,
             boarderTuitionFee: 0,
@@ -268,6 +282,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
 
     const {
       studentIdPrefix,
+      teacherIdPrefix,
       feesSettings,
       gradeThresholds,
       gradeLabels,
@@ -297,6 +312,9 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     // Update fields
     if (studentIdPrefix !== undefined) {
       settings.studentIdPrefix = String(studentIdPrefix).trim();
+    }
+    if (teacherIdPrefix !== undefined) {
+      settings.teacherIdPrefix = String(teacherIdPrefix).trim();
     }
     if (feesSettings !== undefined) {
       // Migrate old tuitionFee to both dayScholarTuitionFee and boarderTuitionFee if needed
@@ -397,7 +415,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       settings.termEndDate = termEndDate ? new Date(termEndDate) : null;
     }
     if (currencySymbol !== undefined) {
-      settings.currencySymbol = String(currencySymbol).trim() || 'KES';
+      settings.currencySymbol = String(currencySymbol).trim() || '$';
     }
     if (moduleAccess !== undefined) {
       settings.moduleAccess = ensureModuleAccessDefaults(moduleAccess);
@@ -407,6 +425,40 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
 
     settings.updatedAt = new Date();
     await settingsRepository.save(settings);
+
+    // Align stored student numbers with the configured prefix (existing DB rows)
+    if (studentIdPrefix !== undefined) {
+      try {
+        const syncResult = await syncStoredStudentNumbersWithSettingsPrefix();
+        if (syncResult.updated > 0) {
+          console.log(
+            `[Settings] Student ID prefix sync: updated ${syncResult.updated}, skipped ${syncResult.skipped}`
+          );
+        }
+        if (syncResult.errors.length > 0) {
+          console.error('[Settings] Student ID prefix sync errors:', syncResult.errors);
+        }
+      } catch (syncErr: any) {
+        console.error('[Settings] Student ID prefix sync failed:', syncErr?.message || syncErr);
+      }
+    }
+
+    // Align stored teacher IDs with the configured prefix (existing DB rows)
+    if (teacherIdPrefix !== undefined) {
+      try {
+        const syncResult = await syncStoredTeacherIdsWithSettingsPrefix();
+        if (syncResult.updated > 0) {
+          console.log(
+            `[Settings] Teacher ID prefix sync: updated ${syncResult.updated}, skipped ${syncResult.skipped}`
+          );
+        }
+        if (syncResult.errors.length > 0) {
+          console.error('[Settings] Teacher ID prefix sync errors:', syncResult.errors);
+        }
+      } catch (syncErr: any) {
+        console.error('[Settings] Teacher ID prefix sync failed:', syncErr?.message || syncErr);
+      }
+    }
 
     const responseSettings = { ...settings };
 
@@ -885,6 +937,108 @@ export const deleteUniformItem = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('Error deleting uniform item:', error);
     res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+export const resetCoreData = async (req: AuthRequest, res: Response) => {
+  const queryRunner = AppDataSource.createQueryRunner();
+
+  try {
+    const confirmationWord = String(req.body?.confirmationWord || '').trim();
+    if (confirmationWord !== 'RESET') {
+      return res.status(400).json({ message: 'Invalid confirmation word. Type RESET to continue.' });
+    }
+
+    if (req.user?.isDemo) {
+      return res.status(403).json({ message: 'Demo accounts cannot perform data reset.' });
+    }
+
+    if (req.user?.role !== UserRole.ADMIN && req.user?.role !== UserRole.SUPERADMIN) {
+      return res.status(403).json({ message: 'Only administrators can perform this reset.' });
+    }
+
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    const studentRepository = queryRunner.manager.getRepository(Student);
+    const teacherRepository = queryRunner.manager.getRepository(Teacher);
+    const userRepository = queryRunner.manager.getRepository(User);
+    const paymentRepository = queryRunner.manager.getRepository(Payment);
+    const invoiceUniformItemRepository = queryRunner.manager.getRepository(InvoiceUniformItem);
+    const invoiceRepository = queryRunner.manager.getRepository(Invoice);
+    const marksRepository = queryRunner.manager.getRepository(Marks);
+    const attendanceRepository = queryRunner.manager.getRepository(Attendance);
+    const transferRepository = queryRunner.manager.getRepository(StudentTransfer);
+    const enrollmentRepository = queryRunner.manager.getRepository(StudentEnrollment);
+    const remarksRepository = queryRunner.manager.getRepository(ReportCardRemarks);
+    const messageRepository = queryRunner.manager.getRepository(Message);
+
+    const students = await studentRepository.find({ select: ['userId'] });
+    const teachers = await teacherRepository.find({ select: ['userId'] });
+    const linkedUserIds = [...students, ...teachers]
+      .map(record => record.userId)
+      .filter((id): id is string => !!id);
+
+    // Remove records that may reference student/teacher data first.
+    const deletedMessages = await messageRepository.delete({});
+    const deletedRemarks = await remarksRepository.delete({});
+    const deletedAttendance = await attendanceRepository.delete({});
+    const deletedTransfers = await transferRepository.delete({});
+    const deletedEnrollments = await enrollmentRepository.delete({});
+    const deletedMarks = await marksRepository.delete({});
+    const deletedPayments = await paymentRepository.delete({});
+    const deletedInvoiceItems = await invoiceUniformItemRepository.delete({});
+    const deletedInvoices = await invoiceRepository.delete({});
+    const deletedTeachers = await teacherRepository.delete({});
+    const deletedStudents = await studentRepository.delete({});
+
+    let deletedUsersCount = 0;
+    if (linkedUserIds.length > 0) {
+      const deletedUsers = await userRepository
+        .createQueryBuilder()
+        .delete()
+        .from(User)
+        .where('id IN (:...ids)', { ids: linkedUserIds })
+        .execute();
+      deletedUsersCount = deletedUsers.affected || 0;
+    }
+
+    await queryRunner.commitTransaction();
+
+    return res.json({
+      message: 'Reset completed. Student, teacher, and transaction data has been erased while settings were retained.',
+      summary: {
+        studentsDeleted: deletedStudents.affected || 0,
+        teachersDeleted: deletedTeachers.affected || 0,
+        studentTeacherUsersDeleted: deletedUsersCount,
+        invoicesDeleted: deletedInvoices.affected || 0,
+        paymentsDeleted: deletedPayments.affected || 0,
+        invoiceItemsDeleted: deletedInvoiceItems.affected || 0,
+        marksDeleted: deletedMarks.affected || 0,
+        enrollmentsDeleted: deletedEnrollments.affected || 0,
+        transfersDeleted: deletedTransfers.affected || 0,
+        attendanceDeleted: deletedAttendance.affected || 0,
+        reportCardRemarksDeleted: deletedRemarks.affected || 0,
+        messagesDeleted: deletedMessages.affected || 0
+      }
+    });
+  } catch (error: any) {
+    if (queryRunner.isTransactionActive) {
+      await queryRunner.rollbackTransaction();
+    }
+    console.error('Error resetting core data:', error);
+    return res.status(500).json({
+      message: 'Failed to reset data',
+      error: error?.message || 'Unknown error'
+    });
+  } finally {
+    if (queryRunner.isReleased === false) {
+      await queryRunner.release();
+    }
   }
 };
 

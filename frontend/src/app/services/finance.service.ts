@@ -78,5 +78,46 @@ export class FinanceService {
   getOutstandingBalances(): Observable<any> {
     return this.http.get(`${this.apiUrl}/finance/outstanding-balances`);
   }
+
+  /**
+   * Correct prepaid carry-forward for a student's invoices.
+   * Recalculates subsequent invoices based on a corrected remaining prepaid amount.
+   */
+  correctPrepaid(payload: {
+    studentId: string;
+    fromInvoiceId: string;
+    correctedPrepaidAmount: number;
+    strategy?: 'carryOutOnly';
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/finance/correct-prepaid`, payload);
+  }
+
+  /**
+   * Apply a credit note (tuition reduction) for a student who was overcharged.
+   * Reduces the latest invoice balance. Excess credit is carried forward as prepaid for the next term.
+   */
+  applyCreditNote(studentId: string, creditAmount: number): Observable<any> {
+    return this.http.post(`${this.apiUrl}/finance/credit-note`, { studentId, creditAmount });
+  }
+
+  /**
+   * Apply a debit note (correction for undercharge) for a student.
+   * Adds the debit amount to the latest invoice balance.
+   */
+  applyDebitNote(studentId: string, debitAmount: number): Observable<any> {
+    return this.http.post(`${this.apiUrl}/finance/debit-note`, { studentId, debitAmount });
+  }
+
+  /**
+   * Add uniform line items to the student's latest invoice.
+   * billingMode: 'invoice' (bill to balance) | 'cash' (paid immediately, shown on invoice).
+   */
+  addUniformToInvoice(payload: {
+    studentId: string;
+    uniformItems: Array<{ itemId: string; quantity: number }>;
+    billingMode: 'invoice' | 'cash';
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/finance/add-uniform`, payload);
+  }
 }
 

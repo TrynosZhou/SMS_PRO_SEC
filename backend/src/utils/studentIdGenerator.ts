@@ -2,6 +2,49 @@ import { AppDataSource } from '../config/database';
 import { Student } from '../entities/Student';
 import { Settings } from '../entities/Settings';
 
+const DEFAULT_PREFIX = 'SCH';
+
+/**
+ * Normalize the student ID prefix from settings (same rules as ID generation).
+ * AAA — first three letters, letters only, padded/truncated to 3 chars.
+ */
+export function sanitizeStudentIdPrefix(raw?: string | null): string {
+  let prefix = (raw ?? '').trim();
+  prefix = prefix.replace(/[^A-Za-z]/g, '').toUpperCase();
+  if (!prefix) {
+    prefix = DEFAULT_PREFIX;
+  }
+  if (prefix.length < 3) {
+    prefix = (prefix + 'XXX').slice(0, 3);
+  } else if (prefix.length > 3) {
+    prefix = prefix.slice(0, 3);
+  }
+  return prefix;
+}
+
+/**
+ * Loads the current student ID prefix from the latest settings row.
+ */
+export async function getStudentIdPrefixFromSettings(): Promise<string> {
+  if (!AppDataSource.isInitialized) {
+    await AppDataSource.initialize();
+  }
+  const settingsRepository = AppDataSource.getRepository(Settings);
+  let raw: string | undefined;
+  try {
+    const settings = await settingsRepository.findOne({
+      where: {},
+      order: { createdAt: 'DESC' }
+    });
+    if (settings?.studentIdPrefix) {
+      raw = settings.studentIdPrefix.trim();
+    }
+  } catch (error) {
+    console.warn('Could not load settings for student ID prefix, using default:', error);
+  }
+  return sanitizeStudentIdPrefix(raw);
+}
+
 /**
  * Generates a unique student ID with structure:
  * AAA###YYYY
@@ -16,32 +59,8 @@ export async function generateStudentId(): Promise<string> {
   }
 
   const studentRepository = AppDataSource.getRepository(Student);
-  const settingsRepository = AppDataSource.getRepository(Settings);
-  
-  // Get prefix from settings, default to 'SCH' if not found
-  let prefix = 'SCH';
-  try {
-    const settings = await settingsRepository.findOne({
-      where: {},
-      order: { createdAt: 'DESC' }
-    });
-    if (settings && settings.studentIdPrefix) {
-      prefix = settings.studentIdPrefix.trim();
-    }
-  } catch (error) {
-    console.warn('Could not load settings for student ID prefix, using default:', error);
-  }
 
-  // Sanitize prefix to letters only and ensure 3 characters
-  prefix = prefix.replace(/[^A-Za-z]/g, '').toUpperCase();
-  if (!prefix) {
-    prefix = 'SCH';
-  }
-  if (prefix.length < 3) {
-    prefix = (prefix + 'XXX').slice(0, 3);
-  } else if (prefix.length > 3) {
-    prefix = prefix.slice(0, 3);
-  }
+  const prefix = await getStudentIdPrefixFromSettings();
 
   const currentYear = new Date().getFullYear().toString();
   

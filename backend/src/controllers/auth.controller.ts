@@ -6,9 +6,14 @@ import { User, UserRole } from '../entities/User';
 import { Student } from '../entities/Student';
 import { Teacher } from '../entities/Teacher';
 import { Parent } from '../entities/Parent';
+import { UserActivityLog } from '../entities/UserActivityLog';
 import { resetDemoDataForLogin } from '../utils/resetDemoData';
 import { ensureDemoDataAvailable } from '../utils/demoDataEnsurer';
 import { AuthRequest } from '../middleware/auth';
+import { IsNull } from 'typeorm';
+import { ensureUserActivityLogTable } from '../utils/ensureUserActivityLogTable';
+import { generateStudentId } from '../utils/studentIdGenerator';
+import { calculateAge } from '../utils/ageUtils';
 
 export const login = async (req: Request, res: Response) => {
   try {
@@ -388,6 +393,7 @@ export const login = async (req: Request, res: Response) => {
         firstName: teacher.firstName,
         lastName: teacher.lastName,
         fullName: fullName, // Already formatted as LastName + FirstName
+        gender: teacher.gender ?? null,
         phoneNumber: teacher.phoneNumber,
         address: teacher.address,
         dateOfBirth: teacher.dateOfBirth,
@@ -466,6 +472,44 @@ export const login = async (req: Request, res: Response) => {
       if (user.parent) response.user.parent = user.parent;
     }
 
+    // Record login activity for admin/accountant/superadmin
+    if ([UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SUPERADMIN].includes(user.role)) {
+      try {
+        await ensureUserActivityLogTable();
+
+        const repo = AppDataSource.getRepository(UserActivityLog);
+
+        // Close any previously active session for this user (should usually not happen)
+        const previousActive = await repo.findOne({
+          where: { userId: user.id, logoutAt: IsNull() },
+          order: { loginAt: 'DESC' }
+        });
+        if (previousActive) {
+          previousActive.logoutAt = new Date();
+          await repo.save(previousActive);
+        }
+
+        const log = repo.create({
+          userId: user.id,
+          username: user.username,
+          role: user.role,
+          loginAt: new Date(),
+          logoutAt: null,
+          menusAccessed: null,
+          lastMenuAccessed: null
+        });
+
+        await repo.save(log);
+      } catch (activityErr: any) {
+        // Do not block login if activity logging fails
+        if (activityErr?.code === '42P01') {
+          // Table missing even after ensure (very unlikely); ignore.
+          return;
+        }
+        console.error('Login activity logging error:', activityErr?.message || activityErr);
+      }
+    }
+
     res.json(response);
   } catch (error: any) {
     console.error('Login error:', error);
@@ -475,7 +519,23 @@ export const login = async (req: Request, res: Response) => {
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, username, password, role, ...profileData } = req.body;
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const {
+      email,
+      username,
+      password,
+      role,
+      firstName,
+      lastName,
+      phoneNumber,
+      contactNumber,
+      dateOfBirth,
+      gender,
+    } = req.body;
+
     const userRepository = AppDataSource.getRepository(User);
 
     // Validate password length (minimum 8 characters)
@@ -483,63 +543,117 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Password must be at least 8 characters long' });
     }
 
-    // Check if email already exists
-    const existingUserByEmail = await userRepository.findOne({ where: { email } });
-    if (existingUserByEmail) {
-      return res.status(400).json({ message: 'Email already exists' });
+    if (!username || !String(username).trim()) {
+      return res.status(400).json({ message: 'Username is required' });
     }
 
-    // Check if username already exists (if provided)
-    if (username) {
-      const existingUserByUsername = await userRepository.findOne({ where: { username } });
-      if (existingUserByUsername) {
-        return res.status(400).json({ message: 'Username already exists' });
+    const requestedRole = role ? (role.toLowerCase() as UserRole) : null;
+
+    // Public self-registration: only Student and Parent. Staff accounts are created by administrators.
+    if (requestedRole !== UserRole.STUDENT && requestedRole !== UserRole.PARENT) {
+      return res.status(400).json({
+        message:
+          'Self-registration is only available for Student and Parent accounts. Administrator, Accountant, and Teacher accounts must be created from Manage Accounts.',
+      });
+    }
+
+    let userEmail: string | null = null;
+    if (requestedRole === UserRole.PARENT) {
+      if (!email || !String(email).trim()) {
+        return res.status(400).json({ message: 'Email is required for parent registration' });
+      }
+      if (!gender || !String(gender).trim()) {
+        return res.status(400).json({ message: 'Gender is required for parent registration' });
+      }
+      userEmail = String(email).trim();
+    } else if (requestedRole === UserRole.STUDENT) {
+      userEmail = `${String(username).trim()}@student.local`;
+    }
+
+    if (userEmail) {
+      const existingUserByEmail = await userRepository.findOne({ where: { email: userEmail } });
+      if (existingUserByEmail) {
+        return res.status(400).json({ message: 'Email already exists' });
       }
     }
 
-    // Validate role - only allow SUPERADMIN, ADMIN, and PARENT for self-registration
-    const allowedRoles = [UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.PARENT];
-    const requestedRole = role ? (role.toLowerCase() as UserRole) : UserRole.STUDENT;
-    
-    if (!allowedRoles.includes(requestedRole)) {
-      return res.status(400).json({ message: 'Invalid role for self-registration. Teachers must use temporary accounts provided by administrator.' });
+    const existingUserByUsername = await userRepository.findOne({ where: { username: String(username).trim() } });
+    if (existingUserByUsername) {
+      return res.status(400).json({ message: 'Username already exists' });
+    }
+
+    if (!firstName || !lastName) {
+      return res.status(400).json({ message: 'First name and last name are required' });
+    }
+
+    if (requestedRole === UserRole.STUDENT) {
+      if (!dateOfBirth) {
+        return res.status(400).json({ message: 'Date of birth is required for student registration' });
+      }
+      if (!gender) {
+        return res.status(400).json({ message: 'Gender is required for student registration' });
+      }
+      let parsedDateOfBirth: Date;
+      if (typeof dateOfBirth === 'string') {
+        parsedDateOfBirth = new Date(dateOfBirth);
+        if (isNaN(parsedDateOfBirth.getTime())) {
+          return res.status(400).json({ message: 'Invalid date of birth format' });
+        }
+      } else {
+        return res.status(400).json({ message: 'Invalid date of birth' });
+      }
+      const age = calculateAge(parsedDateOfBirth);
+      if (age < 11 || age > 20) {
+        return res.status(400).json({ message: 'Student age must be between 11 and 20 years' });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = userRepository.create({
-      email: email || null, // Email is optional (not required for teachers)
-      username: username,
+      email: userEmail,
+      username: String(username).trim(),
       password: hashedPassword,
-      role: requestedRole
+      role: requestedRole,
     });
 
     await userRepository.save(user);
 
-    // Create profile based on role
     if (requestedRole === UserRole.STUDENT) {
       const studentRepository = AppDataSource.getRepository(Student);
+      let parsedDateOfBirth: Date;
+      if (typeof dateOfBirth === 'string') {
+        parsedDateOfBirth = new Date(dateOfBirth);
+      } else {
+        parsedDateOfBirth = dateOfBirth as Date;
+      }
+      const studentNumber = await generateStudentId();
+      const finalContact = contactNumber?.trim() || phoneNumber?.trim() || null;
       const student = studentRepository.create({
-        ...profileData,
-        userId: user.id
+        firstName: String(firstName).trim(),
+        lastName: String(lastName).trim(),
+        studentNumber,
+        dateOfBirth: parsedDateOfBirth,
+        gender: String(gender).trim(),
+        phoneNumber: finalContact,
+        contactNumber: finalContact,
+        userId: user.id,
+        enrollmentStatus: 'Not Enrolled',
+        studentType: 'Day Scholar',
+        isActive: true,
       });
       await studentRepository.save(student);
-    } else if (requestedRole === UserRole.TEACHER) {
-      const teacherRepository = AppDataSource.getRepository(Teacher);
-      const teacher = teacherRepository.create({
-        ...profileData,
-        userId: user.id
-      });
-      await teacherRepository.save(teacher);
     } else if (requestedRole === UserRole.PARENT) {
       const parentRepository = AppDataSource.getRepository(Parent);
       const parent = parentRepository.create({
-        ...profileData,
+        firstName: String(firstName).trim(),
+        lastName: String(lastName).trim(),
+        phoneNumber: phoneNumber?.trim() || contactNumber?.trim() || null,
         userId: user.id,
-        email: email
+        email: userEmail,
+        gender: String(gender).trim(),
       });
       await parentRepository.save(parent);
     }
-    // SUPERADMIN and ADMIN don't need separate profile entities
 
     res.status(201).json({ message: 'User registered successfully' });
   } catch (error: any) {
@@ -602,8 +716,163 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
   }
 };
 
+/** Step 1: verify Student ID + DOB, return short-lived JWT for confirmPasswordReset */
+export const verifyStudentPasswordReset = async (req: Request, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { studentNumber, dateOfBirth } = req.body;
+
+    if (!studentNumber || !dateOfBirth) {
+      return res.status(400).json({ message: 'Student ID and date of birth are required' });
+    }
+
+    const studentRepository = AppDataSource.getRepository(Student);
+    const userRepository = AppDataSource.getRepository(User);
+
+    const trimmedId = String(studentNumber).trim();
+    const student = await studentRepository.findOne({
+      where: { studentNumber: trimmedId },
+    });
+
+    if (!student) {
+      return res.status(400).json({ message: 'Invalid Student ID or date of birth' });
+    }
+
+    if (!student.isActive) {
+      return res.status(400).json({ message: 'This student account is inactive. Please contact the school.' });
+    }
+
+    const providedDOB = new Date(dateOfBirth);
+    if (isNaN(providedDOB.getTime())) {
+      return res.status(400).json({ message: 'Invalid date of birth format' });
+    }
+    const studentDOB = new Date(student.dateOfBirth);
+    const providedDateStr = `${providedDOB.getFullYear()}-${String(providedDOB.getMonth() + 1).padStart(2, '0')}-${String(providedDOB.getDate()).padStart(2, '0')}`;
+    const studentDateStr = `${studentDOB.getFullYear()}-${String(studentDOB.getMonth() + 1).padStart(2, '0')}-${String(studentDOB.getDate()).padStart(2, '0')}`;
+
+    if (providedDateStr !== studentDateStr) {
+      return res.status(400).json({ message: 'Invalid Student ID or date of birth' });
+    }
+
+    if (!student.userId) {
+      return res.status(400).json({
+        message: 'No login account is linked to this student. Please contact the school.',
+      });
+    }
+
+    const user = await userRepository.findOne({ where: { id: student.userId } });
+    if (!user || user.role !== UserRole.STUDENT) {
+      return res.status(400).json({ message: 'Invalid account for student password reset' });
+    }
+
+    if (!user.isActive) {
+      return res.status(400).json({ message: 'Account is inactive. Please contact the administrator.' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET is not configured');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+
+    const resetToken = jwt.sign(
+      { userId: user.id, type: 'password-reset' },
+      jwtSecret,
+      { expiresIn: '30m' }
+    );
+
+    res.json({
+      message: 'Identity verified. You can set a new password.',
+      token: resetToken,
+    });
+  } catch (error: any) {
+    console.error('verifyStudentPasswordReset error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+/** Step 1: verify Employee ID (teacherId), return short-lived JWT for confirmPasswordReset */
+export const verifyTeacherPasswordReset = async (req: Request, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { teacherId } = req.body;
+
+    if (!teacherId || !String(teacherId).trim()) {
+      return res.status(400).json({ message: 'Employee ID is required' });
+    }
+
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+    const userRepository = AppDataSource.getRepository(User);
+
+    const trimmed = String(teacherId).trim();
+    let teacher = await teacherRepository.findOne({
+      where: { teacherId: trimmed },
+    });
+
+    if (!teacher) {
+      teacher = await teacherRepository
+        .createQueryBuilder('t')
+        .where('LOWER(t.teacherId) = LOWER(:tid)', { tid: trimmed })
+        .getOne();
+    }
+
+    if (!teacher) {
+      return res.status(400).json({ message: 'Invalid Employee ID' });
+    }
+
+    if (!teacher.isActive) {
+      return res.status(400).json({ message: 'This teacher account is inactive. Please contact the administrator.' });
+    }
+
+    if (!teacher.userId) {
+      return res.status(400).json({
+        message: 'No login account is linked to this employee. Please contact the administrator.',
+      });
+    }
+
+    const user = await userRepository.findOne({ where: { id: teacher.userId } });
+    if (!user || user.role !== UserRole.TEACHER) {
+      return res.status(400).json({ message: 'Invalid account for teacher password reset' });
+    }
+
+    if (!user.isActive) {
+      return res.status(400).json({ message: 'Account is inactive. Please contact the administrator.' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET is not configured');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+
+    const resetToken = jwt.sign(
+      { userId: user.id, type: 'password-reset' },
+      jwtSecret,
+      { expiresIn: '30m' }
+    );
+
+    res.json({
+      message: 'Identity verified. You can set a new password.',
+      token: resetToken,
+    });
+  } catch (error: any) {
+    console.error('verifyTeacherPasswordReset error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 export const confirmPasswordReset = async (req: Request, res: Response) => {
   try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
     const { token, newPassword } = req.body;
 
     if (!token || !newPassword) {
@@ -651,6 +920,25 @@ export const confirmPasswordReset = async (req: Request, res: Response) => {
 
 export const logout = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.body?.userId;
+    if (userId) {
+      try {
+        await ensureUserActivityLogTable();
+
+        const repo = AppDataSource.getRepository(UserActivityLog);
+        const activeLog = await repo.findOne({
+          where: { userId: String(userId), logoutAt: IsNull() },
+          order: { loginAt: 'DESC' }
+        });
+        if (activeLog) {
+          activeLog.logoutAt = new Date();
+          await repo.save(activeLog);
+        }
+      } catch (logErr: any) {
+        console.error('Logout activity update error:', logErr?.message || logErr);
+      }
+    }
+
     // For JWT-based auth we simply instruct the client to discard the token.
     // This endpoint exists to maintain parity with session-based flows.
     res.json({

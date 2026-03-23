@@ -22,6 +22,8 @@ import { StudentEnrollment } from '../entities/StudentEnrollment';
 import { TimetableConfig } from '../entities/TimetableConfig';
 import { TimetableSlot } from '../entities/TimetableSlot';
 import { TimetableVersion } from '../entities/TimetableVersion';
+import { ETask } from '../entities/ETask';
+import { ETaskSubmission } from '../entities/ETaskSubmission';
 
 // Load environment variables (only if not already set, e.g., in production)
 if (process.env.NODE_ENV !== 'production') {
@@ -36,7 +38,7 @@ console.log('[DB Config] Module type check - typeof module:', typeof module);
 
 console.log('[DB Config] Preparing entity list...');
 // Try using entity classes first, fallback to paths if needed
-const entities = [User, Student, Teacher, Class, Subject, Exam, Marks, Invoice, Parent, Settings, ReportCardRemarks, Message, UniformItem, InvoiceUniformItem, Attendance, PromotionRule, RecordBook, StudentTransfer, StudentEnrollment, TimetableConfig, TimetableSlot, TimetableVersion];
+const entities = [User, Student, Teacher, Class, Subject, Exam, Marks, Invoice, Parent, Settings, ReportCardRemarks, Message, UniformItem, InvoiceUniformItem, Attendance, PromotionRule, RecordBook, StudentTransfer, StudentEnrollment, TimetableConfig, TimetableSlot, TimetableVersion, ETask, ETaskSubmission];
 console.log('[DB Config] Entity count:', entities.length);
 console.log('[DB Config] Entity names:', entities.map(e => e?.name || 'unknown').join(', '));
 console.log('[DB Config] Checking each entity...');

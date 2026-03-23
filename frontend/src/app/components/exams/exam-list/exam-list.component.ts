@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { ExamService } from '../../../services/exam.service';
 import { ClassService } from '../../../services/class.service';
 import { SubjectService } from '../../../services/subject.service';
@@ -60,7 +60,14 @@ export class ExamListComponent implements OnInit, OnDestroy {
   autoSaveTimeout: any = null;
   isAutoSaving = false;
   pendingSaves: Set<string> = new Set();
-  savingStatus: Map<string, 'saving' | 'saved' | 'error' | null> = new Map(); // Track saving status per student
+
+  // Auto-load state (when selections change)
+  private selectionChangeSeq = 0;
+  // Separate saving states so we can show two distinct ticks:
+  // 1) mark (score) saved
+  // 2) comment (remark) saved
+  markSavingStatus: Map<string, 'saving' | 'saved' | 'error' | null> = new Map();
+  commentsSavingStatus: Map<string, 'saving' | 'saved' | 'error' | null> = new Map();
   
   // AI remark generation state
   generatingRemarks: Map<string, boolean> = new Map(); // Track AI remark generation per student
@@ -90,7 +97,8 @@ export class ExamListComponent implements OnInit, OnDestroy {
     private settingsService: SettingsService,
     private authService: AuthService,
     private teacherService: TeacherService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {
     const user = this.authService.getCurrentUser();
     this.isAdmin = user ? (user.role === 'admin' || user.role === 'superadmin') : false;
@@ -203,6 +211,11 @@ export class ExamListComponent implements OnInit, OnDestroy {
       next: (data: any) => {
         const classesList = Array.isArray(data) ? data : (data?.data || []);
         this.classes = this.classService.sortClasses(classesList);
+        const qpClass = this.route.snapshot.queryParamMap.get('classId');
+        if (qpClass && this.classes.some((c: any) => c.id === qpClass)) {
+          this.selectedClassId = qpClass;
+          this.onSelectionChange();
+        }
       },
       error: (err: any) => {
         console.error('Error loading classes:', err);
@@ -287,6 +300,11 @@ export class ExamListComponent implements OnInit, OnDestroy {
   }
 
   onSelectionChange() {
+    // Selection changes can happen multiple times in quick succession (especially for teachers).
+    // Use a sequence guard so only the latest selection set triggers loading.
+    this.selectionChangeSeq++;
+    const seq = this.selectionChangeSeq;
+
     // Reset marks entry when selections change
     this.showMarksEntry = false;
     this.students = [];
@@ -306,6 +324,25 @@ export class ExamListComponent implements OnInit, OnDestroy {
     if (!this.selectedClassId) {
       this.selectedSubjectId = '';
     }
+
+    // Auto-load students once Class + Exam Type + Subject are all selected (term comes from settings)
+    if (!this.selectedClassId || this.isPublished) {
+      return;
+    }
+
+    setTimeout(() => {
+      // Ignore stale callbacks
+      if (this.selectionChangeSeq !== seq) return;
+
+      if (this.isSelectionValid() && !this.loadingStudents) {
+        this.loadStudents();
+      }
+    }, 350);
+  }
+
+  manualLoadStudents() {
+    if (this.showMarksEntry || this.loadingStudents) return;
+    this.loadStudents();
   }
 
   loadStudents() {
@@ -588,8 +625,18 @@ export class ExamListComponent implements OnInit, OnDestroy {
     return mark && (mark.score !== null && mark.score !== undefined && mark.score !== '');
   }
 
+  hasRemark(studentId: string): boolean {
+    const key = this.getMarkKey(studentId, this.selectedSubjectId);
+    const mark = this.marks[key];
+    return !!(mark && mark.comments && mark.comments.trim() !== '');
+  }
+
   getEnteredMarksCount(): number {
     return this.filteredStudents.filter(student => this.hasMarks(student.id)).length;
+  }
+
+  getEnteredRemarksCount(): number {
+    return this.filteredStudents.filter(student => this.hasRemark(student.id)).length;
   }
 
   getMarksProgress(): number {
@@ -611,6 +658,18 @@ export class ExamListComponent implements OnInit, OnDestroy {
     if (marksWithScores.length === 0) return 0;
     const sum = marksWithScores.reduce((acc, score) => acc + score, 0);
     return Math.round(sum / marksWithScores.length);
+  }
+
+  openPublishResults() {
+    if (!this.selectedExamType || !this.selectedTerm) return;
+    // Publish page accepts optional query params to pre-fill selection.
+    this.router.navigate(['/publish-results'], {
+      queryParams: { examType: this.selectedExamType, term: this.selectedTerm }
+    });
+  }
+
+  openMarkInputProgress() {
+    this.router.navigate(['/exams/mark-input-progress']);
   }
 
   // Quick actions
@@ -661,7 +720,7 @@ export class ExamListComponent implements OnInit, OnDestroy {
 
   onMarkChange(studentId: string) {
     // Mark as pending save
-    this.savingStatus.set(studentId, 'saving');
+    this.markSavingStatus.set(studentId, 'saving');
     // Round to integer when user types
     const key = this.getMarkKey(studentId, this.selectedSubjectId);
     const mark = this.marks[key];
@@ -693,7 +752,7 @@ export class ExamListComponent implements OnInit, OnDestroy {
 
   onCommentsChange(studentId: string) {
     // Mark as pending save
-    this.savingStatus.set(studentId, 'saving');
+    this.commentsSavingStatus.set(studentId, 'saving');
     // Schedule auto-save when comments change
     this.scheduleAutoSave(studentId);
   }
@@ -749,12 +808,18 @@ export class ExamListComponent implements OnInit, OnDestroy {
     
     // Only save if there's data to save (score or comments)
     if (!mark || (mark.score === null && (!mark.comments || mark.comments.trim() === ''))) {
-      this.savingStatus.set(studentId, null);
+      this.markSavingStatus.set(studentId, null);
+      this.commentsSavingStatus.set(studentId, null);
       return;
     }
 
-    // Mark as saving
-    this.savingStatus.set(studentId, 'saving');
+    // Mark as saving (field-specific)
+    if (mark.score !== null && mark.score !== undefined) {
+      this.markSavingStatus.set(studentId, 'saving');
+    }
+    if (mark.comments && mark.comments.trim() !== '') {
+      this.commentsSavingStatus.set(studentId, 'saving');
+    }
 
     const marksData = [{
       studentId: studentId,
@@ -783,23 +848,45 @@ export class ExamListComponent implements OnInit, OnDestroy {
           (mark as any).aiGenerated = false;
           console.log('AI-generated flag cleared after successful save');
         }
-        // Mark as saved
-        this.savingStatus.set(studentId, 'saved');
-        // Clear saved status after 2 seconds
+        // Mark as saved (field-specific)
+        if (marksData[0].score !== null) {
+          this.markSavingStatus.set(studentId, 'saved');
+        } else {
+          this.markSavingStatus.set(studentId, null);
+        }
+
+        if (marksData[0].comments && marksData[0].comments.trim() !== '') {
+          this.commentsSavingStatus.set(studentId, 'saved');
+        } else {
+          this.commentsSavingStatus.set(studentId, null);
+        }
+
+        // Clear saved status after a short delay
         setTimeout(() => {
-          if (this.savingStatus.get(studentId) === 'saved') {
-            this.savingStatus.set(studentId, null);
+          if (this.markSavingStatus.get(studentId) === 'saved') {
+            this.markSavingStatus.set(studentId, null);
           }
-        }, 2000);
+          if (this.commentsSavingStatus.get(studentId) === 'saved') {
+            this.commentsSavingStatus.set(studentId, null);
+          }
+        }, 6000);
       },
       error: (err: any) => {
-        // Mark as error
-        this.savingStatus.set(studentId, 'error');
+        // Mark as error (field-specific)
+        if (marksData[0].score !== null) {
+          this.markSavingStatus.set(studentId, 'error');
+        }
+        if (marksData[0].comments && marksData[0].comments.trim() !== '') {
+          this.commentsSavingStatus.set(studentId, 'error');
+        }
         console.error('Auto-save failed:', err);
         // Clear error status after 3 seconds
         setTimeout(() => {
-          if (this.savingStatus.get(studentId) === 'error') {
-            this.savingStatus.set(studentId, null);
+          if (this.markSavingStatus.get(studentId) === 'error') {
+            this.markSavingStatus.set(studentId, null);
+          }
+          if (this.commentsSavingStatus.get(studentId) === 'error') {
+            this.commentsSavingStatus.set(studentId, null);
           }
         }, 3000);
       }
@@ -810,9 +897,6 @@ export class ExamListComponent implements OnInit, OnDestroy {
     if (!this.currentExam || !this.currentExam.id || studentIds.length === 0) {
       return;
     }
-
-    // Mark all students as saving
-    studentIds.forEach(id => this.savingStatus.set(id, 'saving'));
 
     const marksData = studentIds.map(studentId => {
       const key = this.getMarkKey(studentId, this.selectedSubjectId);
@@ -831,32 +915,61 @@ export class ExamListComponent implements OnInit, OnDestroy {
     }).filter((m: any) => m !== null);
 
     if (marksData.length === 0) {
-      studentIds.forEach(id => this.savingStatus.set(id, null));
+      studentIds.forEach(id => {
+        this.markSavingStatus.set(id, null);
+        this.commentsSavingStatus.set(id, null);
+      });
       return;
     }
 
+    // Create quick lookup for the payload per student
+    const marksDataById = new Map<string, any>(marksData.map((m: any) => [m.studentId, m]));
+
+    // Mark students as saving (field-specific)
+    studentIds.forEach(id => {
+      const md = marksDataById.get(id);
+      if (!md) return;
+      if (md.score !== null) this.markSavingStatus.set(id, 'saving');
+      if (md.comments && md.comments.trim() !== '') this.commentsSavingStatus.set(id, 'saving');
+    });
+
     this.examService.captureMarks(this.currentExam.id, marksData).subscribe({
       next: (data: any) => {
-        // Mark all as saved
+        // Mark each student as saved (field-specific)
         studentIds.forEach(id => {
-          this.savingStatus.set(id, 'saved');
-          // Clear saved status after 2 seconds
+          const md = marksDataById.get(id);
+          if (!md) {
+            this.markSavingStatus.set(id, null);
+            this.commentsSavingStatus.set(id, null);
+            return;
+          }
+
+          if (md.score !== null) this.markSavingStatus.set(id, 'saved');
+          else this.markSavingStatus.set(id, null);
+
+          if (md.comments && md.comments.trim() !== '') this.commentsSavingStatus.set(id, 'saved');
+          else this.commentsSavingStatus.set(id, null);
+
+          // Clear saved status after a short delay (long enough for comment tick to appear)
           setTimeout(() => {
-            if (this.savingStatus.get(id) === 'saved') {
-              this.savingStatus.set(id, null);
-            }
-          }, 2000);
+            if (this.markSavingStatus.get(id) === 'saved') this.markSavingStatus.set(id, null);
+            if (this.commentsSavingStatus.get(id) === 'saved') this.commentsSavingStatus.set(id, null);
+          }, 6000);
         });
       },
       error: (err: any) => {
-        // Mark all as error
+        // Mark each student as error (field-specific)
         studentIds.forEach(id => {
-          this.savingStatus.set(id, 'error');
-          // Clear error status after 3 seconds
+          const md = marksDataById.get(id);
+          const hasScore = md && md.score !== null;
+          const hasComments = md && md.comments && md.comments.trim() !== '';
+
+          if (hasScore) this.markSavingStatus.set(id, 'error');
+          if (hasComments) this.commentsSavingStatus.set(id, 'error');
+
           setTimeout(() => {
-            if (this.savingStatus.get(id) === 'error') {
-              this.savingStatus.set(id, null);
-            }
+            if (this.markSavingStatus.get(id) === 'error') this.markSavingStatus.set(id, null);
+            if (this.commentsSavingStatus.get(id) === 'error') this.commentsSavingStatus.set(id, null);
           }, 3000);
         });
         console.error('Auto-save failed:', err);
@@ -864,8 +977,12 @@ export class ExamListComponent implements OnInit, OnDestroy {
     });
   }
 
-  getSavingStatus(studentId: string): 'saving' | 'saved' | 'error' | null {
-    return this.savingStatus.get(studentId) || null;
+  getMarkSavingStatus(studentId: string): 'saving' | 'saved' | 'error' | null {
+    return this.markSavingStatus.get(studentId) || null;
+  }
+
+  getCommentsSavingStatus(studentId: string): 'saving' | 'saved' | 'error' | null {
+    return this.commentsSavingStatus.get(studentId) || null;
   }
 
   isGeneratingRemark(studentId: string): boolean {
@@ -1001,19 +1118,15 @@ export class ExamListComponent implements OnInit, OnDestroy {
       comments: ''
     }];
 
-    // Mark as saving
-    this.savingStatus.set(studentId, 'saving');
+    // Mark as saving (field-specific)
+    this.markSavingStatus.set(studentId, 'saving');
+    this.commentsSavingStatus.set(studentId, 'saving');
 
     this.examService.captureMarks(this.currentExam.id, marksData).subscribe({
       next: (data: any) => {
-        // Mark as saved
-        this.savingStatus.set(studentId, 'saved');
-        // Clear saved status after 2 seconds
-        setTimeout(() => {
-          if (this.savingStatus.get(studentId) === 'saved') {
-            this.savingStatus.set(studentId, null);
-          }
-        }, 2000);
+        // Mark and remarks are cleared; hide ticks
+        this.markSavingStatus.set(studentId, null);
+        this.commentsSavingStatus.set(studentId, null);
       },
       error: (err: any) => {
         // Revert local changes on error
@@ -1021,13 +1134,13 @@ export class ExamListComponent implements OnInit, OnDestroy {
           // Restore from backend if available
           this.loadExistingMarks();
         }
-        this.savingStatus.set(studentId, 'error');
+        this.markSavingStatus.set(studentId, 'error');
+        this.commentsSavingStatus.set(studentId, 'error');
         this.error = err.error?.message || 'Failed to cancel mark and remark';
         setTimeout(() => {
           this.error = '';
-          if (this.savingStatus.get(studentId) === 'error') {
-            this.savingStatus.set(studentId, null);
-          }
+          if (this.markSavingStatus.get(studentId) === 'error') this.markSavingStatus.set(studentId, null);
+          if (this.commentsSavingStatus.get(studentId) === 'error') this.commentsSavingStatus.set(studentId, null);
         }, 3000);
         console.error('Cancel failed:', err);
       }

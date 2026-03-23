@@ -1,120 +1,227 @@
-<div class="unenrolled-container">
-  <!-- Header Section -->
-  <div class="page-header">
-    <div class="header-content">
-      <div class="header-title">
-        <h1>📋 Unenrolled Students</h1>
-        <p class="subtitle">Students who are registered but not yet enrolled in any class</p>
+<div class="ue-page">
+  <header class="ue-hero" aria-labelledby="ue-page-title">
+    <div class="ue-hero-inner">
+      <div class="ue-hero-copy">
+        <p class="ue-eyebrow">Enrollments</p>
+        <h1 id="ue-page-title" class="ue-title">Unenrolled students</h1>
+        <p class="ue-lead">
+          Registered learners who are not yet placed in a class. Search, review details, then enroll them into the right grade.
+        </p>
       </div>
-      <button class="btn btn-primary btn-add" (click)="router.navigate(['/students/new'])">
-        <span class="btn-icon">➕</span>
-        <span>Register New Student</span>
+      <div class="ue-hero-actions">
+        <button type="button" class="ue-btn ue-btn-ghost" (click)="loadUnenrolledStudents()" [disabled]="loading" title="Refresh list">
+          ↻ Refresh
+        </button>
+        <button type="button" class="ue-btn ue-btn-primary" (click)="router.navigate(['/students/new'])">
+          + Register student
+        </button>
+      </div>
+    </div>
+
+    <nav class="ue-workflow" aria-label="Workflow">
+      <div class="ue-track">
+        <div class="ue-step" [class.is-active]="workflowStep === 1" [class.is-done]="workflowStep > 1">
+          <span class="ue-dot">1</span>
+          <span class="ue-step-label">Load queue</span>
+        </div>
+        <div class="ue-line" [class.is-done]="workflowStep > 1"></div>
+        <div class="ue-step" [class.is-active]="workflowStep === 2" [class.is-done]="workflowStep > 2">
+          <span class="ue-dot">2</span>
+          <span class="ue-step-label">Search &amp; review</span>
+        </div>
+        <div class="ue-line" [class.is-done]="workflowStep > 2"></div>
+        <div class="ue-step" [class.is-active]="workflowStep === 3">
+          <span class="ue-dot">3</span>
+          <span class="ue-step-label">Enroll in class</span>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <div class="ue-toast ue-toast-error" *ngIf="error" role="alert">
+    <span class="ue-toast-ic">⚠</span>
+    <span>{{ error }}</span>
+  </div>
+
+  <section class="ue-metrics" *ngIf="!loading && students.length > 0" aria-label="Summary">
+    <article class="ue-metric">
+      <span class="ue-metric-ic" aria-hidden="true">📋</span>
+      <span class="ue-metric-lbl">Awaiting enrollment</span>
+      <span class="ue-metric-val">{{ totalUnenrolled }}</span>
+    </article>
+    <article class="ue-metric ue-metric-gender-female">
+      <span class="ue-metric-ic" aria-hidden="true">♀</span>
+      <span class="ue-metric-lbl">Female — not yet enrolled</span>
+      <span class="ue-metric-val">{{ femaleUnenrolledTotal }}</span>
+      <span class="ue-metric-note">Full queue</span>
+    </article>
+    <article class="ue-metric ue-metric-gender-male">
+      <span class="ue-metric-ic" aria-hidden="true">♂</span>
+      <span class="ue-metric-lbl">Male — not yet enrolled</span>
+      <span class="ue-metric-val">{{ maleUnenrolledTotal }}</span>
+      <span class="ue-metric-note">Full queue</span>
+    </article>
+    <article class="ue-metric ue-metric-accent">
+      <span class="ue-metric-ic" aria-hidden="true">🏫</span>
+      <span class="ue-metric-lbl">Boarders (filtered)</span>
+      <span class="ue-metric-val">{{ boarderCount }}</span>
+    </article>
+    <article class="ue-metric">
+      <span class="ue-metric-ic" aria-hidden="true">☀</span>
+      <span class="ue-metric-lbl">Day scholars (filtered)</span>
+      <span class="ue-metric-val">{{ dayScholarCount }}</span>
+    </article>
+  </section>
+
+  <section class="ue-toolbar ue-card">
+    <div class="ue-search-wrap">
+      <label class="sr-only" for="ueSearch">Search unenrolled students</label>
+      <span class="ue-search-icon" aria-hidden="true">🔍</span>
+      <input
+        id="ueSearch"
+        type="search"
+        class="ue-input"
+        [(ngModel)]="searchQuery"
+        (input)="filterStudents()"
+        placeholder="Name or student number…"
+        autocomplete="off"
+      />
+      <button type="button" class="ue-btn ue-btn-clear" *ngIf="hasActiveSearch" (click)="clearSearch()">
+        Clear
+      </button>
+    </div>
+    <p class="ue-toolbar-hint" *ngIf="!loading">
+      <ng-container *ngIf="totalUnenrolled > 0">
+        {{ totalUnenrolled }} student{{ totalUnenrolled !== 1 ? 's' : '' }} in this list
+      </ng-container>
+      <ng-container *ngIf="totalUnenrolled === 0 && students.length > 0">No matches — try another search.</ng-container>
+    </p>
+  </section>
+
+  <!-- Skeleton loading (list) -->
+  <div class="ue-list-wrap ue-card" *ngIf="loading" aria-busy="true" aria-label="Loading">
+    <div class="ue-table-scroll">
+      <table class="ue-table ue-table-skeleton">
+        <thead>
+          <tr>
+            <th scope="col" class="ue-col-num">#</th>
+            <th scope="col">Student</th>
+            <th scope="col">Student ID</th>
+            <th scope="col">Type</th>
+            <th scope="col">Gender</th>
+            <th scope="col">Date of birth</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="ue-col-actions">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+            <td><div class="ue-skel ue-skel-line sm"></div></td>
+            <td><div class="ue-skel ue-skel-line lg"></div></td>
+            <td><div class="ue-skel ue-skel-line"></div></td>
+            <td><div class="ue-skel ue-skel-line sm"></div></td>
+            <td><div class="ue-skel ue-skel-line sm"></div></td>
+            <td><div class="ue-skel ue-skel-line"></div></td>
+            <td><div class="ue-skel ue-skel-line sm"></div></td>
+            <td><div class="ue-skel ue-skel-btn-inline"></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="ue-list-wrap ue-card" *ngIf="!loading && paginatedStudents.length > 0">
+    <div class="ue-table-scroll">
+      <table class="ue-table" aria-label="Students not yet enrolled">
+        <thead>
+          <tr>
+            <th scope="col" class="ue-col-num">#</th>
+            <th scope="col">Student</th>
+            <th scope="col">Student ID</th>
+            <th scope="col">Type</th>
+            <th scope="col">Gender</th>
+            <th scope="col">Date of birth</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="ue-col-actions">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let student of paginatedStudents; let i = index" class="ue-table-row">
+            <td class="ue-td-num">{{ (pagination.page - 1) * pagination.limit + i + 1 }}</td>
+            <td class="ue-td-student">
+              <div class="ue-student-cell">
+                <div class="ue-avatar ue-avatar-sm" [attr.aria-hidden]="true">
+                  <span class="ue-avatar-text">{{ initials(student) }}</span>
+                </div>
+                <span class="ue-student-name">{{ student.firstName }} {{ student.lastName }}</span>
+              </div>
+            </td>
+            <td class="ue-td-mono">{{ student.studentNumber }}</td>
+            <td>{{ student.studentType || '—' }}</td>
+            <td>{{ student.gender || '—' }}</td>
+            <td>{{ formatDate(student.dateOfBirth) }}</td>
+            <td><span class="ue-badge">Not enrolled</span></td>
+            <td class="ue-td-actions">
+              <button type="button" class="ue-btn ue-btn-enroll ue-btn-enroll-inline" (click)="enrollStudent(student.id)">
+                <span aria-hidden="true">📚</span>
+                Enroll
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="ue-empty ue-card" *ngIf="!loading && filteredStudents.length === 0">
+    <div class="ue-empty-icon" aria-hidden="true">{{ searchQuery ? '🔎' : '✅' }}</div>
+    <h3 class="ue-empty-title" *ngIf="searchQuery">No students match your search</h3>
+    <h3 class="ue-empty-title" *ngIf="!searchQuery">Everyone is enrolled</h3>
+    <p class="ue-empty-text" *ngIf="searchQuery">Try a different name or student number, or clear the search.</p>
+    <p class="ue-empty-text" *ngIf="!searchQuery">All registered students are assigned to a class. Register a new student if needed.</p>
+    <div class="ue-empty-actions">
+      <button type="button" class="ue-btn ue-btn-secondary" (click)="clearSearch()" *ngIf="searchQuery">Clear search</button>
+      <button type="button" class="ue-btn ue-btn-primary" (click)="router.navigate(['/students/new'])" *ngIf="!searchQuery">
+        + Register student
       </button>
     </div>
   </div>
 
-  <!-- Alert Messages -->
-  <div class="alert alert-error" *ngIf="error">
-    <span class="alert-icon">⚠️</span>
-    <span>{{ error }}</span>
-  </div>
-
-  <!-- Search Section -->
-  <div class="search-section">
-    <div class="search-box">
-      <input 
-        type="text" 
-        [(ngModel)]="searchQuery" 
-        placeholder="Search by name or student number..."
-        class="search-input"
-        (input)="filterStudents()">
-      <span class="search-icon">🔍</span>
+  <footer class="ue-footer" *ngIf="!loading && filteredStudents.length > 0">
+    <p class="ue-summary">
+      Showing <strong>{{ paginatedStudents.length }}</strong> of
+      <strong>{{ filteredStudents.length }}</strong> unenrolled
+    </p>
+    <div class="ue-pagination" *ngIf="pagination.totalPages > 1 || pagination.total > pagination.limit">
+      <button
+        type="button"
+        class="ue-btn ue-btn-page"
+        (click)="changePage(pagination.page - 1)"
+        [disabled]="pagination.page === 1"
+      >
+        ← Previous
+      </button>
+      <span class="ue-page-meta">
+        Page {{ pagination.page }} / {{ pagination.totalPages }}
+      </span>
+      <button
+        type="button"
+        class="ue-btn ue-btn-page"
+        (click)="changePage(pagination.page + 1)"
+        [disabled]="pagination.page === pagination.totalPages"
+      >
+        Next →
+      </button>
+      <label class="ue-page-size">
+        <span>Rows</span>
+        <select
+          id="unenrolledPageSize"
+          [value]="pagination.limit"
+          (change)="changePageSize($any($event.target).value)"
+        >
+          <option *ngFor="let size of pageSizeOptions" [value]="size">{{ size }}</option>
+        </select>
+      </label>
     </div>
-  </div>
-
-  <!-- Loading State -->
-  <div class="loading-container" *ngIf="loading">
-    <div class="spinner"></div>
-    <p>Loading unenrolled students...</p>
-  </div>
-
-  <!-- Students List -->
-  <div class="students-grid" *ngIf="!loading">
-    <div 
-      *ngFor="let student of paginatedStudents" 
-      class="student-card">
-      <div class="student-header">
-        <div class="student-avatar">
-          <span class="avatar-text">{{ student.firstName.charAt(0) }}{{ student.lastName.charAt(0) }}</span>
-        </div>
-        <div class="student-info">
-          <h3>{{ student.firstName }} {{ student.lastName }}</h3>
-          <p class="student-number">{{ student.studentNumber }}</p>
-        </div>
-      </div>
-      <div class="student-details">
-        <div class="detail-item">
-          <span class="detail-label">Type:</span>
-          <span class="detail-value">{{ student.studentType }}</span>
-        </div>
-        <div class="detail-item">
-          <span class="detail-label">Gender:</span>
-          <span class="detail-value">{{ student.gender }}</span>
-        </div>
-        <div class="detail-item">
-          <span class="detail-label">Registered:</span>
-          <span class="detail-value">{{ formatDate(student.enrollmentDate) }}</span>
-        </div>
-        <div class="status-badge not-enrolled">
-          Not Enrolled
-        </div>
-      </div>
-      <div class="student-actions">
-        <button class="btn btn-primary btn-enroll" (click)="enrollStudent(student.id)">
-          <span class="btn-icon">📚</span>
-          <span>Enroll Now</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Empty State -->
-  <div class="empty-state" *ngIf="!loading && filteredStudents.length === 0">
-    <div class="empty-icon">✅</div>
-    <h3 *ngIf="searchQuery">No students found</h3>
-    <h3 *ngIf="!searchQuery">All students are enrolled!</h3>
-    <p *ngIf="searchQuery">Try adjusting your search query.</p>
-    <p *ngIf="!searchQuery">Great! All registered students have been enrolled into classes.</p>
-    <button class="btn btn-primary" (click)="router.navigate(['/students/new'])" *ngIf="!searchQuery">
-      <span class="btn-icon">➕</span>
-      <span>Register New Student</span>
-    </button>
-  </div>
-
-  <!-- Results Summary -->
-  <div class="results-summary" *ngIf="!loading && filteredStudents.length > 0">
-    <span class="summary-text">
-      Showing {{ paginatedStudents.length }} of {{ filteredStudents.length }} unenrolled student{{ filteredStudents.length !== 1 ? 's' : '' }}
-    </span>
-  </div>
-
-  <!-- Pagination -->
-  <div class="pagination-bar" *ngIf="!loading && filteredStudents.length > 0 && (pagination.totalPages > 1 || pagination.total > pagination.limit)">
-    <button class="btn btn-secondary" (click)="changePage(pagination.page - 1)" [disabled]="pagination.page === 1">
-      ‹ Previous
-    </button>
-    <span class="page-info">
-      Page {{ pagination.page }} of {{ pagination.totalPages }} • {{ pagination.total }} student{{ pagination.total !== 1 ? 's' : '' }}
-    </span>
-    <button class="btn btn-secondary" (click)="changePage(pagination.page + 1)" [disabled]="pagination.page === pagination.totalPages">
-      Next ›
-    </button>
-    <div class="page-size-selector">
-      <label for="unenrolledPageSize">Rows per page:</label>
-      <select id="unenrolledPageSize" (change)="changePageSize($event.target.value)" [value]="pagination.limit">
-        <option *ngFor="let size of pageSizeOptions" [value]="size">{{ size }}</option>
-      </select>
-    </div>
-  </div>
+  </footer>
 </div>
-

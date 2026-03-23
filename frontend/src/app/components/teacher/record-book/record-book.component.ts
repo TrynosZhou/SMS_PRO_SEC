@@ -25,6 +25,9 @@ export class RecordBookComponent implements OnInit {
   teacherSubjects: string = '';
   loading = false;
   saving = false;
+  private autoSaveTimers: Record<string, any> = {};
+  private autoSaveRequestsInFlight = 0;
+  readonly autoSaveDelayMs = 700;
   error = '';
   success = '';
   
@@ -64,6 +67,10 @@ export class RecordBookComponent implements OnInit {
   // Number of visible test columns (default 4, expandable to 10)
   visibleTests = 4;
   maxTests = 10;
+
+  get autoSavingActive(): boolean {
+    return this.autoSaveRequestsInFlight > 0 || Object.keys(this.autoSaveTimers).length > 0;
+  }
 
   constructor(
     private authService: AuthService,
@@ -202,6 +209,7 @@ export class RecordBookComponent implements OnInit {
 
   onClassChange() {
     if (!this.selectedClassId) {
+      this.clearAutoSaveTimers();
       this.students = [];
       this.filteredStudents = [];
       this.selectedClass = null;
@@ -293,6 +301,7 @@ export class RecordBookComponent implements OnInit {
 
   onSubjectChange() {
     if (!this.selectedSubjectId) {
+      this.clearAutoSaveTimers();
       this.students = [];
       this.filteredStudents = [];
       this.selectedSubject = null;
@@ -395,8 +404,32 @@ export class RecordBookComponent implements OnInit {
     this.filterStudents();
   }
 
+  private clearAutoSaveTimers(): void {
+    for (const key of Object.keys(this.autoSaveTimers)) {
+      clearTimeout(this.autoSaveTimers[key]);
+      delete this.autoSaveTimers[key];
+    }
+  }
+
+  private scheduleAutoSaveForStudent(student: any): void {
+    const studentId = student?.studentId;
+    if (!studentId) return;
+
+    // Debounce per-student edits to reduce API calls.
+    if (this.autoSaveTimers[studentId]) {
+      clearTimeout(this.autoSaveTimers[studentId]);
+      delete this.autoSaveTimers[studentId];
+    }
+
+    this.autoSaveTimers[studentId] = setTimeout(() => {
+      delete this.autoSaveTimers[studentId];
+      this.autoSaveRequestsInFlight++;
+      this.saveStudentMarks(student, true);
+    }, this.autoSaveDelayMs);
+  }
+
   onMarkChange(student: any, testNumber: number) {
-    // Auto-save when mark changes
+    // Auto-save (debounced) when a mark changes
     const testKey = `test${testNumber}`;
     const mark = student[testKey];
     
@@ -407,10 +440,10 @@ export class RecordBookComponent implements OnInit {
       return;
     }
 
-    this.saveStudentMarks(student);
+    this.scheduleAutoSaveForStudent(student);
   }
 
-  saveStudentMarks(student: any) {
+  saveStudentMarks(student: any, isAutoSave: boolean = false) {
     if (!this.selectedSubjectId) {
       this.error = 'Please select a subject first';
       setTimeout(() => this.error = '', 3000);
@@ -460,11 +493,21 @@ export class RecordBookComponent implements OnInit {
       error: (err: any) => {
         this.error = 'Failed to save marks';
         setTimeout(() => this.error = '', 3000);
+        if (isAutoSave) {
+          this.autoSaveRequestsInFlight = Math.max(0, this.autoSaveRequestsInFlight - 1);
+        }
+      },
+      complete: () => {
+        if (isAutoSave) {
+          this.autoSaveRequestsInFlight = Math.max(0, this.autoSaveRequestsInFlight - 1);
+        }
       }
     });
   }
 
   saveAllMarks() {
+    // Avoid races while batch-saving.
+    this.clearAutoSaveTimers();
     if (!this.selectedClassId || !this.selectedSubjectId || this.students.length === 0) {
       this.error = !this.selectedSubjectId ? 'Please select a subject first' : 'No students to save';
       return;
@@ -500,6 +543,32 @@ export class RecordBookComponent implements OnInit {
         setTimeout(() => this.error = '', 5000);
       }
     });
+  }
+
+  clearVisibleMarks() {
+    if (!this.selectedClassId || !this.selectedSubjectId || this.students.length === 0) {
+      this.error = 'Select a class and subject first';
+      setTimeout(() => (this.error = ''), 3000);
+      return;
+    }
+
+    const ok = confirm(`Clear marks, topics and dates for Tests 1-${this.visibleTests}?`);
+    if (!ok) return;
+
+    for (const student of this.students) {
+      for (let i = 1; i <= this.visibleTests; i++) {
+        student[`test${i}`] = null;
+      }
+    }
+
+    for (let i = 1; i <= this.visibleTests; i++) {
+      this.topics[`test${i}` as keyof typeof this.topics] = '';
+      this.testDates[`test${i}` as keyof typeof this.testDates] = '';
+    }
+
+    this.error = '';
+    this.success = '';
+    this.saveAllMarks();
   }
 
   onTopicChange() {

@@ -22,6 +22,10 @@ export class Parent {
   @Column({ nullable: true })
   email: string;
 
+  /** Male / Female — captured at signup or admin creation */
+  @Column({ type: 'varchar', nullable: true })
+  gender: string | null;
+
   @OneToOne(() => User, user => user.parent)
   user: User;
 

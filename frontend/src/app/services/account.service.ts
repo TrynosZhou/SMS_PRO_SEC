@@ -19,6 +19,21 @@ export class AccountService {
     return this.http.put(`${this.apiUrl}/account`, data);
   }
 
+  /**
+   * Admin: reset a teacher user's password; API returns temporaryPassword and username.
+   */
+  adminResetTeacherPassword(userId: string): Observable<{
+    message: string;
+    temporaryPassword: string;
+    username: string;
+  }> {
+    return this.http.post<{
+      message: string;
+      temporaryPassword: string;
+      username: string;
+    }>(`${this.apiUrl}/account/users/${userId}/reset-password`, {});
+  }
+
   createUserAccount(data: {
     email: string;
     username?: string;

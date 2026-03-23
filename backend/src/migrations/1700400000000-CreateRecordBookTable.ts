@@ -1,6 +1,32 @@
 import { MigrationInterface, QueryRunner, Table, TableIndex, TableForeignKey } from 'typeorm';
 
 export class CreateRecordBookTable1700400000000 implements MigrationInterface {
+  private async foreignKeyExists(
+    queryRunner: QueryRunner,
+    columnName: string,
+    referencedTableName: string
+  ): Promise<boolean> {
+    const rows = await queryRunner.query(
+      `
+      SELECT 1
+      FROM pg_constraint c
+      JOIN pg_class rel ON rel.oid = c.conrelid
+      JOIN pg_class ref ON ref.oid = c.confrelid
+      WHERE rel.relname = 'record_books'
+        AND ref.relname = $1
+        AND c.contype = 'f'
+        AND c.conkey @> ARRAY[
+          (SELECT attnum
+           FROM pg_attribute
+           WHERE attrelid = rel.oid AND attname = $2)
+        ]
+      LIMIT 1;
+      `,
+      [referencedTableName, columnName]
+    );
+    return Array.isArray(rows) && rows.length > 0;
+  }
+
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
       new Table({
@@ -117,35 +143,44 @@ export class CreateRecordBookTable1700400000000 implements MigrationInterface {
     );
 
     // Create foreign keys
-    await queryRunner.createForeignKey(
-      'record_books',
-      new TableForeignKey({
-        columnNames: ['studentId'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'students',
-        onDelete: 'CASCADE'
-      })
-    );
+    const studentFkExists = await this.foreignKeyExists(queryRunner, 'studentId', 'students');
+    if (!studentFkExists) {
+      await queryRunner.createForeignKey(
+        'record_books',
+        new TableForeignKey({
+          columnNames: ['studentId'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'students',
+          onDelete: 'CASCADE'
+        })
+      );
+    }
 
-    await queryRunner.createForeignKey(
-      'record_books',
-      new TableForeignKey({
-        columnNames: ['teacherId'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'teachers',
-        onDelete: 'CASCADE'
-      })
-    );
+    const teacherFkExists = await this.foreignKeyExists(queryRunner, 'teacherId', 'teachers');
+    if (!teacherFkExists) {
+      await queryRunner.createForeignKey(
+        'record_books',
+        new TableForeignKey({
+          columnNames: ['teacherId'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'teachers',
+          onDelete: 'CASCADE'
+        })
+      );
+    }
 
-    await queryRunner.createForeignKey(
-      'record_books',
-      new TableForeignKey({
-        columnNames: ['classId'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'classes',
-        onDelete: 'CASCADE'
-      })
-    );
+    const classFkExists = await this.foreignKeyExists(queryRunner, 'classId', 'classes');
+    if (!classFkExists) {
+      await queryRunner.createForeignKey(
+        'record_books',
+        new TableForeignKey({
+          columnNames: ['classId'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'classes',
+          onDelete: 'CASCADE'
+        })
+      );
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

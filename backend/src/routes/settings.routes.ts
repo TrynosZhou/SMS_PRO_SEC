@@ -12,7 +12,8 @@ import {
   createUniformItem,
   updateUniformItem,
   deleteUniformItem,
-  getPublicSplashSettings
+  getPublicSplashSettings,
+  resetCoreData
 } from '../controllers/settings.controller';
 
 const router = Router();
@@ -28,6 +29,7 @@ router.put('/uniform-items/:id', authenticate, authorize(UserRole.ADMIN, UserRol
 router.delete('/uniform-items/:id', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), deleteUniformItem);
 router.post('/opening-day', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), processOpeningDay);
 router.post('/closing-day', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), processClosingDay);
+router.post('/reset-data', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), resetCoreData);
 
 export default router;
 

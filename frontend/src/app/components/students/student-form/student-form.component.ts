@@ -1,8 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { StudentService } from '../../../services/student.service';
-import { ClassService } from '../../../services/class.service';
 import { SettingsService } from '../../../services/settings.service';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-student-form',
@@ -26,9 +26,6 @@ export class StudentFormComponent implements OnInit {
     parentId: '',
     photo: null
   };
-  classes: any[] = [];
-  filteredClasses: any[] = [];
-  classSearchQuery = '';
   isEdit = false;
   error = '';
   success = '';
@@ -37,10 +34,10 @@ export class StudentFormComponent implements OnInit {
   selectedPhoto: File | null = null;
   photoPreview: string | null = null;
   studentIdPrefix = 'JPS';
+  readonly requiredFields = ['firstName', 'lastName', 'dateOfBirth', 'gender', 'contactNumber', 'studentType'];
 
   constructor(
     private studentService: StudentService,
-    private classService: ClassService,
     private settingsService: SettingsService,
     private route: ActivatedRoute,
     public router: Router
@@ -51,7 +48,6 @@ export class StudentFormComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.loadClasses();
     this.loadStudentIdPrefix();
     const id = this.route.snapshot.params['id'];
     if (id) {
@@ -74,40 +70,6 @@ export class StudentFormComponent implements OnInit {
         console.error('Error loading student ID prefix:', err);
       }
     });
-  }
-
-  loadClasses() {
-    this.classService.getClasses().subscribe({
-      next: (data: any) => {
-        const classesList = Array.isArray(data) ? data : (data?.data || []);
-        this.classes = this.classService.sortClasses(classesList);
-        this.filteredClasses = [...this.classes];
-      },
-      error: (err: any) => {
-        console.error('Error loading classes:', err);
-        this.error = 'Failed to load classes';
-        setTimeout(() => this.error = '', 5000);
-      }
-    });
-  }
-
-  filterClasses() {
-    if (!this.classSearchQuery.trim()) {
-      this.filteredClasses = this.classes;
-      return;
-    }
-    const query = this.classSearchQuery.toLowerCase();
-    this.filteredClasses = this.classes.filter(cls =>
-      cls.name.toLowerCase().includes(query) ||
-      (cls.level && cls.level.toLowerCase().includes(query))
-    );
-  }
-
-  selectClass(classId: string) {
-    this.student.classId = classId;
-    // Clear search after selection
-    this.classSearchQuery = '';
-    this.filterClasses();
   }
 
   onStaffChildChange() {
@@ -148,7 +110,7 @@ export class StudentFormComponent implements OnInit {
         
         // Set photo preview if photo exists
         if (data.photo) {
-          this.photoPreview = `http://localhost:3001${data.photo}`;
+          this.photoPreview = `${environment.serverBaseUrl}${data.photo}`;
           this.student.photo = data.photo;
         }
         console.log('Formatted student data:', this.student);
@@ -287,15 +249,19 @@ export class StudentFormComponent implements OnInit {
         }
       });
     } else {
-      // For new students, don't send studentNumber (it will be auto-generated)
+      // For new students, don't send studentNumber (it will be auto-generated).
+      // Class is assigned only via Student Manager → Enroll Student.
       const studentData = { ...this.student };
-      delete studentData.studentNumber; // Remove studentNumber, it will be auto-generated
-      
+      delete studentData.studentNumber;
+      delete studentData.classId;
+
       this.studentService.createStudent(studentData, this.selectedPhoto || undefined).subscribe({
         next: (response: any) => {
-          this.success = response.message || 'Student created and enrolled successfully';
+          this.success =
+            response.message ||
+            'Student registered successfully. Use Enroll Student to place them in a class.';
           this.submitting = false;
-          setTimeout(() => this.router.navigate(['/students']), 1500);
+          setTimeout(() => this.router.navigate(['/students']), 1800);
         },
         error: (err: any) => {
           this.error = err.error?.message || 'Failed to create student';
@@ -305,4 +271,21 @@ export class StudentFormComponent implements OnInit {
       });
     }
   }
+
+  getAgePreview(): number | null {
+    if (!this.student?.dateOfBirth) {
+      return null;
+    }
+    const age = this.calculateAge(this.student.dateOfBirth);
+    return age > 0 ? age : null;
+  }
+
+  getCompletionPercent(): number {
+    const completed = this.requiredFields.filter(field => {
+      const value = this.student?.[field];
+      return value !== null && value !== undefined && String(value).trim() !== '';
+    }).length;
+    return Math.round((completed / this.requiredFields.length) * 100);
+  }
+
 }

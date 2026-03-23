@@ -400,8 +400,12 @@
                 <button 
                   *ngIf="teacher.hasAccount" 
                   class="btn btn-secondary btn-sm" 
-                  (click)="resetPassword(teacher)">
-                  🔑 Reset Password
+                  (click)="resetPassword(teacher)"
+                  [disabled]="resettingPasswordForUserId === teacher.userId">
+                  <span *ngIf="resettingPasswordForUserId !== teacher.userId">🔑 Reset Password</span>
+                  <span *ngIf="resettingPasswordForUserId === teacher.userId" class="btn-loading">
+                    <span class="spinner-small"></span> Resetting…
+                  </span>
                 </button>
               </div>
             </td>
@@ -580,9 +584,60 @@
           *ngIf="selectedTeacher.hasAccount"
           type="button" 
           class="btn btn-primary" 
+          [disabled]="resettingPasswordForUserId === selectedTeacher.userId"
           (click)="closeDetailsModal(); resetPassword(selectedTeacher)">
-          🔑 Reset Password
+          <span *ngIf="resettingPasswordForUserId !== selectedTeacher.userId">🔑 Reset Password</span>
+          <span *ngIf="resettingPasswordForUserId === selectedTeacher.userId">⏳ Resetting…</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Temporary password popup (after reset) -->
+  <div
+    class="modal-overlay password-reset-modal-overlay"
+    *ngIf="showPasswordResetModal && passwordResetResult"
+    (click)="closePasswordResetModal()"
+    [@fadeInOut]>
+    <div class="modal-content password-reset-modal" (click)="$event.stopPropagation()" [@slideInUp] role="dialog" aria-modal="true" aria-labelledby="pwd-reset-title">
+      <div class="modal-header">
+        <div class="modal-header-content">
+          <h2 id="pwd-reset-title">
+            <span class="modal-icon">🔑</span>
+            Temporary password
+          </h2>
+          <p class="modal-subtitle">Share these details securely with {{ passwordResetResult.teacherName }}</p>
+        </div>
+        <button type="button" class="modal-close-btn" (click)="closePasswordResetModal()" title="Close">
+          <span>&times;</span>
+        </button>
+      </div>
+      <div class="modal-body password-reset-body">
+        <p class="pwd-reset-warning">
+          This password is shown only now. Copy it before closing.
+        </p>
+        <div class="pwd-reset-field">
+          <label>Username</label>
+          <div class="pwd-reset-value-row">
+            <code class="pwd-reset-value">{{ passwordResetResult.username }}</code>
+            <button type="button" class="btn btn-copy" (click)="copyPasswordResetField(passwordResetResult.username, 'Username')">Copy</button>
+          </div>
+        </div>
+        <div class="pwd-reset-field">
+          <label>Temporary password</label>
+          <div class="pwd-reset-value-row">
+            <code class="pwd-reset-value pwd-reset-secret">{{ passwordResetResult.temporaryPassword }}</code>
+            <button type="button" class="btn btn-copy" (click)="copyPasswordResetField(passwordResetResult.temporaryPassword, 'Password')">Copy</button>
+          </div>
+        </div>
+        <p class="copy-feedback" *ngIf="copyPasswordFeedback">{{ copyPasswordFeedback }}</p>
+        <div class="info-box pwd-reset-hint">
+          <span class="info-box-icon">💡</span>
+          <p>The teacher must sign in with this password and will be asked to choose a new password.</p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" (click)="closePasswordResetModal()">Done</button>
       </div>
     </div>
   </div>

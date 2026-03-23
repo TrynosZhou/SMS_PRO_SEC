@@ -13,10 +13,16 @@ import { FinanceService } from '../../../services/finance.service';
 })
 export class ParentDashboardComponent implements OnInit {
   students: any[] = [];
+  filteredStudents: any[] = [];
   loading = false;
   error = '';
   currencySymbol = 'KES';
   parentName = '';
+  mobileMenuOpen = false;
+  isMobile = false;
+  searchTerm = '';
+  sortBy: 'name' | 'balance-high' | 'balance-low' = 'name';
+  lastUpdated: Date | null = null;
 
   constructor(
     private parentService: ParentService,
@@ -37,6 +43,23 @@ export class ParentDashboardComponent implements OnInit {
   ngOnInit() {
     this.loadSettings();
     this.loadStudents();
+    this.checkMobile();
+    window.addEventListener('resize', () => this.checkMobile());
+  }
+
+  checkMobile() {
+    this.isMobile = window.innerWidth <= 768;
+    if (!this.isMobile) {
+      this.mobileMenuOpen = false;
+    }
+  }
+
+  toggleMobileMenu() {
+    this.mobileMenuOpen = !this.mobileMenuOpen;
+  }
+
+  closeMobileMenu() {
+    this.mobileMenuOpen = false;
   }
 
   loadSettings() {
@@ -57,6 +80,8 @@ export class ParentDashboardComponent implements OnInit {
     this.parentService.getLinkedStudents().subscribe({
       next: (response: any) => {
         this.students = response.students || [];
+        this.applyFilters();
+        this.lastUpdated = new Date();
         this.loading = false;
       },
       error: (err: any) => {
@@ -122,11 +147,113 @@ export class ParentDashboardComponent implements OnInit {
     return this.students.length > 0 ? this.students[0] : null;
   }
 
+  getTotalStudents(): number {
+    return this.students.length;
+  }
+
+  getOutstandingBalance(): number {
+    return this.students.reduce((sum, student) => {
+      const balance = Number(student.currentInvoiceBalance || 0);
+      return balance > 0 ? sum + balance : sum;
+    }, 0);
+  }
+
+  getCreditBalance(): number {
+    return this.students.reduce((sum, student) => {
+      const balance = Number(student.currentInvoiceBalance || 0);
+      return balance < 0 ? sum + Math.abs(balance) : sum;
+    }, 0);
+  }
+
+  getStudentsWithClearTermBalance(): number {
+    return this.students.filter((student) => Number(student.termBalance || 0) === 0).length;
+  }
+
+  getPaymentReadinessPercent(): number {
+    if (!this.students.length) {
+      return 0;
+    }
+
+    const readiness = (this.getStudentsWithClearTermBalance() / this.students.length) * 100;
+    return Math.round(readiness);
+  }
+
+  getStudentBadge(student: any): string {
+    const balance = Number(student.currentInvoiceBalance || 0);
+    if (balance > 0) {
+      return 'Payment Due';
+    }
+    if (balance < 0) {
+      return 'In Credit';
+    }
+    return 'Settled';
+  }
+
+  getLastUpdatedText(): string {
+    if (!this.lastUpdated) {
+      return 'Not yet refreshed';
+    }
+    return this.lastUpdated.toLocaleString();
+  }
+
+  onSearchTermChange(term: string) {
+    this.searchTerm = term;
+    this.applyFilters();
+  }
+
+  onSortByChange(sortBy: 'name' | 'balance-high' | 'balance-low') {
+    this.sortBy = sortBy;
+    this.applyFilters();
+  }
+
+  refreshDashboard() {
+    this.loadStudents();
+  }
+
+  applyFilters() {
+    const normalizedSearch = this.searchTerm.trim().toLowerCase();
+
+    const filtered = this.students.filter((student) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const fullName = `${student.firstName || ''} ${student.lastName || ''}`.toLowerCase();
+      const studentNumber = String(student.studentNumber || '').toLowerCase();
+      const className = String(student.class?.name || '').toLowerCase();
+      return fullName.includes(normalizedSearch)
+        || studentNumber.includes(normalizedSearch)
+        || className.includes(normalizedSearch);
+    });
+
+    this.filteredStudents = filtered.sort((a, b) => {
+      const balanceA = Number(a.currentInvoiceBalance || 0);
+      const balanceB = Number(b.currentInvoiceBalance || 0);
+
+      if (this.sortBy === 'balance-high') {
+        return balanceB - balanceA;
+      }
+
+      if (this.sortBy === 'balance-low') {
+        return balanceA - balanceB;
+      }
+
+      const nameA = `${a.firstName || ''} ${a.lastName || ''}`.trim().toLowerCase();
+      const nameB = `${b.firstName || ''} ${b.lastName || ''}`.trim().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }
+
   viewReportCardForFirstStudent() {
-    const firstStudent = this.getFirstStudent();
+    const firstStudent = this.filteredStudents.length > 0 ? this.filteredStudents[0] : this.getFirstStudent();
     if (firstStudent) {
       this.viewReportCard(firstStudent);
     }
+  }
+
+  makePayment() {
+    // Navigate to payment page or open payment modal
+    this.router.navigate(['/parent/payment']);
   }
 
   viewCurrentInvoice() {

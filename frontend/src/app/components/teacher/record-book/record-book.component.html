@@ -162,6 +162,26 @@
       </div>
     </div>
 
+    <!-- Grade Legend -->
+    <div class="grade-legend" aria-label="Grade legend">
+      <div class="legend-item">
+        <span class="legend-icon legend-excellent">⭐</span>
+        <span>Excellent (80-100)</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-icon legend-good">✓</span>
+        <span>Good (60-79)</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-icon legend-average">○</span>
+        <span>Average (40-59)</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-icon legend-poor">✗</span>
+        <span>Poor (&lt; 40)</span>
+      </div>
+    </div>
+
     <!-- Search and Filter -->
     <div class="toolbar">
       <div class="search-box">
@@ -179,15 +199,16 @@
         <button 
           class="btn btn-icon" 
           (click)="addTestColumn()" 
-          [disabled]="visibleTests >= maxTests"
+          [disabled]="visibleTests >= maxTests || autoSavingActive"
           title="Add Test Column">
           ➕
         </button>
         <span class="column-info">{{ visibleTests }}/{{ maxTests }} tests</span>
+        <span class="save-live" *ngIf="autoSavingActive">Saving…</span>
         <button 
           class="btn btn-icon" 
           (click)="removeTestColumn()" 
-          [disabled]="visibleTests <= 1"
+          [disabled]="visibleTests <= 1 || autoSavingActive"
           title="Remove Test Column">
           ➖
         </button>
@@ -276,9 +297,17 @@
       <button 
         class="btn btn-primary btn-large" 
         (click)="saveAllMarks()" 
-        [disabled]="saving">
-        <span class="btn-icon">{{ saving ? '⏳' : '💾' }}</span>
-        <span>{{ saving ? 'Saving...' : 'Save All Marks' }}</span>
+        [disabled]="saving || autoSavingActive">
+        <span class="btn-icon">{{ (saving || autoSavingActive) ? '⏳' : '💾' }}</span>
+        <span>{{ saving ? 'Saving...' : (autoSavingActive ? 'Saving changes…' : 'Save All Marks') }}</span>
+      </button>
+      <button
+        class="btn btn-outline btn-warning btn-large"
+        (click)="clearVisibleMarks()"
+        [disabled]="saving || autoSavingActive"
+        title="Clear marks (and topics/dates) for currently visible tests">
+        <span class="btn-icon">🧹</span>
+        <span>Clear Visible Marks</span>
       </button>
       <button 
         class="btn btn-outline" 

@@ -5,7 +5,8 @@ import {
   markAttendance,
   getAttendance,
   getAttendanceReport,
-  getStudentTotalAttendance
+  getStudentTotalAttendance,
+  getAttendanceAnalytics
 } from '../controllers/attendance.controller';
 
 const router = Router();
@@ -21,6 +22,9 @@ router.get('/report', authenticate, authorize(UserRole.TEACHER, UserRole.ADMIN, 
 
 // Get total attendance for a student (for report cards)
 router.get('/student/total', authenticate, getStudentTotalAttendance);
+
+// Get advanced attendance analytics
+router.get('/analytics', authenticate, getAttendanceAnalytics);
 
 export default router;
 

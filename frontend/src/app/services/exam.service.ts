@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, Observer, throwError } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 @Injectable({
@@ -69,6 +70,104 @@ export class ExamService {
     return this.http.get(`${this.apiUrl}/exams/rankings/overall-performance`, { params: { form, examType } });
   }
 
+  /**
+   * Server-generated rankings PDF (same data as the on-screen table). Opens inline in browser for preview/print.
+   */
+  getRankingsPdf(body: {
+    rankingType: string;
+    examTypeLabel: string;
+    filterSubtitle: string;
+    rankings: any[];
+  }): Observable<Blob> {
+    return this.http
+      .post(`${this.apiUrl}/exams/rankings/pdf`, body, {
+        responseType: 'blob',
+        observe: 'response'
+      })
+      .pipe(
+        map((response: any) => {
+          const blob = response.body;
+          const contentType = response.headers.get('content-type') || '';
+          const status = response.status;
+          if (status === 200 && contentType.includes('application/pdf')) {
+            return blob;
+          }
+          throw { status, blob, contentType };
+        }),
+        catchError((error: any) => {
+          if (error.status && error.blob) {
+            const reader = new FileReader();
+            return new Observable((observer: Observer<any>) => {
+              reader.onloadend = () => {
+                try {
+                  const errorText = reader.result as string;
+                  let errorJson: any;
+                  try {
+                    errorJson = JSON.parse(errorText);
+                  } catch (e) {
+                    errorJson = { message: errorText || 'Unknown error' };
+                  }
+                  observer.error(
+                    new HttpErrorResponse({
+                      error: errorJson,
+                      status: error.status,
+                      statusText: error.statusText || 'Error'
+                    })
+                  );
+                } catch (e) {
+                  observer.error(
+                    new HttpErrorResponse({
+                      error: { message: 'Failed to parse error response' },
+                      status: error.status || 500,
+                      statusText: 'Error'
+                    })
+                  );
+                }
+              };
+              reader.onerror = () => {
+                observer.error(
+                  new HttpErrorResponse({
+                    error: { message: 'Failed to read error response' },
+                    status: error.status || 500,
+                    statusText: 'Error'
+                  })
+                );
+              };
+              reader.readAsText(error.blob);
+            });
+          }
+          if (error.error instanceof Blob) {
+            const reader = new FileReader();
+            return new Observable((observer: Observer<any>) => {
+              reader.onloadend = () => {
+                try {
+                  const errorText = reader.result as string;
+                  let errorJson: any;
+                  try {
+                    errorJson = JSON.parse(errorText);
+                  } catch (e) {
+                    errorJson = { message: errorText || 'Unknown error' };
+                  }
+                  observer.error(
+                    new HttpErrorResponse({
+                      error: errorJson,
+                      status: error.status || 500,
+                      statusText: error.statusText || 'Error'
+                    })
+                  );
+                } catch (e) {
+                  observer.error(error);
+                }
+              };
+              reader.onerror = () => observer.error(error);
+              reader.readAsText(error.error);
+            });
+          }
+          return throwError(() => error);
+        })
+      );
+  }
+
   getReportCard(classId: string, examType: string, term: string, studentId?: string, subjectId?: string): Observable<any> {
     const url = `${this.apiUrl}/exams/report-card`;
     const params: any = {};
@@ -127,14 +226,117 @@ export class ExamService {
     return this.http.get(`${this.apiUrl}/exams/mark-sheet`, { params });
   }
 
-  downloadMarkSheetPDF(classId: string, examType: string, term?: string, subjectId?: string): Observable<Blob> {
-    const params: any = { classId, examType };
-    if (term) params.term = term;
-    if (subjectId) params.subjectId = subjectId;
+  /**
+   * Server-generated mark sheet PDF (same content as the on-screen mark sheet).
+   * download=true → Content-Disposition attachment; false/omit → inline (browser viewer / print preview).
+   */
+  getMarkSheetPdf(
+    classId: string,
+    examType: string,
+    term?: string,
+    subjectId?: string,
+    options?: { download?: boolean }
+  ): Observable<Blob> {
+    const params: Record<string, string> = {
+      classId,
+      examType
+    };
+    if (term) params['term'] = term;
+    if (subjectId) params['subjectId'] = subjectId;
+    if (options?.download) {
+      params['download'] = '1';
+    }
     return this.http.get(`${this.apiUrl}/exams/mark-sheet/pdf`, {
       params,
-      responseType: 'blob'
-    });
+      responseType: 'blob',
+      observe: 'response'
+    }).pipe(
+      map((response: any) => {
+        const blob = response.body;
+        const contentType = response.headers.get('content-type') || '';
+        const status = response.status;
+        if (status === 200 && contentType.includes('application/pdf')) {
+          return blob;
+        }
+        throw { status, blob, contentType };
+      }),
+      catchError((error: any) => {
+        if (error.status && error.blob) {
+          const reader = new FileReader();
+          return new Observable((observer: Observer<any>) => {
+            reader.onloadend = () => {
+              try {
+                const errorText = reader.result as string;
+                let errorJson: any;
+                try {
+                  errorJson = JSON.parse(errorText);
+                } catch (e) {
+                  errorJson = { message: errorText || 'Unknown error' };
+                }
+                observer.error(
+                  new HttpErrorResponse({
+                    error: errorJson,
+                    status: error.status,
+                    statusText: error.statusText || 'Error'
+                  })
+                );
+              } catch (e) {
+                observer.error(
+                  new HttpErrorResponse({
+                    error: { message: 'Failed to parse error response' },
+                    status: error.status || 500,
+                    statusText: 'Error'
+                  })
+                );
+              }
+            };
+            reader.onerror = () => {
+              observer.error(
+                new HttpErrorResponse({
+                  error: { message: 'Failed to read error response' },
+                  status: error.status || 500,
+                  statusText: 'Error'
+                })
+              );
+            };
+            reader.readAsText(error.blob);
+          });
+        }
+        if (error.error instanceof Blob) {
+          const reader = new FileReader();
+          return new Observable((observer: Observer<any>) => {
+            reader.onloadend = () => {
+              try {
+                const errorText = reader.result as string;
+                let errorJson: any;
+                try {
+                  errorJson = JSON.parse(errorText);
+                } catch (e) {
+                  errorJson = { message: errorText || 'Unknown error' };
+                }
+                observer.error(
+                  new HttpErrorResponse({
+                    error: errorJson,
+                    status: error.status || 500,
+                    statusText: error.statusText || 'Error'
+                  })
+                );
+              } catch (e) {
+                observer.error(error);
+              }
+            };
+            reader.onerror = () => observer.error(error);
+            reader.readAsText(error.error);
+          });
+        }
+        return throwError(() => error);
+      })
+    );
+  }
+
+  /** @deprecated Use getMarkSheetPdf(..., { download: true }) */
+  downloadMarkSheetPDF(classId: string, examType: string, term?: string, subjectId?: string): Observable<Blob> {
+    return this.getMarkSheetPdf(classId, examType, term, subjectId, { download: true });
   }
 
   publishExam(examId: string): Observable<any> {

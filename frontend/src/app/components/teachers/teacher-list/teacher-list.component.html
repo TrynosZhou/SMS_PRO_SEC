@@ -152,38 +152,53 @@
         <div class="teacher-avatar">
           <span class="avatar-icon">👨‍🏫</span>
         </div>
-        <div class="teacher-badge" *ngIf="teacher.isActive !== false">Active</div>
+        <div
+          class="teacher-badge clickable-value"
+          [class.inactive-badge]="!isTeacherActive(teacher)"
+          (click)="openFieldEdit(teacher, 'isActive', $event)"
+          title="Click to edit status">
+          {{ isTeacherActive(teacher) ? 'Active' : 'Inactive' }}
+        </div>
       </div>
       <div class="card-body">
-        <h3 class="teacher-name">{{ teacher.firstName }} {{ teacher.lastName }}</h3>
+        <h3 class="teacher-name">
+          <span class="clickable-value" (click)="openFieldEdit(teacher, 'firstName', $event)" title="Click to edit">{{ teacher.firstName || '—' }}</span>
+          <span> </span>
+          <span class="clickable-value" (click)="openFieldEdit(teacher, 'lastName', $event)" title="Click to edit">{{ teacher.lastName || '—' }}</span>
+        </h3>
         <div class="teacher-info">
           <div class="info-item">
             <span class="info-label">Teacher ID</span>
             <span class="info-value">{{ teacher.teacherId }}</span>
           </div>
-          <div class="info-item" *ngIf="teacher.phoneNumber">
+          <div class="info-item">
             <span class="info-label">Phone</span>
-            <span class="info-value">{{ teacher.phoneNumber }}</span>
+            <span class="info-value clickable-value" (click)="openFieldEdit(teacher, 'phoneNumber', $event)" title="Click to edit">{{ teacher.phoneNumber || '—' }}</span>
           </div>
         </div>
-        <div class="subjects-section" *ngIf="teacher.subjects && teacher.subjects.length > 0">
+        <div
+          class="subjects-section editable-section"
+          (click)="openFieldEdit(teacher, 'subjectIds', $event)"
+          title="Click to edit subjects">
           <div class="section-label">Subjects</div>
-          <div class="tags-container">
+          <div class="tags-container" *ngIf="teacher.subjects && teacher.subjects.length > 0">
             <span *ngFor="let subject of teacher.subjects" class="subject-tag">
               {{ subject.name }}
             </span>
           </div>
+          <span class="info-text" *ngIf="!teacher.subjects?.length">None — click to assign</span>
         </div>
-        <div class="classes-section" *ngIf="teacher.classes && teacher.classes.length > 0">
+        <div
+          class="classes-section editable-section"
+          (click)="openFieldEdit(teacher, 'classIds', $event)"
+          title="Click to edit classes">
           <div class="section-label">Classes</div>
-          <div class="tags-container">
+          <div class="tags-container" *ngIf="teacher.classes && teacher.classes.length > 0">
             <span *ngFor="let cls of teacher.classes" class="class-tag">
               {{ cls.name }}
             </span>
           </div>
-        </div>
-        <div class="no-assignments" *ngIf="(!teacher.subjects || teacher.subjects.length === 0) && (!teacher.classes || teacher.classes.length === 0)">
-          <span class="info-text">No assignments yet</span>
+          <span class="info-text" *ngIf="!teacher.classes?.length">None — click to assign</span>
         </div>
       </div>
       <div class="card-actions">
@@ -200,54 +215,51 @@
     </div>
   </div>
 
-  <!-- Teachers List View -->
+  <!-- Teachers List View — table matches students page (cyan header) -->
   <div class="teachers-list-view" *ngIf="!loading && viewMode === 'list' && filteredTeachers.length > 0">
-    <div class="list-header">
-      <div class="list-col name-col">Name</div>
-      <div class="list-col emp-col">Employee #</div>
-      <div class="list-col phone-col">Phone</div>
-      <div class="list-col subjects-col">Subjects</div>
-      <div class="list-col classes-col">Classes</div>
-      <div class="list-col actions-col">Actions</div>
-    </div>
-    <div class="list-item" *ngFor="let teacher of filteredTeachers">
-      <div class="list-col name-col">
-        <div class="name-cell">
-          <span class="avatar-small">👨‍🏫</span>
-          <span class="name-text">{{ teacher.firstName }} {{ teacher.lastName }}</span>
-        </div>
-      </div>
-      <div class="list-col emp-col">{{ teacher.teacherId }}</div>
-      <div class="list-col phone-col">{{ teacher.phoneNumber || 'N/A' }}</div>
-      <div class="list-col subjects-col">
-        <div class="tags-inline">
-          <span *ngFor="let subject of teacher.subjects" class="subject-tag-small">
-            {{ subject.name }}
-          </span>
-          <span *ngIf="!teacher.subjects || teacher.subjects.length === 0" class="no-data">N/A</span>
-        </div>
-      </div>
-      <div class="list-col classes-col">
-        <div class="tags-inline">
-          <span *ngFor="let cls of teacher.classes" class="class-tag-small">
-            {{ cls.name }}
-          </span>
-          <span *ngIf="!teacher.classes || teacher.classes.length === 0" class="no-data">N/A</span>
-        </div>
-      </div>
-      <div class="list-col actions-col">
-        <div class="action-buttons">
-          <button class="btn-icon-small" (click)="viewTeacherDetails(teacher)" title="View Details">
-            👁️
-          </button>
-          <button class="btn-icon-small" (click)="editTeacher(teacher.id)" title="Edit">
-            ✏️
-          </button>
-          <button class="btn-icon-small btn-delete" (click)="deleteTeacher(teacher.id, teacher.firstName + ' ' + teacher.lastName, teacher.teacherId)" title="Delete" [disabled]="loading">
-            🗑️
-          </button>
-        </div>
-      </div>
+    <div class="table-scroll">
+      <table class="teachers-data-table">
+        <thead>
+          <tr>
+            <th class="col-staff-id" scope="col">Staff ID</th>
+            <th class="col-firstname" scope="col">First name</th>
+            <th class="col-lastname" scope="col">Last name</th>
+            <th class="col-contact" scope="col">Contact</th>
+            <th class="col-status" scope="col">Gender</th>
+            <th class="col-subject" scope="col">Subject</th>
+            <th class="col-actions" scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let teacher of filteredTeachers">
+            <td class="col-staff-id"><strong>{{ teacher.teacherId }}</strong></td>
+            <td class="col-firstname">
+              <span class="clickable-value" (click)="openFieldEdit(teacher, 'firstName', $event)" title="Click to edit">{{ teacher.firstName || '—' }}</span>
+            </td>
+            <td class="col-lastname">
+              <span class="clickable-value" (click)="openFieldEdit(teacher, 'lastName', $event)" title="Click to edit">{{ teacher.lastName || '—' }}</span>
+            </td>
+            <td class="col-contact">
+              <span class="clickable-value" (click)="openFieldEdit(teacher, 'phoneNumber', $event)" title="Click to edit">{{ teacher.phoneNumber || '—' }}</span>
+            </td>
+            <td class="col-status">
+              <span class="clickable-value" (click)="openFieldEdit(teacher, 'gender', $event)" title="Click to edit gender">
+                {{ teacher.gender || '—' }}
+              </span>
+            </td>
+            <td class="col-subject">
+              <span class="clickable-value" (click)="openFieldEdit(teacher, 'subjectIds', $event)" title="Click to edit subjects">{{ getSubjectsDisplay(teacher) }}</span>
+            </td>
+            <td class="col-actions">
+              <div class="action-buttons">
+                <button type="button" class="btn-icon-small" (click)="viewTeacherDetails(teacher)" title="View Details" aria-label="View">👁️</button>
+                <button type="button" class="btn-icon-small" (click)="editTeacher(teacher.id)" title="Edit" aria-label="Edit">✏️</button>
+                <button type="button" class="btn-icon-small btn-delete" (click)="deleteTeacher(teacher.id, teacher.firstName + ' ' + teacher.lastName, teacher.teacherId)" title="Delete" [disabled]="loading" aria-label="Delete">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -266,59 +278,121 @@
     </button>
   </div>
 
-  <!-- Teacher Details Modal -->
-  <div class="modal-overlay" *ngIf="selectedTeacher" (click)="closeTeacherDetails()">
-    <div class="modal-content" (click)="$event.stopPropagation()">
-      <button class="modal-close" (click)="closeTeacherDetails()">&times;</button>
-      <div class="modal-header">
-        <div class="modal-avatar">
-          <span class="avatar-icon-large">👨‍🏫</span>
+  <!-- Teacher Details Modal — landscape + modern layout -->
+  <div class="modal-overlay modal-overlay-modern" *ngIf="selectedTeacher" (click)="closeTeacherDetails()">
+    <div class="modal-content teacher-detail-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="teacher-modal-title">
+      <button type="button" class="modal-close modal-close-modern" (click)="closeTeacherDetails()" aria-label="Close dialog">&times;</button>
+      <div class="modal-header modal-header-modern">
+        <div class="modal-avatar teacher-modal-avatar">
+          <span class="avatar-icon-large avatar-initials">{{ getInitials(selectedTeacher) }}</span>
         </div>
         <div class="modal-title">
-          <h2>{{ selectedTeacher.firstName }} {{ selectedTeacher.lastName }}</h2>
-          <p class="employee-number">{{ selectedTeacher.teacherId }}</p>
+          <h2 id="teacher-modal-title">
+            <span class="clickable-value" (click)="openFieldEdit(selectedTeacher, 'firstName', $event)" title="Click to edit">{{ selectedTeacher.firstName || '—' }}</span>
+            <span> </span>
+            <span class="clickable-value" (click)="openFieldEdit(selectedTeacher, 'lastName', $event)" title="Click to edit">{{ selectedTeacher.lastName || '—' }}</span>
+          </h2>
+          <div class="teacher-identity-row">
+            <p class="teacher-id-chip">{{ selectedTeacher.teacherId }}</p>
+            <span
+              class="teacher-status-pill clickable-value"
+              [class.active]="isTeacherActive(selectedTeacher)"
+              [class.inactive]="!isTeacherActive(selectedTeacher)"
+              (click)="openFieldEdit(selectedTeacher, 'isActive', $event)"
+              title="Click to edit status">
+              {{ isTeacherActive(selectedTeacher) ? 'Active' : 'Inactive' }}
+            </span>
+          </div>
         </div>
       </div>
-      <div class="modal-body">
-        <div class="detail-section">
-          <h3>Contact Information</h3>
-          <div class="detail-grid">
-            <div class="detail-item">
+      <div class="modal-body modal-body-landscape modal-body-modern">
+        <div class="detail-section detail-section-card">
+          <h3 class="detail-section-title">Contact Information</h3>
+          <div class="detail-grid detail-grid-landscape detail-grid-modern">
+            <div class="detail-item detail-field">
               <span class="detail-label">Phone Number</span>
-              <span class="detail-value">{{ selectedTeacher.phoneNumber || 'Not provided' }}</span>
+              <span class="detail-value clickable-value" (click)="openFieldEdit(selectedTeacher, 'phoneNumber', $event)" title="Click to edit">{{ selectedTeacher.phoneNumber || '—' }}</span>
             </div>
-            <div class="detail-item">
-              <span class="detail-label">Address</span>
-              <span class="detail-value">{{ selectedTeacher.address || 'Not provided' }}</span>
-            </div>
-            <div class="detail-item" *ngIf="selectedTeacher.dateOfBirth">
+            <div class="detail-item detail-field">
               <span class="detail-label">Date of Birth</span>
-              <span class="detail-value">{{ selectedTeacher.dateOfBirth | date }}</span>
+              <span class="detail-value clickable-value" (click)="openFieldEdit(selectedTeacher, 'dateOfBirth', $event)" title="Click to edit">{{ selectedTeacher.dateOfBirth ? (selectedTeacher.dateOfBirth | date:'mediumDate') : '—' }}</span>
+            </div>
+            <div class="detail-item detail-field detail-item-span">
+              <span class="detail-label">Qualification</span>
+              <span class="detail-value clickable-value" (click)="openFieldEdit(selectedTeacher, 'qualification', $event)" title="Click to edit">{{ selectedTeacher.qualification?.trim() || '—' }}</span>
+            </div>
+            <div class="detail-item detail-field detail-item-span">
+              <span class="detail-label">Address</span>
+              <span class="detail-value detail-value-multiline clickable-value" (click)="openFieldEdit(selectedTeacher, 'address', $event)" title="Click to edit">{{ selectedTeacher.address || '—' }}</span>
             </div>
           </div>
         </div>
-        <div class="detail-section" *ngIf="selectedTeacher.subjects && selectedTeacher.subjects.length > 0">
-          <h3>Teaching Subjects ({{ selectedTeacher.subjects.length }})</h3>
-          <div class="tags-container">
-            <span *ngFor="let subject of selectedTeacher.subjects" class="subject-tag">
-              {{ subject.name }}
-            </span>
+        <div class="detail-section-stack">
+          <div class="detail-section detail-section-card">
+            <h3 class="detail-section-title">Teaching Subjects <span class="section-count" *ngIf="selectedTeacher.subjects?.length">({{ selectedTeacher.subjects.length }})</span></h3>
+            <div
+              class="tags-container tags-container-modern modal-editable-block"
+              *ngIf="selectedTeacher.subjects?.length"
+              (click)="openFieldEdit(selectedTeacher, 'subjectIds', $event)"
+              title="Click to edit subjects">
+              <span *ngFor="let subject of selectedTeacher.subjects" class="subject-tag subject-tag-modern">{{ subject.name }}</span>
+            </div>
+            <p
+              class="empty-section-hint clickable-value"
+              *ngIf="!selectedTeacher.subjects?.length"
+              (click)="openFieldEdit(selectedTeacher, 'subjectIds', $event)"
+              title="Click to assign subjects">No subjects assigned yet — click to edit.</p>
           </div>
-        </div>
-        <div class="detail-section" *ngIf="selectedTeacher.classes && selectedTeacher.classes.length > 0">
-          <h3>Classes ({{ selectedTeacher.classes.length }})</h3>
-          <div class="tags-container">
-            <span *ngFor="let cls of selectedTeacher.classes" class="class-tag">
-              {{ cls.name }}
-            </span>
+          <div class="detail-section detail-section-card">
+            <h3 class="detail-section-title">Classes <span class="section-count" *ngIf="selectedTeacher.classes?.length">({{ selectedTeacher.classes.length }})</span></h3>
+            <div
+              class="tags-container tags-container-modern modal-editable-block"
+              *ngIf="selectedTeacher.classes?.length"
+              (click)="openFieldEdit(selectedTeacher, 'classIds', $event)"
+              title="Click to edit classes">
+              <span *ngFor="let cls of selectedTeacher.classes" class="class-tag class-tag-modern">{{ cls.name }}</span>
+            </div>
+            <p
+              class="empty-section-hint clickable-value"
+              *ngIf="!selectedTeacher.classes?.length"
+              (click)="openFieldEdit(selectedTeacher, 'classIds', $event)"
+              title="Click to assign classes">No classes assigned yet — click to edit.</p>
           </div>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" (click)="closeTeacherDetails()">Close</button>
-        <button class="btn btn-primary" (click)="editTeacher(selectedTeacher.id)">
-          ✏️ Edit Teacher
-        </button>
+      <div class="modal-footer modal-footer-modern">
+        <button type="button" class="btn btn-modal-close" (click)="closeTeacherDetails()">Close</button>
+        <button type="button" class="btn btn-modal-cta" (click)="editTeacher(selectedTeacher.id)">Edit Teacher</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick edit field popup (Staff ID is never editable) -->
+  <div class="modal-overlay field-edit-overlay" *ngIf="fieldEditOpen" (click)="closeFieldEdit()">
+    <div class="modal-content field-edit-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="teacher-field-edit-title">
+      <h3 class="field-edit-heading" id="teacher-field-edit-title">Edit {{ fieldEditLabel }}</h3>
+      <div class="field-edit-body">
+        <input *ngIf="fieldEditInputMode === 'text'" type="text" class="field-edit-input" [(ngModel)]="fieldEditValue" [name]="'tfe_' + fieldEditKey" />
+        <input *ngIf="fieldEditInputMode === 'tel'" type="tel" class="field-edit-input" [(ngModel)]="fieldEditValue" [name]="'tfe_' + fieldEditKey" />
+        <input *ngIf="fieldEditInputMode === 'date'" type="date" class="field-edit-input" [(ngModel)]="fieldEditValue" [name]="'tfe_' + fieldEditKey" [attr.max]="maxDobDate" />
+        <textarea *ngIf="fieldEditInputMode === 'textarea'" class="field-edit-textarea" rows="4" [(ngModel)]="fieldEditValue" [name]="'tfe_' + fieldEditKey"></textarea>
+        <select *ngIf="fieldEditInputMode === 'select'" class="field-edit-select" [(ngModel)]="fieldEditValue" [name]="'tfe_' + fieldEditKey">
+          <option *ngFor="let o of fieldEditSelectOptions" [value]="o.value">{{ o.label }}</option>
+        </select>
+        <div *ngIf="fieldEditInputMode === 'multiselect'" class="field-edit-multiselect-list">
+          <label *ngFor="let item of fieldEditCheckboxOptions" class="field-edit-checkbox-row">
+            <input
+              type="checkbox"
+              [checked]="isMultiIdChecked(item.id)"
+              (change)="toggleMultiId(item.id)" />
+            <span>{{ item.label }}</span>
+          </label>
+          <p *ngIf="!fieldEditCheckboxOptions.length" class="field-edit-hint">No options loaded. Refresh the page or check subjects/classes in the system.</p>
+        </div>
+      </div>
+      <div class="field-edit-actions">
+        <button type="button" class="btn btn-modal-close" (click)="closeFieldEdit()" [disabled]="fieldEditSaving">Cancel</button>
+        <button type="button" class="btn btn-modal-cta" (click)="saveFieldEdit()" [disabled]="fieldEditSaving">{{ fieldEditSaving ? 'Saving…' : 'Save' }}</button>
       </div>
     </div>
   </div>

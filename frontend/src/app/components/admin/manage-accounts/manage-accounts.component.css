@@ -183,6 +183,19 @@
   font-weight: bold;
 }
 
+.alert-success code.temp-pw-inline {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 4px 10px;
+  background: rgba(21, 87, 36, 0.12);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #0d3d1a;
+  word-break: break-all;
+}
+
 /* Admin Password Change Section */
 .admin-password-section {
   background: white;
@@ -798,6 +811,100 @@
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+}
+
+/* Stacked above other modals (e.g. after closing Account Details) */
+.password-reset-modal-overlay {
+  z-index: 1100;
+}
+
+.password-reset-modal {
+  max-width: 480px;
+}
+
+.password-reset-body {
+  padding-top: 10px;
+}
+
+.pwd-reset-warning {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 0 0 20px 0;
+  line-height: 1.45;
+}
+
+.pwd-reset-field {
+  margin-bottom: 18px;
+}
+
+.pwd-reset-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6c757d;
+  margin-bottom: 8px;
+}
+
+.pwd-reset-value-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pwd-reset-value {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.pwd-reset-secret {
+  background: #e8f4fd;
+  border-color: #9ec5fe;
+  font-weight: 600;
+  color: #052c65;
+}
+
+.btn-copy {
+  padding: 10px 16px;
+  font-size: 13px;
+  white-space: nowrap;
+  background: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #495057;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-copy:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.copy-feedback {
+  font-size: 13px;
+  color: #198754;
+  margin: 4px 0 0 0;
+  font-weight: 500;
+}
+
+.pwd-reset-hint {
+  margin-top: 8px;
 }
 
 .modal-content {

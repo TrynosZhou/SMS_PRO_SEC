@@ -171,8 +171,13 @@
         <button class="btn-icon" (click)="exportToCSV()" title="Export to CSV">
           📥 Export CSV
         </button>
-        <button class="btn-icon" (click)="printRankings()" title="Print Rankings">
-          🖨️ Print
+        <button
+          class="btn-icon"
+          type="button"
+          (click)="printRankings()"
+          [disabled]="pdfBusy"
+          title="Open PDF preview (school letterhead, grid)">
+          {{ pdfBusy ? '⏳ Generating…' : '🖨️ Print' }}
         </button>
       </div>
     </div>
@@ -244,6 +249,7 @@
         </tbody>
       </table>
     </div>
+    <p class="pdf-error" *ngIf="pdfError">{{ pdfError }}</p>
   </div>
 
   <!-- Empty State -->

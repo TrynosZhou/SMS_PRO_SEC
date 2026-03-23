@@ -149,49 +149,7 @@
         </p>
         
         <div class="grade-settings-container" style="background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6;">
-          <!-- Grade 1: Excellent -->
-          <div class="grade-item" style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #28a745;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items: start;">
-              <div class="form-group">
-                <label>
-                  Mark Range (Minimum %)
-                  <span style="color: #28a745; font-weight: 600;">★</span>
-                </label>
-                <input 
-                  type="number" 
-                  [(ngModel)]="settings.gradeThresholds.excellent" 
-                  name="excellent" 
-                  min="0" 
-                  max="100" 
-                  required
-                  (blur)="validateGradeThresholds()"
-                  style="width: 100%;">
-                <small style="color: #6c757d; display: block; margin-top: 5px;">
-                  Range: {{ settings.gradeThresholds.excellent }}% - 100%
-                </small>
-              </div>
-              <div class="form-group">
-                <label>
-                  Grade Label/Remark
-                  <span style="color: #28a745; font-weight: 600;">★</span>
-                </label>
-                <input 
-                  type="text" 
-                  [(ngModel)]="settings.gradeLabels.excellent" 
-                  name="gradeLabelExcellent" 
-                  maxlength="50"
-                  required
-                  placeholder="e.g., Outstanding"
-                  style="width: 100%; padding: 10px; border: 2px solid #28a745; border-radius: 4px; font-size: 14px;"
-                  class="editable-grade-label">
-                <small style="color: #6c757d; display: block; margin-top: 5px;">
-                  This label will appear on report cards (Editable)
-                </small>
-              </div>
-            </div>
-          </div>
-
-          <!-- Grade 2: Very Good -->
+          <!-- Grade 1: A (mapped from "veryGood") -->
           <div class="grade-item" style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #17a2b8;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items: start;">
               <div class="form-group">
@@ -209,7 +167,7 @@
                   (blur)="validateGradeThresholds()"
                   style="width: 100%;">
                 <small style="color: #6c757d; display: block; margin-top: 5px;">
-                  Range: {{ settings.gradeThresholds.veryGood }}% - {{ settings.gradeThresholds.excellent - 1 }}%
+                  Range: {{ settings.gradeThresholds.veryGood }}% - 100%
                 </small>
               </div>
               <div class="form-group">
@@ -440,7 +398,7 @@
           <div class="alert alert-info" style="margin-top: 15px; padding: 12px; background: #e3f2fd; border-left: 4px solid #2196f3; color: #1565c0;">
             <strong>ℹ️ Important:</strong>
             <ul style="margin: 8px 0 0 20px; padding: 0;">
-              <li>Mark ranges must be in descending order (Excellent ≥ Very Good ≥ Good ≥ Satisfactory ≥ Needs Improvement ≥ Basic)</li>
+              <li>Mark ranges must be in descending order (A ≥ Good ≥ Satisfactory ≥ Needs Improvement ≥ Basic)</li>
               <li>Grade labels can be customized to match your school's grading system</li>
               <li>Changes will apply to all new report cards generated after saving</li>
               <li>Existing report cards will not be affected</li>
@@ -508,7 +466,7 @@
       <div class="form-section" *ngIf="authService.hasRole('admin') || authService.hasRole('superadmin')">
         <h2>🎯 Form 5 &amp; 6 Grade Points</h2>
         <p class="section-description">
-          Update the points awarded for each Cambridge grade (A*–U). These values feed directly into the Form 5 &amp; 6 report cards and PDF exports.
+          Update the points awarded for each Cambridge grade (A–U). These values feed directly into the Form 5 &amp; 6 report cards and PDF exports.
         </p>
         <div class="grade-points-table-wrapper">
           <table class="grade-points-table">
@@ -539,7 +497,7 @@
           </table>
         </div>
         <small class="table-helper">
-          Tip: Enter whole numbers only. The default Cambridge scale equals 5 points for A*/A, 4 for B, 3 for C, 2 for D, 1 for E and 0 for U.
+          Tip: Enter whole numbers only. The default Cambridge scale equals 5 points for A, 4 for B, 3 for C, 2 for D, 1 for E and 0 for U.
         </small>
       </div>
 
@@ -1050,6 +1008,31 @@
         </div>
       </div>
       </fieldset>
+
+      <div class="form-section danger-zone" *ngIf="authService.hasRole('admin') || authService.hasRole('superadmin')">
+        <h2>Danger Zone</h2>
+        <p class="section-description">
+          This reset erases student records, teacher records, and transaction data while keeping system settings intact.
+        </p>
+        <div class="reset-confirmation-group">
+          <label for="resetConfirmationInput">Type <strong>RESET</strong> to confirm</label>
+          <input
+            id="resetConfirmationInput"
+            type="text"
+            [(ngModel)]="resetConfirmationWord"
+            name="resetConfirmationWord"
+            [disabled]="isDemoUser() || resettingCoreData"
+            placeholder="Type RESET to continue">
+          <small>Only administrators should perform this action. This cannot be undone.</small>
+        </div>
+        <button
+          type="button"
+          class="btn btn-danger"
+          (click)="resetCoreData()"
+          [disabled]="!canResetCoreData()">
+          {{ resettingCoreData ? 'Resetting Data...' : 'Reset Data' }}
+        </button>
+      </div>
 
       <div style="margin-top: 20px;">
         <button type="submit" class="btn btn-primary" [disabled]="loading || isDemoUser()">

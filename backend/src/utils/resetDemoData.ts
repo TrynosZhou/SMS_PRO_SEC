@@ -137,7 +137,7 @@ export async function resetDemoDataForLogin() {
       schoolName: 'Demo School',
       academicYear: new Date().getFullYear().toString(),
       currentTerm: `Term 1 ${new Date().getFullYear()}`,
-      currencySymbol: 'KES'
+      currencySymbol: '$'
     });
     await settingsRepository.save(defaultSettings);
   }

@@ -18,7 +18,6 @@ export class StudentReportCardComponent implements OnInit {
   activeTerm = '';
   schoolName = '';
   schoolLogo: string | null = null;
-  schoolLogo2: string | null = null;
   schoolAddress = '';
   schoolPhone = '';
   academicYear = '';
@@ -66,17 +65,6 @@ export class StudentReportCardComponent implements OnInit {
           } else {
             // Assume it's a base64 string without prefix
             this.schoolLogo = `data:image/png;base64,${settings.schoolLogo}`;
-          }
-        }
-        
-        if (settings?.schoolLogo2) {
-          if (settings.schoolLogo2.startsWith('data:image')) {
-            this.schoolLogo2 = settings.schoolLogo2;
-          } else if (settings.schoolLogo2.startsWith('http://') || settings.schoolLogo2.startsWith('https://')) {
-            this.schoolLogo2 = settings.schoolLogo2;
-          } else {
-            // Assume it's a base64 string without prefix
-            this.schoolLogo2 = `data:image/png;base64,${settings.schoolLogo2}`;
           }
         }
       },
@@ -144,13 +132,6 @@ export class StudentReportCardComponent implements OnInit {
                 }
               }
               
-              if (reportCardData.settings.schoolLogo2) {
-                if (reportCardData.settings.schoolLogo2.startsWith('data:image')) {
-                  this.schoolLogo2 = reportCardData.settings.schoolLogo2;
-                } else {
-                  this.schoolLogo2 = `data:image/png;base64,${reportCardData.settings.schoolLogo2}`;
-                }
-              }
             }
             
             console.log('[StudentReportCard] Report card loaded successfully:', {
@@ -270,4 +251,3 @@ export class StudentReportCardComponent implements OnInit {
     return Math.round(value);
   }
 }
-

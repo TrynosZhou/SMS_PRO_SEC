@@ -24,7 +24,7 @@ export class InvoiceFormComponent implements OnInit {
   selectedStudentData: any = null;
   studentSearchQuery = '';
   nextTermBalance: any = null;
-  currencySymbol = 'KES';
+  currencySymbol = '$';
   currentTerm = '';
   suggestedTerm = '';
   error = '';
@@ -92,8 +92,9 @@ export class InvoiceFormComponent implements OnInit {
   loadSettings() {
     this.settingsService.getSettings().subscribe({
       next: (data: any) => {
-        this.currencySymbol = data.currencySymbol || 'KES';
-        this.currentTerm = data.currentTerm || '';
+        const row = Array.isArray(data) && data.length ? data[0] : data;
+        this.currencySymbol = row?.currencySymbol || '$';
+        this.currentTerm = row?.currentTerm || '';
         this.suggestedTerm = this.getSuggestedTerm(this.currentTerm);
         // Pre-fill term if available
         if (!this.invoice.term && this.suggestedTerm) {
@@ -102,7 +103,7 @@ export class InvoiceFormComponent implements OnInit {
       },
       error: (err: any) => {
         console.error('Error loading settings:', err);
-        this.currencySymbol = 'KES';
+        this.currencySymbol = '$';
       }
     });
   }

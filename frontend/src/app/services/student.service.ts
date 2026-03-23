@@ -37,6 +37,11 @@ export class StudentService {
     return this.http.get(`${this.apiUrl}/students/${id}`);
   }
 
+  /** Logged-in student's profile (includes fullName). */
+  getCurrentStudent(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/students/me`);
+  }
+
   createStudent(student: any, photo?: File): Observable<any> {
     if (photo) {
       const formData = new FormData();
@@ -164,6 +169,100 @@ export class StudentService {
           });
         }
         // For non-blob errors, return as-is
+        return throwError(() => error);
+      })
+    );
+  }
+
+  /**
+   * Multi-page PDF: ID cards for all active students in a class.
+   * download=true → attachment; false/omit → inline (open in browser for print preview).
+   */
+  getClassStudentIdCardsPdf(classId: string, options?: { download?: boolean }): Observable<Blob> {
+    const params: Record<string, string> = {};
+    if (options?.download) {
+      params['download'] = '1';
+    }
+    return this.http.get(`${this.apiUrl}/students/class/${encodeURIComponent(classId)}/id-cards-pdf`, {
+      responseType: 'blob',
+      observe: 'response',
+      params
+    }).pipe(
+      map((response: any) => {
+        const blob = response.body;
+        const contentType = response.headers.get('content-type') || '';
+        const status = response.status;
+
+        if (status === 200 && contentType.includes('application/pdf')) {
+          return blob;
+        }
+
+        throw { status, blob, contentType };
+      }),
+      catchError((error: any) => {
+        if (error.status && error.blob) {
+          const reader = new FileReader();
+          return new Observable((observer: Observer<any>) => {
+            reader.onloadend = () => {
+              try {
+                const errorText = reader.result as string;
+                let errorJson: any;
+                try {
+                  errorJson = JSON.parse(errorText);
+                } catch (e) {
+                  errorJson = { message: errorText || 'Unknown error' };
+                }
+                const httpError = new HttpErrorResponse({
+                  error: errorJson,
+                  status: error.status,
+                  statusText: error.statusText || 'Error'
+                });
+                observer.error(httpError);
+              } catch (e) {
+                const httpError = new HttpErrorResponse({
+                  error: { message: 'Failed to parse error response' },
+                  status: error.status || 500,
+                  statusText: 'Error'
+                });
+                observer.error(httpError);
+              }
+            };
+            reader.onerror = () => {
+              const httpError = new HttpErrorResponse({
+                error: { message: 'Failed to read error response' },
+                status: error.status || 500,
+                statusText: 'Error'
+              });
+              observer.error(httpError);
+            };
+            reader.readAsText(error.blob);
+          });
+        } else if (error.error instanceof Blob) {
+          const reader = new FileReader();
+          return new Observable((observer: Observer<any>) => {
+            reader.onloadend = () => {
+              try {
+                const errorText = reader.result as string;
+                let errorJson: any;
+                try {
+                  errorJson = JSON.parse(errorText);
+                } catch (e) {
+                  errorJson = { message: errorText || 'Unknown error' };
+                }
+                const httpError = new HttpErrorResponse({
+                  error: errorJson,
+                  status: error.status || 500,
+                  statusText: error.statusText || 'Error'
+                });
+                observer.error(httpError);
+              } catch (e) {
+                observer.error(error);
+              }
+            };
+            reader.onerror = () => observer.error(error);
+            reader.readAsText(error.error);
+          });
+        }
         return throwError(() => error);
       })
     );

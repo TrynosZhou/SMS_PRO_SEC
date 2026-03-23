@@ -107,8 +107,8 @@ export class Settings {
   termEndDate: Date | null; // Closing day of the term
 
   // Currency Symbol
-  @Column({ type: 'varchar', default: 'KES' })
-  currencySymbol: string; // e.g., "KES", "$", "€", "£"
+  @Column({ type: 'varchar', default: '$' })
+  currencySymbol: string; // e.g., "$", "KES", "€", "£"
 
   // Module Access Control (JSON)
   @Column({ type: 'json', nullable: true })

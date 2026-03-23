@@ -255,6 +255,211 @@
   to { transform: rotate(360deg); }
 }
 
+/* Invoice Management Quick Actions (uploaded UI) */
+.management-quick-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  padding: 18px 18px 16px 18px;
+  margin: 0 0 26px 0;
+  border: 1px solid #f3f4f6;
+}
+
+.management-quick-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.management-quick-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 22px;
+  color: #111827;
+}
+
+.management-quick-dollar {
+  font-size: 26px;
+}
+
+.management-quick-subtitle {
+  color: #6b7280;
+  font-size: 14px;
+  margin-top: 6px;
+  max-width: 420px;
+}
+
+.management-buttons-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.management-buttons-bottom {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.mg-action-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 1 1 180px;
+  min-width: 180px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.mg-action-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.02);
+}
+
+.mg-btn-icon {
+  font-size: 18px;
+}
+
+.mg-credit {
+  background: #f6c04b;
+  color: #2b1b00 !important;
+}
+
+.mg-debit {
+  background: #34d399;
+}
+
+.mg-uniform {
+  background: #334155;
+}
+
+.mg-bulk {
+  background: #1d4ed8;
+}
+
+.mg-reverse {
+  background: #9333ea;
+  color: #ffffff !important;
+}
+
+.mg-exemption {
+  background: #f6c04b;
+  color: #2b1b00 !important;
+}
+
+.mg-prepaid {
+  background: #94a3b8;
+}
+
+.mg-audit {
+  background: #2563eb;
+}
+
+.management-form {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid #f3f4f6;
+}
+
+.mg-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mg-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: #374151;
+}
+
+.mg-select {
+  padding: 12px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  font-weight: 700;
+  color: #111827;
+}
+
+.mg-date-range {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.mg-date-field {
+  flex: 1 1 240px;
+  min-width: 240px;
+}
+
+.mg-date-input-wrap {
+  position: relative;
+}
+
+.mg-date-input {
+  width: 100%;
+  padding: 12px 44px 12px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-weight: 700;
+}
+
+.mg-date-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  pointer-events: none;
+}
+
+/* Management Modal */
+.management-modal {
+  background: white;
+  border-radius: 16px;
+  width: 600px;
+  max-width: 95%;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideInUp 0.4s ease-out;
+}
+
+.management-modal .modal-header {
+  border-radius: 16px 16px 0 0;
+}
+
+.modal-body {
+  padding: 16px 22px;
+}
+
+.modal-footer {
+  padding: 16px 22px 20px 22px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #f3f4f6;
+}
+
 .loading-state p {
   color: #6b7280;
   font-size: 14px;

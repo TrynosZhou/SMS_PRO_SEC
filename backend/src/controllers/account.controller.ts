@@ -344,3 +344,64 @@ export const createUserAccount = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/**
+ * Admin/SuperAdmin: reset a teacher user's password to a new temporary password.
+ * Returns the plain temporary password once (display to admin only).
+ */
+export const adminResetTeacherPassword = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    if (
+      req.user.role !== UserRole.ADMIN &&
+      req.user.role !== UserRole.SUPERADMIN &&
+      req.user.role !== UserRole.DEMO_USER
+    ) {
+      return res.status(403).json({ message: 'Only Administrators can reset passwords' });
+    }
+
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const userRepository = AppDataSource.getRepository(User);
+    const targetUser = await userRepository.findOne({ where: { id: userId } });
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (targetUser.role !== UserRole.TEACHER) {
+      return res.status(400).json({
+        message: 'This action only applies to teacher accounts. Use other tools for other roles.'
+      });
+    }
+
+    const plainPassword = generateTemporaryPassword();
+    targetUser.password = await bcrypt.hash(plainPassword, 10);
+    targetUser.mustChangePassword = true;
+    targetUser.isTemporaryAccount = true;
+
+    await userRepository.save(targetUser);
+
+    res.json({
+      message: 'Password reset successfully',
+      temporaryPassword: plainPassword,
+      username: targetUser.username
+    });
+  } catch (error: any) {
+    console.error('Error in adminResetTeacherPassword:', error);
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message || 'Unknown error'
+    });
+  }
+};
+

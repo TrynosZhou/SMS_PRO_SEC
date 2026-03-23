@@ -11,17 +11,91 @@
   
   <div class="alert alert-error" *ngIf="error">{{ error }}</div>
   
+  <!-- KPI Stats -->
+  <div class="stats-grid" *ngIf="!loading && outstandingBalances.length > 0">
+    <div class="stat-card">
+      <div class="stat-label">Students</div>
+      <div class="stat-value">{{ filteredBalances.length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Outstanding</div>
+      <div class="stat-value balance-negative">
+        {{ currencySymbol }} {{ formatCurrency(getTotalOutstanding()) }}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Average Balance</div>
+      <div class="stat-value">
+        {{ currencySymbol }} {{ formatCurrency(getAverageOutstanding()) }}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Highest Balance</div>
+      <div class="stat-value">
+        {{ currencySymbol }} {{ formatCurrency(getHighestOutstanding()) }}
+      </div>
+    </div>
+  </div>
+
   <!-- Search and Filter Section -->
   <div class="filters-section" *ngIf="!loading && outstandingBalances.length > 0">
-    <div class="search-input-wrapper">
-      <span class="search-icon">🔍</span>
-      <input 
-        type="text" 
-        [(ngModel)]="searchQuery" 
-        (input)="filterBalances()"
-        (keyup.enter)="filterBalances()"
-        placeholder="Search by Student ID, First Name, or Last Name" 
-        class="form-control search-input">
+    <div class="filters-controls">
+      <div class="search-input-wrapper">
+        <span class="search-icon">🔍</span>
+        <input 
+          type="text" 
+          [(ngModel)]="searchQuery" 
+          (input)="filterBalances()"
+          (keyup.enter)="filterBalances()"
+          placeholder="Search by Student ID, First Name, or Last Name" 
+          class="form-control search-input">
+        <button
+          class="btn-clear"
+          *ngIf="searchQuery"
+          type="button"
+          (click)="searchQuery=''; filterBalances()"
+          aria-label="Clear search"
+          title="Clear search"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="filter-control">
+        <label>Sort</label>
+        <select [(ngModel)]="sortBy" (change)="page = 1; applySortingAndPagination()" class="filter-select">
+          <option value="invoiceBalance">Balance</option>
+          <option value="studentNumber">Student ID</option>
+          <option value="name">Student Name</option>
+        </select>
+        <select [(ngModel)]="sortDirection" (change)="page = 1; applySortingAndPagination()" class="filter-select">
+          <option value="desc">High to Low</option>
+          <option value="asc">Low to High</option>
+        </select>
+      </div>
+
+      <div class="filter-control">
+        <label>Risk</label>
+        <select [(ngModel)]="riskFilter" (change)="filterBalances()" class="filter-select">
+          <option value="all">All</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+
+      <div class="filter-control">
+        <label>Rows</label>
+        <select
+          [(ngModel)]="pageSize"
+          (change)="onPageSizeChange($event.target.value)"
+          class="filter-select"
+        >
+          <option [ngValue]="5">5</option>
+          <option [ngValue]="10">10</option>
+          <option [ngValue]="20">20</option>
+        </select>
+      </div>
     </div>
   </div>
 
@@ -50,7 +124,13 @@
       </div>
     </div>
 
-    <div class="table-wrapper">
+    <div class="empty-state small" *ngIf="!loading && filteredBalances.length === 0">
+      <div class="empty-icon">🔎</div>
+      <h2>No results found</h2>
+      <p>Try changing the search, risk, or sorting options.</p>
+    </div>
+
+    <div class="table-wrapper" *ngIf="!loading && filteredBalances.length > 0">
       <table class="data-table">
         <thead>
           <tr>
@@ -63,13 +143,20 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let balance of filteredBalances">
+          <tr *ngFor="let balance of pagedBalances">
             <td>{{ balance.studentNumber || balance.studentId }}</td>
             <td>{{ balance.firstName }}</td>
             <td>{{ balance.lastName }}</td>
             <td>{{ balance.phoneNumber || '—' }}</td>
-            <td style="text-align: right; font-weight: 600; color: #dc3545;">
-              {{ currencySymbol }} {{ formatCurrency(balance.invoiceBalance) }}
+            <td class="balance-cell">
+              <div class="balance-cell-inner">
+                <span class="risk-badge" [ngClass]="getRiskClass(getBalance(balance))">
+                  {{ getRiskCategory(getBalance(balance)) }}
+                </span>
+                <span class="balance-amount">
+                  {{ currencySymbol }} {{ formatCurrency(balance.invoiceBalance) }}
+                </span>
+              </div>
             </td>
             <td style="text-align: center;">
               <button 
@@ -94,6 +181,18 @@
           </tr>
         </tfoot>
       </table>
+    </div>
+
+    <div class="pagination-bar" *ngIf="!loading && filteredBalances.length > pageSize">
+      <button class="page-btn" type="button" (click)="changePage(page - 1)" [disabled]="page <= 1">
+        ← Prev
+      </button>
+      <div class="page-info">
+        Page <strong>{{ page }}</strong> of <strong>{{ getTotalPages() }}</strong>
+      </div>
+      <button class="page-btn" type="button" (click)="changePage(page + 1)" [disabled]="page >= getTotalPages()">
+        Next →
+      </button>
     </div>
   </div>
 </div>

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
-import { updateAccount, getAccountInfo, createUserAccount } from '../controllers/account.controller';
+import { updateAccount, getAccountInfo, createUserAccount, adminResetTeacherPassword } from '../controllers/account.controller';
 import { UserRole } from '../entities/User';
 
 const router = Router();
@@ -19,6 +19,13 @@ router.post(
   '/users',
   authorize(UserRole.ADMIN, UserRole.SUPERADMIN),
   createUserAccount
+);
+
+// Admin/SuperAdmin/Demo: reset teacher user password (returns temporary password)
+router.post(
+  '/users/:userId/reset-password',
+  authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.DEMO_USER),
+  adminResetTeacherPassword
 );
 
 export default router;

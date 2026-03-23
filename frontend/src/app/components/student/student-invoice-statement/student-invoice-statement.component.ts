@@ -12,11 +12,15 @@ import { SettingsService } from '../../../services/settings.service';
 })
 export class StudentInvoiceStatementComponent implements OnInit {
   invoiceBalance: any = null;
+  /** Loading balance from API */
   loading = false;
+  /** PDF download in progress */
+  pdfLoading = false;
   error = '';
   studentName = '';
   studentNumber = '';
-  currencySymbol = 'KES';
+  /** School currency — default $ (overridden by settings when loaded) */
+  currencySymbol = '$';
 
   constructor(
     private authService: AuthService,
@@ -32,8 +36,7 @@ export class StudentInvoiceStatementComponent implements OnInit {
     }
   }
 
-  ngOnInit() {
-    // Verify user is a student
+  ngOnInit(): void {
     const user = this.authService.getCurrentUser();
     if (!user || user.role !== 'student') {
       this.authService.logout();
@@ -45,21 +48,22 @@ export class StudentInvoiceStatementComponent implements OnInit {
     this.loadInvoiceBalance();
   }
 
-  loadSettings() {
+  loadSettings(): void {
     this.settingsService.getSettings().subscribe({
       next: (data: any) => {
-        this.currencySymbol = data.currencySymbol || 'KES';
+        const row = Array.isArray(data) && data.length ? data[0] : data;
+        this.currencySymbol = (row?.currencySymbol && String(row.currencySymbol).trim()) || '$';
       },
-      error: (err: any) => {
-        console.error('Error loading settings:', err);
+      error: () => {
+        this.currencySymbol = '$';
       }
     });
   }
 
-  loadInvoiceBalance() {
+  loadInvoiceBalance(): void {
     this.loading = true;
     this.error = '';
-    
+
     this.studentService.getStudentInvoiceBalance().subscribe({
       next: (response: any) => {
         this.loading = false;
@@ -77,12 +81,16 @@ export class StudentInvoiceStatementComponent implements OnInit {
         } else {
           this.error = err.error?.message || 'Failed to load invoice balance';
         }
-        setTimeout(() => this.error = '', 5000);
+        setTimeout(() => (this.error = ''), 5000);
       }
     });
   }
 
-  downloadPDF() {
+  refresh(): void {
+    this.loadInvoiceBalance();
+  }
+
+  downloadPDF(): void {
     if (!this.invoiceBalance || !this.invoiceBalance.lastInvoiceId) {
       this.error = 'No invoice available to download';
       return;
@@ -96,12 +104,12 @@ export class StudentInvoiceStatementComponent implements OnInit {
         this.loading = false;
         const blob = response.blob;
         const filename = response.filename || 'Invoice.pdf';
-        
+
         if (blob.size === 0) {
           this.error = 'Received empty PDF file';
           return;
         }
-        
+
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -112,25 +120,30 @@ export class StudentInvoiceStatementComponent implements OnInit {
         window.URL.revokeObjectURL(url);
       },
       error: (err: any) => {
-        this.loading = false;
+        this.pdfLoading = false;
         this.error = err.error?.message || err.message || 'Failed to download PDF';
-        setTimeout(() => this.error = '', 5000);
+        setTimeout(() => (this.error = ''), 5000);
       }
     });
   }
 
   formatDate(date: string | Date): string {
-    if (!date) return '-';
+    if (!date) {
+      return '—';
+    }
     const d = new Date(date);
     return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
-  formatCurrency(amount: number): string {
-    return `${this.currencySymbol} ${amount.toFixed(2)}`;
+  formatCurrency(amount: number | null | undefined): string {
+    const n = Number(amount);
+    const safe = Number.isFinite(n) ? n : 0;
+    const sym = this.currencySymbol || '$';
+    const sep = sym === '$' ? '' : ' ';
+    return `${sym}${sep}${safe.toFixed(2)}`;
   }
 
-  goBack() {
+  goBack(): void {
     this.router.navigate(['/student/dashboard']);
   }
 }
-

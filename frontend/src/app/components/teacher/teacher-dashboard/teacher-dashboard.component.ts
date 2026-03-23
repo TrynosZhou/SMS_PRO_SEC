@@ -1,28 +1,45 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { Router } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { AuthService } from '../../../services/auth.service';
 import { TeacherService } from '../../../services/teacher.service';
 import { SettingsService } from '../../../services/settings.service';
 import { ModuleAccessService } from '../../../services/module-access.service';
 import { ClassService } from '../../../services/class.service';
+import { EtaskService } from '../../../services/etask.service';
 
 @Component({
   selector: 'app-teacher-dashboard',
   templateUrl: './teacher-dashboard.component.html',
-  styleUrls: ['./teacher-dashboard.component.css']
+  styleUrls: ['../../dashboard/dashboard.component.css', './teacher-dashboard.component.css']
 })
-export class TeacherDashboardComponent implements OnInit {
+export class TeacherDashboardComponent implements OnInit, OnDestroy {
   teacher: any = null;
   teacherClasses: any[] = [];
   selectedClassId: string = '';
   loading = false;
   error = '';
   teacherName = '';
+  /** Male / Female / etc. from teacher profile — drives Mr / Mrs on welcome line */
+  teacherGender: string | null = null;
   schoolName = '';
+  /** Active term label from school settings */
+  activeTerm = '';
+  /** Count of subjects linked to this teacher */
+  subjectCount = 0;
   moduleAccess: any = null;
   availableModules: any[] = [];
-  sidebarCollapsed = false;
-  expandedMenus: { [key: string]: boolean } = {};
+
+  /** Live dashboard clock */
+  daypartGreeting = '';
+  clockTime = '';
+  clockDate = '';
+  private clockIntervalId: ReturnType<typeof setInterval> | null = null;
+
+  /** E-learning metrics (when record book / e-learning is enabled) */
+  elearningLoading = false;
+  tasksCreatedCount = 0;
+  submissionsReceivedCount = 0;
 
   constructor(
     private authService: AuthService,
@@ -30,23 +47,23 @@ export class TeacherDashboardComponent implements OnInit {
     private settingsService: SettingsService,
     private moduleAccessService: ModuleAccessService,
     private classService: ClassService,
+    private etaskService: EtaskService,
     private router: Router,
     private cdr: ChangeDetectorRef
   ) {
-    // Initialize teacher name from user data if available (from login response)
     const user = this.authService.getCurrentUser();
     if (user?.teacher) {
-      // Use fullName from login response if available, otherwise construct it
+      const g = user.teacher.gender;
+      if (g != null && String(g).trim()) {
+        this.teacherGender = String(g).trim();
+      }
       if (user.teacher.fullName && user.teacher.fullName.trim() && user.teacher.fullName !== 'Teacher') {
         this.teacherName = user.teacher.fullName.trim();
-        console.log('Constructor: Using fullName from login response:', this.teacherName);
       } else {
         this.teacherName = this.getFullName(user.teacher.firstName, user.teacher.lastName);
-        console.log('Constructor: Constructed fullName:', this.teacherName);
       }
     } else {
       this.teacherName = 'Teacher';
-      console.log('Constructor: No teacher data, using default:', this.teacherName);
     }
   }
 
@@ -55,45 +72,67 @@ export class TeacherDashboardComponent implements OnInit {
     const first = (firstName && typeof firstName === 'string') ? firstName.trim() : '';
     const last = (lastName && typeof lastName === 'string') ? lastName.trim() : '';
     
-    console.log('getFullName called with:', { firstName: first, lastName: last });
-    
-    // Filter out default placeholder values
     const validFirst = (first && first !== 'Teacher' && first !== 'Account') ? first : '';
     const validLast = (last && last !== 'Teacher' && last !== 'Account') ? last : '';
-    
-    console.log('After filtering:', { validFirst, validLast });
-    
-    // Combine as LastName + FirstName (as requested)
     const parts = [validLast, validFirst].filter(part => part.length > 0);
     const fullName = parts.join(' ').trim();
-    
-    console.log('getFullName result:', fullName);
-    
-    // Return full name if available, otherwise return 'Teacher'
     return fullName || 'Teacher';
   }
 
   ngOnInit() {
+    if (!this.authService.hasRole('teacher')) {
+      this.router.navigate(['/dashboard']);
+      return;
+    }
+
+    this.startClock();
     this.loadSettings();
-    // Initialize with default modules first
     this.updateAvailableModules();
-    // Then load from settings
     this.loadModuleAccess();
-    
-    // Log initial state
-    console.log('=== ngOnInit ===');
-    console.log('Initial teacherName:', this.teacherName);
-    const user = this.authService.getCurrentUser();
-    console.log('Current user:', user);
-    console.log('User teacher:', user?.teacher);
-    
     this.loadTeacherInfo();
+  }
+
+  ngOnDestroy(): void {
+    if (this.clockIntervalId !== null) {
+      clearInterval(this.clockIntervalId);
+      this.clockIntervalId = null;
+    }
+  }
+
+  private startClock(): void {
+    this.tickClock();
+    this.clockIntervalId = setInterval(() => this.tickClock(), 1000);
+  }
+
+  private tickClock(): void {
+    const now = new Date();
+    const h = now.getHours();
+    if (h < 12) {
+      this.daypartGreeting = 'Good morning';
+    } else if (h < 17) {
+      this.daypartGreeting = 'Good afternoon';
+    } else {
+      this.daypartGreeting = 'Good evening';
+    }
+    this.clockTime = now.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    this.clockDate = now.toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   }
 
   loadSettings() {
     this.settingsService.getSettings().subscribe({
       next: (data: any) => {
-        this.schoolName = data.schoolName || 'School';
+        const row = Array.isArray(data) && data.length ? data[0] : data;
+        this.schoolName = row?.schoolName || 'School';
+        this.activeTerm = (row?.activeTerm || row?.currentTerm || '').trim() || '';
       },
       error: (err: any) => {
         console.error('Error loading settings:', err);
@@ -136,27 +175,49 @@ export class TeacherDashboardComponent implements OnInit {
     const teacherModules = access?.teachers || {};
     
     const allModules = [
-      { key: 'students', name: 'Students', route: '/students', icon: '👥', description: 'View and manage students' },
-      { key: 'classes', name: 'Classes', route: '/classes', icon: '🏫', description: 'View class information' },
+      { key: 'students', name: 'Students', route: '/students', icon: '👥', description: 'View students you are allowed to see' },
+      { key: 'classes', name: 'Classes', route: '/classes', icon: '🏫', description: 'Browse class information' },
       { key: 'subjects', name: 'Subjects', route: '/subjects', icon: '📚', description: 'View subject details' },
-      { key: 'exams', name: 'Exams', route: '/exams', icon: '📝', description: 'Manage exams and assessments' },
+      { key: 'exams', name: 'Exams', route: '/exams', icon: '📝', description: 'Marks capturing and exams' },
       { key: 'reportCards', name: 'Report Cards', route: '/report-cards', icon: '📊', description: 'View and generate report cards' },
-      { key: 'rankings', name: 'Rankings', route: '/rankings', icon: '🏆', description: 'View student rankings' },
+      { key: 'rankings', name: 'Rankings', route: '/rankings', icon: '🏆', description: 'View rankings' },
       { key: 'recordBook', name: 'Record Book', route: '/teacher/record-book', icon: '📖', description: 'Enter and view marks' },
-      { key: 'attendance', name: 'Attendance', route: '/attendance', icon: '✅', description: 'Manage student attendance' },
+      { key: 'etask', name: 'Create Task', route: '/etask', icon: '✏️', description: 'E-learning tasks for your classes' },
+      { key: 'attendance', name: 'Attendance', route: '/attendance/mark', icon: '✅', description: 'Mark register & attendance' },
       { key: 'finance', name: 'Finance', route: '/invoices', icon: '💰', description: 'View financial information' },
-      { key: 'settings', name: 'Settings', route: '/settings', icon: '⚙️', description: 'System settings' }
+      { key: 'settings', name: 'Settings', route: '/settings', icon: '⚙️', description: 'School settings (if allowed)' }
     ];
-    
-    // Filter modules based on access (default to true if not explicitly set to false)
-    this.availableModules = allModules.filter(module => {
-      // Use type-safe access with type assertion
+
+    this.availableModules = allModules.filter((module) => {
+      if (module.key === 'etask' && !this.canAccessModule('recordBook')) {
+        return false;
+      }
       const moduleAccess = teacherModules as { [key: string]: boolean | undefined };
-      const hasAccess = moduleAccess[module.key] !== false;
-      return hasAccess;
+      return moduleAccess[module.key] !== false;
     });
-    
-    console.log('Updated available modules:', this.availableModules.length);
+  }
+
+  /** Loads e-task and submission counts for the overview strip. */
+  loadElearningStats(): void {
+    if (!this.canAccessModule('recordBook')) {
+      return;
+    }
+    this.elearningLoading = true;
+    forkJoin({
+      tasks: this.etaskService.listTeacherTasks(),
+      subs: this.etaskService.listTeacherSubmissions()
+    }).subscribe({
+      next: ({ tasks, subs }) => {
+        this.tasksCreatedCount = Array.isArray(tasks) ? tasks.length : 0;
+        this.submissionsReceivedCount = Array.isArray(subs) ? subs.length : 0;
+        this.elearningLoading = false;
+      },
+      error: () => {
+        this.tasksCreatedCount = 0;
+        this.submissionsReceivedCount = 0;
+        this.elearningLoading = false;
+      }
+    });
   }
 
   loadTeacherInfo() {
@@ -175,13 +236,12 @@ export class TeacherDashboardComponent implements OnInit {
     this.teacherService.getCurrentTeacher().subscribe({
       next: (teacher: any) => {
         this.teacher = teacher;
-        
-        // Debug: Log raw teacher data
-        console.log('Raw teacher data:', JSON.stringify(teacher, null, 2));
-        console.log('Teacher firstName:', teacher.firstName, 'Type:', typeof teacher.firstName, 'Value:', JSON.stringify(teacher.firstName));
-        console.log('Teacher lastName:', teacher.lastName, 'Type:', typeof teacher.lastName, 'Value:', JSON.stringify(teacher.lastName));
-        console.log('Teacher fullName from response:', teacher.fullName);
-        
+        this.subjectCount = Array.isArray(teacher.subjects) ? teacher.subjects.length : 0;
+
+        if (teacher.gender != null && String(teacher.gender).trim()) {
+          this.teacherGender = String(teacher.gender).trim();
+        }
+
         // Update teacher name - prioritize fullName from response, otherwise construct it
         // Filter out default placeholder values ("Teacher", "Account")
         const hasValidName = teacher.firstName && 
@@ -193,75 +253,43 @@ export class TeacherDashboardComponent implements OnInit {
                             teacher.lastName !== 'Teacher' && 
                             teacher.lastName !== 'Account';
         
-        if (hasValidName) {
-          // Construct fullName from firstName/lastName (LastName + FirstName format)
+        if (teacher.formattedTitleName && String(teacher.formattedTitleName).trim()) {
+          this.teacherName = String(teacher.formattedTitleName).trim();
+        } else if (hasValidName) {
           const firstName = teacher.firstName.trim();
           const lastName = teacher.lastName.trim();
           this.teacherName = this.getFullName(firstName, lastName);
-          console.log('Using valid firstName/lastName to construct fullName:', this.teacherName);
         } else if (teacher.fullName && teacher.fullName.trim() && teacher.fullName !== 'Teacher' && teacher.fullName !== 'Account Teacher') {
-          // Use fullName from backend response if firstName/lastName are placeholders
           this.teacherName = teacher.fullName.trim();
-          console.log('Using fullName from response:', this.teacherName);
         } else {
-          // Last resort: try to construct from whatever we have
           const firstName = (teacher.firstName && teacher.firstName.trim()) ? teacher.firstName.trim() : '';
           const lastName = (teacher.lastName && teacher.lastName.trim()) ? teacher.lastName.trim() : '';
           this.teacherName = this.getFullName(firstName, lastName);
-          console.log('Fallback: Constructed fullName from available data:', this.teacherName);
         }
-        
-        console.log('Teacher loaded successfully - Full Name:', this.teacherName);
-        console.log('Teacher details:', { 
-          rawFirstName: teacher.firstName,
-          rawLastName: teacher.lastName,
-          fullNameFromResponse: teacher.fullName,
-          finalFullName: this.teacherName,
-          teacherId: teacher.teacherId
-        });
-        
-        // Force UI update
-        console.log('Forcing change detection...');
+
         this.cdr.detectChanges();
-        console.log('teacherName after change detection:', this.teacherName);
-        
-        // Always fetch classes from dedicated endpoint to ensure we get correct classes from junction table
+
         if (teacher.id) {
-          console.log('Fetching classes for teacher ID:', teacher.id);
           this.loadTeacherClasses(teacher.id);
         } else {
-          // Fallback to classes from getCurrentTeacher response
           this.teacherClasses = teacher.classes || [];
           this.loading = false;
-          console.log('Using classes from getCurrentTeacher (fallback):', this.teacherClasses.length);
+          this.loadElearningStats();
         }
-        
-        // Force change detection to update the view with the new name
+
         this.cdr.detectChanges();
-        
-        // Double-check: if teacherName is still empty or default, try to get it from user object
+
         if (!this.teacherName || this.teacherName === 'Teacher' || this.teacherName.trim() === '') {
-          console.log('TeacherName is empty or default, trying fallback...');
           const user = this.authService.getCurrentUser();
-          console.log('User object:', user);
-          console.log('User teacher:', user?.teacher);
-          
           if (user?.teacher) {
-            // Try fullName first
             if (user.teacher.fullName && user.teacher.fullName.trim() && user.teacher.fullName !== 'Teacher') {
               this.teacherName = user.teacher.fullName.trim();
-              console.log('Fallback: Set teacherName from user.teacher.fullName:', this.teacherName);
-            } 
-            // Try constructing from firstName/lastName
-            else if (user.teacher.firstName && user.teacher.lastName && 
+            } else if (user.teacher.firstName && user.teacher.lastName &&
                      user.teacher.firstName !== 'Teacher' && user.teacher.lastName !== 'Account') {
               this.teacherName = this.getFullName(user.teacher.firstName, user.teacher.lastName);
-              console.log('Fallback: Constructed teacherName from user.teacher:', this.teacherName);
             }
-            
             if (this.teacherName && this.teacherName !== 'Teacher') {
               this.cdr.detectChanges();
-              console.log('Final teacherName after fallback:', this.teacherName);
             }
           }
         }
@@ -275,10 +303,8 @@ export class TeacherDashboardComponent implements OnInit {
         if (user?.teacher) {
           if (user.teacher.fullName && user.teacher.fullName.trim() && user.teacher.fullName !== 'Teacher') {
             this.teacherName = user.teacher.fullName.trim();
-            console.log('Error handler: Using fullName from user object:', this.teacherName);
           } else {
             this.teacherName = this.getFullName(user.teacher.firstName, user.teacher.lastName);
-            console.log('Error handler: Constructed fullName:', this.teacherName);
           }
           this.cdr.detectChanges();
         }
@@ -304,17 +330,15 @@ export class TeacherDashboardComponent implements OnInit {
         const classes = response.classes || [];
         // Only use classes from the dedicated endpoint (these are from junction table)
         this.teacherClasses = this.classService.sortClasses(classes);
-        console.log('✓ Assigned classes loaded from dedicated endpoint:', this.teacherClasses.length);
-        console.log('Classes:', this.teacherClasses.map(c => c.name).join(', '));
         this.loading = false;
+        this.loadElearningStats();
       },
       error: (err: any) => {
         console.error('Error loading teacher classes:', err);
-        // Fallback to classes from teacher object if available
         const fallbackClasses = this.teacher?.classes || [];
         this.teacherClasses = this.classService.sortClasses(fallbackClasses);
-        console.log('Using fallback classes from teacher object:', this.teacherClasses.length);
         this.loading = false;
+        this.loadElearningStats();
       }
     });
   }
@@ -334,10 +358,7 @@ export class TeacherDashboardComponent implements OnInit {
   }
 
   onClassSelected() {
-    // When a class is selected from dropdown, can navigate or show details
-    if (this.selectedClassId) {
-      console.log('Class selected:', this.selectedClassId);
-    }
+    // Reserved for future: jump hints or analytics
   }
 
   navigateToModule(module: any) {
@@ -346,36 +367,67 @@ export class TeacherDashboardComponent implements OnInit {
     }
   }
 
-  toggleSidebar() {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    // Collapse all menus when sidebar is collapsed
-    if (this.sidebarCollapsed) {
-      this.expandedMenus = {};
-    }
+  getDisplayName(): string {
+    return this.teacherName && this.teacherName.trim() ? this.teacherName.trim() : 'Teacher';
   }
 
-  toggleMenu(menuKey: string) {
-    if (this.sidebarCollapsed) {
-      return;
-    }
-    this.expandedMenus[menuKey] = !this.expandedMenus[menuKey];
+  /** Title-case each word (for Mrs … Yeukai Zhou) */
+  private toTitleCaseWords(s: string): string {
+    if (!s || typeof s !== 'string') return '';
+    return s
+      .trim()
+      .split(/\s+/)
+      .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+      .filter(Boolean)
+      .join(' ');
   }
 
-  isMenuExpanded(menuKey: string): boolean {
-    return this.expandedMenus[menuKey] || false;
+  private isGenderMale(g: string): boolean {
+    const x = g.trim().toLowerCase();
+    return x === 'male' || x === 'm' || x.startsWith('male');
+  }
+
+  private isGenderFemale(g: string): boolean {
+    const x = g.trim().toLowerCase();
+    return x === 'female' || x === 'f' || x.startsWith('female');
+  }
+
+  /**
+   * Full welcome line with honorific when gender is set:
+   * Male: "Welcome back Mr FIRSTNAME LASTNAME" (uppercase, e.g. TRYNOS ZHOU)
+   * Female: "Welcome back Mrs Firstname Lastname" (title case, e.g. Yeukai Zhou)
+   */
+  getWelcomeLine(): string {
+    const g = (this.teacherGender || '').trim();
+    const fn = (this.teacher?.firstName || '').trim();
+    const ln = (this.teacher?.lastName || '').trim();
+    const user = this.authService.getCurrentUser();
+    const first = fn || (user?.teacher?.firstName || '').trim();
+    const last = ln || (user?.teacher?.lastName || '').trim();
+
+    if (g && this.isGenderMale(g) && (first || last)) {
+      const upper = `${first} ${last}`.trim().toUpperCase();
+      return `Welcome back Mr ${upper}`;
+    }
+    if (g && this.isGenderFemale(g) && (first || last)) {
+      const pretty = `${this.toTitleCaseWords(first)} ${this.toTitleCaseWords(last)}`.trim();
+      return `Welcome back Mrs ${pretty}`;
+    }
+
+    const display = this.getDisplayName();
+    return `Welcome back, ${display}`;
+  }
+
+  /** Hero emoji: subtle hint by gender */
+  getTeacherHeroEmoji(): string {
+    const g = (this.teacherGender || '').trim();
+    if (g && this.isGenderFemale(g)) return '👩‍🏫';
+    if (g && this.isGenderMale(g)) return '👨‍🏫';
+    return '👨‍🏫';
   }
 
   canAccessModule(moduleName: string): boolean {
-    // Use module access service which has default access as fallback
     return this.moduleAccessService.canAccessModule(moduleName);
-  }
-
-  logout() {
-    this.authService.logout();
-  }
-
-  manageAccount() {
-    this.router.navigate(['/teacher/manage-account']);
   }
 }
 

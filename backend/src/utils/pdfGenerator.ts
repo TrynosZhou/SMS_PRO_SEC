@@ -1,6 +1,62 @@
 import PDFDocument from 'pdfkit';
 import sizeOf from 'image-size';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Settings } from '../entities/Settings';
+
+type PDFDoc = InstanceType<typeof PDFDocument>;
+
+/** Load School Logo 1 / 2 from settings (data URL, file path, or raw base64). */
+function loadLogoBufferFromSettings(logo: string | null | undefined): Buffer | null {
+  if (!logo || typeof logo !== 'string') return null;
+  const trimmed = logo.trim();
+  if (!trimmed) return null;
+
+  try {
+    if (trimmed.startsWith('data:image')) {
+      const idx = trimmed.indexOf('base64,');
+      const base64Data = idx >= 0 ? trimmed.slice(idx + 7) : trimmed.split(',')[1];
+      return base64Data ? Buffer.from(base64Data, 'base64') : null;
+    }
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return null;
+    }
+    const normalizedPath = trimmed.replace(/^\//, '');
+    const absolutePath = path.join(__dirname, '../../', normalizedPath);
+    if (fs.existsSync(absolutePath)) {
+      return fs.readFileSync(absolutePath);
+    }
+    if (trimmed.length > 80 && /^[A-Za-z0-9+/=\s]+$/.test(trimmed.replace(/\s/g, ''))) {
+      return Buffer.from(trimmed.replace(/\s/g, ''), 'base64');
+    }
+  } catch (e) {
+    console.error('loadLogoBufferFromSettings:', e);
+  }
+  return null;
+}
+
+/**
+ * Draw image inside a box using "contain" scaling (preserve aspect ratio, no stretch).
+ * Wide letterhead banners stay sharp; empty margins use the background already drawn.
+ */
+function addContainImage(
+  doc: PDFDoc,
+  imageBuffer: Buffer,
+  x: number,
+  y: number,
+  maxW: number,
+  maxH: number
+): void {
+  const dimensions = sizeOf(imageBuffer);
+  const iw = dimensions.width || maxW;
+  const ih = dimensions.height || maxH;
+  const scale = Math.min(maxW / iw, maxH / ih);
+  const finalW = iw * scale;
+  const finalH = ih * scale;
+  const drawX = x + (maxW - finalW) / 2;
+  const drawY = y + (maxH - finalH) / 2;
+  doc.image(imageBuffer, drawX, drawY, { width: finalW, height: finalH });
+}
 
 interface ReportCardData {
   student: {
@@ -86,140 +142,50 @@ export function createReportCardPDF(
         .fillColor(borderColor)
         .fill();
 
-      // School Header
+      // School Header — full-width banner with School Logo 1 only (no second logo), then name/address
       const schoolName = settings?.schoolName || 'School Management System';
       const schoolAddress = settings?.schoolAddress ? String(settings.schoolAddress).trim() : '';
       const schoolPhone = settings?.schoolPhone ? String(settings.schoolPhone).trim() : '';
       const academicYear = settings?.academicYear || new Date().getFullYear().toString();
-      
+
       console.log('PDF Generator - Settings:', {
         hasSettings: !!settings,
         schoolName,
         schoolAddress: schoolAddress || 'EMPTY',
         academicYear,
-        hasLogo: !!settings?.schoolLogo
+        hasLogo1: !!settings?.schoolLogo
       });
 
-      let logoX = 50;
-      // Align logos with the top of the school name text (16pt bold)
-      // In PDFKit, text Y is baseline, so we adjust logo Y to align with text top
+      const innerLeft = borderWidth;
+      const innerWidth = pageWidth - 2 * borderWidth;
+      const bannerTop = borderWidth;
+      /** Max height for banner strip — wide letterheads scale to fit inside without stretching */
+      const bannerHeight = 115;
+
+      const logo1Buffer = loadLogoBufferFromSettings(settings?.schoolLogo ?? null);
+      doc.rect(innerLeft, bannerTop, innerWidth, bannerHeight).fillColor('#f1f5f9').fill();
+      if (logo1Buffer) {
+        try {
+          addContainImage(doc, logo1Buffer, innerLeft, bannerTop, innerWidth, bannerHeight);
+        } catch (error) {
+          console.error('Could not draw school banner image:', error);
+        }
+      } else if (settings?.schoolLogo) {
+        console.warn('School Logo 1 present but could not be decoded for PDF (check format or URL support)');
+      }
+
       const schoolNameFontSize = 16;
-      const textBaselineY = 50;
-      // Approximate ascender height for 18pt bold text (typically ~70% of font size)
-      // Add extra adjustment to align logo top with text top visually
-      const textAscender = schoolNameFontSize * 0.7;
-      const logoY = textBaselineY - textAscender - 8; // Position logo top to match text top (adjusted for proper alignment)
-      let logoWidth = 120; // Maximum width for logo
-      let logoHeight = 100; // Maximum height for logo
-      let textStartX = 180; // Adjusted to accommodate wider logo
-      let textEndX = pageWidth - 50; // Default end position (will be adjusted if logo2 exists)
-
-      // Helper function to add logo with preserved aspect ratio
-      // Aligns logo at the top (startY) to match school name alignment
-      const addLogoWithAspectRatio = (
-        imageBuffer: Buffer,
-        startX: number,
-        startY: number,
-        maxWidth: number,
-        maxHeight: number
-      ) => {
-        try {
-          // Get image dimensions
-          const dimensions = sizeOf(imageBuffer);
-          const imgWidth = dimensions.width || maxWidth;
-          const imgHeight = dimensions.height || maxHeight;
-          
-          // Calculate scale factor to fit within max dimensions while preserving aspect ratio
-          const scaleX = maxWidth / imgWidth;
-          const scaleY = maxHeight / imgHeight;
-          const scale = Math.min(scaleX, scaleY); // Use smaller scale to ensure it fits
-          
-          // Calculate final dimensions
-          const finalWidth = imgWidth * scale;
-          const finalHeight = imgHeight * scale;
-          
-          // Center horizontally, but align at top vertically (to match school name)
-          const centeredX = startX + (maxWidth - finalWidth) / 2;
-          const alignedY = startY; // Align at top, not centered vertically
-          
-          // Draw the image with calculated dimensions (preserving aspect ratio)
-          doc.image(imageBuffer, centeredX, alignedY, {
-            width: finalWidth,
-            height: finalHeight
-          });
-        } catch (error) {
-          console.error('Error adding logo with aspect ratio:', error);
-          // Fallback: try to add image with max width (pdfkit will maintain aspect ratio)
-          try {
-            doc.image(imageBuffer, startX, startY, {
-              width: maxWidth
-            });
-          } catch (fallbackError) {
-            console.error('Fallback logo addition also failed:', fallbackError);
-          }
-        }
-      };
-
-      // Add school logo if available (left side)
-      if (settings?.schoolLogo) {
-        try {
-          // If it's a base64 image
-          if (settings.schoolLogo.startsWith('data:image')) {
-            const base64Data = settings.schoolLogo.split(',')[1];
-            if (base64Data) {
-              const imageBuffer = Buffer.from(base64Data, 'base64');
-              addLogoWithAspectRatio(imageBuffer, logoX, logoY, logoWidth, logoHeight);
-              textStartX = logoX + logoWidth + 20; // Start text after logo
-              console.log('School logo added to PDF successfully');
-            } else {
-              console.warn('School logo base64 data is empty');
-            }
-          } else if (settings.schoolLogo.startsWith('http://') || settings.schoolLogo.startsWith('https://')) {
-            // If it's a URL, we could fetch it, but for now skip
-            console.warn('URL-based logos not yet supported in PDF');
-          } else {
-            console.warn('School logo format not recognized:', settings.schoolLogo.substring(0, 50));
-          }
-        } catch (error) {
-          console.error('Could not add school logo to PDF:', error);
-        }
-      } else {
-        console.log('No school logo found in settings');
-      }
-
-      // Add school logo 2 if available (right side)
-      if (settings?.schoolLogo2) {
-        try {
-          if (settings.schoolLogo2.startsWith('data:image')) {
-            const base64Data = settings.schoolLogo2.split(',')[1];
-            if (base64Data) {
-              const imageBuffer = Buffer.from(base64Data, 'base64');
-              // Position logo on the right side
-              const logo2X = pageWidth - logoWidth - 50; // 50px margin from right edge
-              addLogoWithAspectRatio(imageBuffer, logo2X, logoY, logoWidth, logoHeight);
-              textEndX = logo2X - 20; // Adjust text end position to leave space for logo
-              console.log('School logo 2 added to PDF successfully');
-            } else {
-              console.warn('School logo 2 base64 data is empty');
-            }
-          } else if (settings.schoolLogo2.startsWith('http://') || settings.schoolLogo2.startsWith('https://')) {
-            console.warn('URL-based logos not yet supported in PDF');
-          } else {
-            console.warn('School logo 2 format not recognized:', settings.schoolLogo2.substring(0, 50));
-          }
-        } catch (error) {
-          console.error('Could not add school logo 2 to PDF:', error);
-        }
-      }
+      const textBaselineY = bannerTop + bannerHeight + 25;
+      const textStartX = 50;
+      const textEndX = pageWidth - 50;
 
       // School Name and Address
-      doc.fontSize(schoolNameFontSize).font('Helvetica-Bold').text(schoolName, textStartX, logoY);
+      doc.fontSize(schoolNameFontSize).font('Helvetica-Bold').text(schoolName, textStartX, textBaselineY);
       
-      // Calculate positions for address and academic year
-      let currentY = logoY + 25;
-      
-      // Calculate available width for text (accounting for both logos if present)
-      const maxTextWidth = textEndX - textStartX; // Space between logo1 and logo2 (or end of page)
+      // Calculate positions for address and academic year (below school name baseline)
+      let currentY = textBaselineY + 20;
+
+      const maxTextWidth = textEndX - textStartX;
       const textWidth = Math.min(400, maxTextWidth); // Use smaller of 400 or available space
       
       // Always display school address if it exists
@@ -232,8 +198,7 @@ export function createReportCardPDF(
         const addressHeight = doc.heightOfString(schoolAddress.trim(), { width: textWidth });
         currentY += addressHeight + 10;
       } else {
-        // If no address, just move down a bit
-        currentY = logoY + 25;
+        currentY = textBaselineY + 20;
       }
       
       // Display school phone if it exists
@@ -256,7 +221,7 @@ export function createReportCardPDF(
 
       // Title - adjust position based on logo size and header content with styled background
       // Ensure title is below all header content (logo, name, address, phone, academic year)
-      const titleY = Math.max(currentY + 20, logoY + logoHeight + 20);
+      const titleY = Math.max(currentY + 20, textBaselineY + 24);
       const titleBoxHeight = 35; // Increased to accommodate multiple lines
       
       // Title background box - Blue color
@@ -375,7 +340,6 @@ export function createReportCardPDF(
 
       function getGrade(percentage: number): string {
         if (percentage === 0) return gradeLabels.fail || 'UNCLASSIFIED';
-        if (percentage >= (thresholds.excellent || 90)) return gradeLabels.excellent || 'OUTSTANDING';
         if (percentage >= (thresholds.veryGood || 80)) return gradeLabels.veryGood || 'VERY HIGH';
         if (percentage >= (thresholds.good || 60)) return gradeLabels.good || 'HIGH';
         if (percentage >= (thresholds.satisfactory || 40)) return gradeLabels.satisfactory || 'GOOD';
@@ -391,7 +355,9 @@ export function createReportCardPDF(
 
       const tableStartX = 50;
       const tableEndX = 545;
-      const rowHeight = 18;
+      const headerRowHeight = 18;
+      const baseRowHeight = 18;
+      const rowExtraPadding = 8; // Prevents wrapped text from touching next row
       const showPointsColumn = !!reportCard.isUpperForm;
 
       type ColumnDef = { key: string; label: string; width: number; align?: 'left' | 'center' | 'right' };
@@ -434,7 +400,7 @@ export function createReportCardPDF(
       });
 
       const headerY = yPos;
-      doc.rect(tableStartX, headerY, tableEndX - tableStartX, rowHeight)
+      doc.rect(tableStartX, headerY, tableEndX - tableStartX, headerRowHeight)
         .fillColor('#4A90E2')
         .fill()
         .fillColor('#FFFFFF')
@@ -448,14 +414,14 @@ export function createReportCardPDF(
 
       doc.strokeColor('#000000').lineWidth(1);
       doc.moveTo(tableStartX, headerY).lineTo(tableEndX, headerY).stroke();
-      doc.moveTo(tableStartX, headerY + rowHeight).lineTo(tableEndX, headerY + rowHeight).stroke();
+      doc.moveTo(tableStartX, headerY + headerRowHeight).lineTo(tableEndX, headerY + headerRowHeight).stroke();
       colBoundaries.forEach((boundary, index) => {
         if (index > 0 && index < colBoundaries.length) {
-          doc.moveTo(boundary, headerY).lineTo(boundary, headerY + rowHeight).stroke();
+          doc.moveTo(boundary, headerY).lineTo(boundary, headerY + headerRowHeight).stroke();
         }
       });
 
-      yPos = headerY + rowHeight;
+      yPos = headerY + headerRowHeight;
 
       doc.fontSize(10).font('Helvetica').fillColor('#000000');
       const sanitizeNumber = (value: any): number | null => {
@@ -496,10 +462,6 @@ export function createReportCardPDF(
         const rowY = yPos;
         const isEvenRow = index % 2 === 0;
 
-        doc.rect(tableStartX, rowY, tableEndX - tableStartX, rowHeight)
-          .fillColor(isEvenRow ? '#F8F9FA' : '#FFFFFF')
-          .fill();
-        doc.fillColor('#000000');
         const percentage = normalizedSubject.percentageValue ?? 0;
         const grade = normalizedSubject.gradeValue || (subject.grade === 'N/A' ? 'N/A' : getGrade(percentage));
         const hasMarks = normalizedSubject.scoreValue !== null && grade !== 'N/A';
@@ -512,62 +474,91 @@ export function createReportCardPDF(
           ? '-'
           : (normalizedSubject.pointsValue !== null ? Math.round(normalizedSubject.pointsValue).toString() : (subject.points ?? 0).toString());
 
-        doc.strokeColor('#CCCCCC').lineWidth(0.5);
-        doc.moveTo(tableStartX, rowY).lineTo(tableEndX, rowY).stroke();
-        doc.moveTo(tableStartX, rowY + rowHeight).lineTo(tableEndX, rowY + rowHeight).stroke();
-        colBoundaries.forEach((boundary, index) => {
-          if (index > 0 && index < colBoundaries.length) {
-            doc.moveTo(boundary, rowY).lineTo(boundary, rowY + rowHeight).stroke();
-          }
-        });
+        // Build cell texts once, then compute wrapped text height for a safe row height.
+        const cellTexts: Record<string, string> = {};
+        const cellFontSizes: Record<string, number> = {};
+
+        // Default fonts for height calculations
+        doc.font('Helvetica');
+        doc.fontSize(10);
 
         columnDefs.forEach(col => {
-          let text = '';
           switch (col.key) {
             case 'subject':
-              text = normalizedSubject.subjectName || '-';
+              cellTexts[col.key] = normalizedSubject.subjectName || '-';
               break;
             case 'subjectCode':
-              text = normalizedSubject.subjectCode || '-';
+              cellTexts[col.key] = normalizedSubject.subjectCode || '-';
               break;
             case 'markObtained':
-              text = scoreText;
+              cellTexts[col.key] = scoreText;
               break;
             case 'classAverage':
-              text = classAverageText;
+              cellTexts[col.key] = classAverageText;
               break;
             case 'grade': {
-              if (grade === 'N/A') {
-                doc.fillColor('#6C757D');
-              } else {
-                doc.fillColor('#000000');
-              }
+              cellTexts[col.key] = grade;
               const gradeWidth = col.width - 8;
               const gradeTextWidth = doc.widthOfString(grade);
-              if (gradeTextWidth > gradeWidth) {
-                doc.fontSize(8);
-              }
-              text = grade;
+              cellFontSizes[col.key] = gradeTextWidth > gradeWidth ? 8 : 10;
               break;
             }
             case 'points':
-              text = pointsText;
+              cellTexts[col.key] = pointsText;
               break;
             case 'comments':
-              text = commentsText;
+              cellTexts[col.key] = commentsText;
               break;
             default:
-              text = '';
-          }
-
-          const align = col.align || 'left';
-          doc.text(text, colPositions[col.key], rowY + 8, { width: col.width - 10, align });
-          if (col.key === 'grade') {
-            doc.fontSize(10).fillColor('#000000');
+              cellTexts[col.key] = '';
           }
         });
 
-        yPos += rowHeight;
+        let maxTextHeight = 0;
+        columnDefs.forEach(col => {
+          const text = cellTexts[col.key] ?? '';
+          const align = col.align || 'left';
+          const cellWidth = col.width - 10;
+          const fontSize = cellFontSizes[col.key] ?? 10;
+          doc.font('Helvetica').fontSize(fontSize);
+          const h = doc.heightOfString(text, { width: cellWidth, align });
+          if (h > maxTextHeight) maxTextHeight = h;
+        });
+
+        const rowHeightForRow = Math.max(baseRowHeight, Math.ceil(maxTextHeight + rowExtraPadding));
+
+        // Row background + grid lines
+        doc.rect(tableStartX, rowY, tableEndX - tableStartX, rowHeightForRow)
+          .fillColor(isEvenRow ? '#F8F9FA' : '#FFFFFF')
+          .fill();
+
+        doc.strokeColor('#CCCCCC').lineWidth(0.5);
+        doc.moveTo(tableStartX, rowY).lineTo(tableEndX, rowY).stroke();
+        doc.moveTo(tableStartX, rowY + rowHeightForRow).lineTo(tableEndX, rowY + rowHeightForRow).stroke();
+        colBoundaries.forEach((boundary, boundaryIndex) => {
+          if (boundaryIndex > 0 && boundaryIndex < colBoundaries.length) {
+            doc.moveTo(boundary, rowY).lineTo(boundary, rowY + rowHeightForRow).stroke();
+          }
+        });
+
+        // Render cell texts
+        columnDefs.forEach(col => {
+          const text = cellTexts[col.key] ?? '';
+          const align = col.align || 'left';
+          const fontSize = cellFontSizes[col.key] ?? 10;
+
+          if (col.key === 'grade') {
+            doc.fillColor(grade === 'N/A' ? '#6C757D' : '#000000');
+          } else {
+            doc.fillColor('#000000');
+          }
+
+          doc.font('Helvetica').fontSize(fontSize);
+          doc.text(text, colPositions[col.key], rowY + 6, { width: col.width - 10, align });
+          doc.fontSize(10).fillColor('#000000');
+        });
+
+        yPos += rowHeightForRow;
 
         const maxTableY = 527;
         if (yPos > maxTableY) {
@@ -769,7 +760,6 @@ export function createReportCardPDF(
       // Grade Scale Items derived from settings
       type ThresholdEntry = { key: string; min: number; label: string };
       const thresholdEntries: ThresholdEntry[] = [
-        { key: 'excellent', min: thresholds.excellent ?? 90, label: gradeLabels.excellent || 'OUTSTANDING' },
         { key: 'veryGood', min: thresholds.veryGood ?? 80, label: gradeLabels.veryGood || 'VERY HIGH' },
         { key: 'good', min: thresholds.good ?? 60, label: gradeLabels.good || 'HIGH' },
         { key: 'satisfactory', min: thresholds.satisfactory ?? 40, label: gradeLabels.satisfactory || 'GOOD' },

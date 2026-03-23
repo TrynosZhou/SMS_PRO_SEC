@@ -1,55 +1,86 @@
-<div class="student-dashboard-container">
-  <!-- Main Content -->
-  <main class="main-content">
-    <div class="dashboard-header">
-      <div>
-        <h1>Student Dashboard</h1>
-        <p class="welcome-text">Welcome, {{ studentName }}</p>
-      </div>
-    </div>
-
-    <div class="alert alert-error" *ngIf="error" style="color: red; font-weight: bold;">{{ error }}</div>
-
-    <!-- Quick Actions -->
-    <div class="quick-actions-section">
-      <h3>Quick Actions</h3>
-      <div class="quick-actions-grid">
-        <button 
-          class="quick-action-btn" 
-          (click)="viewReportCard()">
-          <span class="action-icon">📄</span>
-          <span class="action-label">My Report Card</span>
-          <span class="action-hint">View and download your report card for the active term</span>
-        </button>
-        <button 
-          class="quick-action-btn" 
-          (click)="viewInvoiceStatement()">
-          <span class="action-icon">💰</span>
-          <span class="action-label">My Invoice Statement</span>
-          <span class="action-hint">View and download your current invoice balance</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Information Cards -->
-    <div class="info-cards-section">
-      <div class="info-card">
-        <div class="info-card-icon">📄</div>
-        <div class="info-card-content">
-          <h4>Report Card</h4>
-          <p>Access your academic performance report card for the current active term. View your grades, subject scores, and overall performance.</p>
-          <button class="btn btn-primary" (click)="viewReportCard()">View Report Card</button>
+<div class="sd-page">
+  <main class="sd-main">
+    <!-- Hero -->
+    <section class="sd-hero" aria-labelledby="sd-title">
+      <div class="sd-hero-bg" aria-hidden="true"></div>
+      <div class="sd-hero-inner">
+        <div class="sd-hero-copy">
+          <p class="sd-kicker">{{ daypartGreeting }}</p>
+          <h1 id="sd-title" class="sd-title">
+            <span class="sd-title-icon" aria-hidden="true">🎓</span>
+            Student dashboard
+          </h1>
+          <p class="sd-welcome">
+            Hi <strong>{{ getDisplayName() }}</strong>
+            <span class="sd-dot" aria-hidden="true">·</span>
+            <span class="sd-sub">Here’s a quick path to your learning and school services.</span>
+          </p>
+          <div class="sd-chips">
+            <div class="sd-chip sd-chip-clock" role="status" aria-live="polite">
+              <span class="sd-chip-label">Local time</span>
+              <span class="sd-clock-value">{{ clockTime }}</span>
+              <span class="sd-chip-date">{{ clockDate }}</span>
+            </div>
+            <div class="sd-chip" *ngIf="schoolName">
+              <span aria-hidden="true">🏫</span> {{ schoolName }}
+            </div>
+            <div class="sd-chip sd-chip-id" *ngIf="studentNumber">
+              <span class="sd-chip-label">ID</span> {{ studentNumber }}
+            </div>
+          </div>
         </div>
       </div>
-      <div class="info-card">
-        <div class="info-card-icon">💰</div>
-        <div class="info-card-content">
-          <h4>Invoice Statement</h4>
-          <p>View your current invoice balance, payment history, and download your invoice statement.</p>
-          <button class="btn btn-primary" (click)="viewInvoiceStatement()">View Invoice</button>
+    </section>
+
+    <div class="alert alert-error" *ngIf="error" role="alert">{{ error }}</div>
+
+    <div class="sd-layout">
+      <div class="sd-col-main">
+        <h2 class="sd-section-title">Start here</h2>
+        <p class="sd-section-lead">Jump to your report card, fees, or class tasks — same links are in the sidebar.</p>
+
+        <div class="sd-feature-grid">
+          <a routerLink="/student/report-card" class="sd-card sd-card-report">
+            <span class="sd-card-icon" aria-hidden="true">📄</span>
+            <span class="sd-card-title">My Report Card</span>
+            <span class="sd-card-desc">Grades and remarks for the active term.</span>
+            <span class="sd-card-go">Open →</span>
+          </a>
+          <a routerLink="/student/invoice-statement" class="sd-card sd-card-invoice">
+            <span class="sd-card-icon" aria-hidden="true">🧾</span>
+            <span class="sd-card-title">My Invoice Statement</span>
+            <span class="sd-card-desc">Balance, charges, and payment history.</span>
+            <span class="sd-card-go">Open →</span>
+          </a>
+          <a routerLink="/student/elearning" class="sd-card sd-card-learn">
+            <span class="sd-card-icon" aria-hidden="true">💻</span>
+            <span class="sd-card-title">E-learning Services</span>
+            <span class="sd-card-desc">Assignments, tests, and uploads from teachers.</span>
+            <span class="sd-card-go">Open →</span>
+          </a>
         </div>
+
+        <section class="sd-hint-panel" aria-label="Tips">
+          <h3 class="sd-hint-title"><span aria-hidden="true">💡</span> Tips</h3>
+          <ul class="sd-hint-list">
+            <li>Use <strong>E-learning</strong> to download task attachments and upload your work.</li>
+            <li>Report cards and invoices open in the browser — you can print or save as PDF from your device.</li>
+          </ul>
+        </section>
       </div>
+
+      <aside class="sd-aside" aria-label="Shortcuts">
+        <div class="sd-widget">
+          <h3 class="sd-widget-title">Sidebar</h3>
+          <p class="sd-widget-body">
+            <strong>My Report Card</strong> and <strong>My Invoice Statement</strong> are now top-level menu items — no extra submenu.
+          </p>
+        </div>
+        <div class="sd-widget sd-widget-accent">
+          <h3 class="sd-widget-title">Need help?</h3>
+          <p class="sd-widget-body">Contact your class teacher or the school office if something doesn’t look right.</p>
+        </div>
+      </aside>
     </div>
   </main>
 </div>
-

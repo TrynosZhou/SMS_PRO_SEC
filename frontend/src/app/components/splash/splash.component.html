@@ -1,59 +1,9 @@
 <div class="splash-wrapper">
-  <div class="decor-circle decor-circle-one"></div>
-  <div class="decor-circle decor-circle-two"></div>
-
-  <div class="splash-card glass">
-    <div class="logo-container">
-      <img 
-        [src]="schoolLogo || defaultLogoPath" 
-        [alt]="schoolName + ' logo'"
-        (error)="onLogoError()">
-    </div>
-    <div class="headline">
-      <span class="eyebrow">Welcome to</span>
-      <h1>{{ schoolName }}</h1>
-    </div>
-    <p class="tagline">{{ tagline }}</p>
-
-    <div class="status-panel">
-      <div class="spinner" aria-label="Loading"></div>
-      <div class="status-text">
-        <p class="status-title">Getting everything ready</p>
-        <p class="status-subtitle">
-          {{ loadingSettings ? 'Loading school settings...' : 'Preparing your experience...' }}
-        </p>
-        <div class="progress-bar">
-          <div class="progress-fill"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="features">
-      <div class="feature-chip">
-        <span>📚 Smart Classes</span>
-      </div>
-      <div class="feature-chip">
-        <span>👨‍🏫 Teacher Portal</span>
-      </div>
-      <div class="feature-chip">
-        <span>💳 Finance Suite</span>
-      </div>
-    </div>
-
-    <div class="meta">
-      <div>
-        <p class="meta-label">Est.</p>
-        <p class="meta-value">2009</p>
-      </div>
-      <div>
-        <p class="meta-label">Students</p>
-        <p class="meta-value">4 - 12 yrs</p>
-      </div>
-      <div>
-        <p class="meta-label">Powered by</p>
-        <p class="meta-value">Trynos Zhou</p>
-      </div>
-    </div>
+  <div class="splash-image-frame">
+    <img
+      class="splash-image"
+      src="assets/splash-banner-uploaded.png"
+      alt="Splash artwork">
   </div>
 </div>
 

@@ -4,10 +4,13 @@ export class AddTestDatesToRecordBook1700440000000 implements MigrationInterface
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add date columns for each test (test1Date through test10Date)
     for (let i = 1; i <= 10; i++) {
+      const col = `test${i}Date`;
+      const has = await queryRunner.hasColumn('record_books', col);
+      if (has) continue;
       await queryRunner.addColumn(
         'record_books',
         new TableColumn({
-          name: `test${i}Date`,
+          name: col,
           type: 'date',
           isNullable: true
         })

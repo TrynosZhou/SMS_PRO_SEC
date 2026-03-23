@@ -1,6 +1,11 @@
 <div class="parent-dashboard-container">
+  <!-- Mobile Menu Toggle -->
+  <button class="mobile-menu-toggle" (click)="toggleMobileMenu()" *ngIf="isMobile">
+    ☰
+  </button>
+
   <!-- Sidebar -->
-  <aside class="sidebar">
+  <aside class="sidebar" [class.mobile-open]="mobileMenuOpen" (click)="closeMobileMenu()">
     <div class="sidebar-header">
       <h2>Parent Portal</h2>
       <p class="user-info">{{ parentName }}</p>
@@ -9,10 +14,10 @@
     <nav class="sidebar-nav">
       <div class="menu-section">
         <ul class="menu-list">
-          <li><a routerLink="/parent/dashboard" routerLinkActive="active">
+          <li><a routerLink="/parent/dashboard" routerLinkActive="active" (click)="closeMobileMenu()">
             <span class="menu-icon">📊</span> Dashboard
           </a></li>
-          <li><a routerLink="/parent/inbox" routerLinkActive="active">
+          <li><a routerLink="/parent/inbox" routerLinkActive="active" (click)="closeMobileMenu()">
             <span class="menu-icon">📧</span> My Inbox
           </a></li>
         </ul>
@@ -35,10 +40,41 @@
       <div>
         <h1>Parent Dashboard</h1>
         <p class="welcome-text">Welcome, {{ parentName }}</p>
+        <p class="update-text">Last synced: {{ getLastUpdatedText() }}</p>
       </div>
       <div class="header-actions">
+        <button class="btn btn-outline" (click)="refreshDashboard()">↻ Refresh</button>
         <button class="btn btn-primary" (click)="linkMoreStudents()">➕ Link Students</button>
         <button class="btn btn-info" (click)="manageAccount()">👤 Manage Account</button>
+      </div>
+    </div>
+
+    <div *ngIf="!loading" class="metrics-grid">
+      <div class="metric-card">
+        <span class="metric-title">Linked Students</span>
+        <span class="metric-value">{{ getTotalStudents() }}</span>
+      </div>
+      <div class="metric-card warning">
+        <span class="metric-title">Outstanding Balance</span>
+        <span class="metric-value">{{ currencySymbol }} {{ getOutstandingBalance() | number:'1.2-2' }}</span>
+      </div>
+      <div class="metric-card success">
+        <span class="metric-title">Credit Balance</span>
+        <span class="metric-value">{{ currencySymbol }} {{ getCreditBalance() | number:'1.2-2' }}</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-title">Report Card Access</span>
+        <span class="metric-value">{{ getPaymentReadinessPercent() }}%</span>
+      </div>
+    </div>
+
+    <div *ngIf="!loading && students.length > 0" class="progress-card">
+      <div class="progress-header">
+        <h3>Academic Access Readiness</h3>
+        <span>{{ getStudentsWithClearTermBalance() }}/{{ students.length }} students clear</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" [style.width.%]="getPaymentReadinessPercent()"></div>
       </div>
     </div>
 
@@ -61,6 +97,12 @@
           (click)="viewCurrentInvoice()">
           <span class="action-icon">💰</span>
           <span class="action-label">View Current Invoice</span>
+        </button>
+        <button 
+          class="quick-action-btn" 
+          (click)="makePayment()">
+          <span class="action-icon">💳</span>
+          <span class="action-label">Pay Fees Online</span>
         </button>
       </div>
     </div>
@@ -95,11 +137,48 @@
       <h2>Your Linked Students</h2>
       <button class="btn btn-primary" (click)="linkMoreStudents()">➕ Link More Students</button>
     </div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <input
+          type="text"
+          class="search-input"
+          [ngModel]="searchTerm"
+          (ngModelChange)="onSearchTermChange($event)"
+          placeholder="Search by name, student number, or class" />
+      </div>
+      <div class="sort-wrap">
+        <label for="sortBy">Sort</label>
+        <select
+          id="sortBy"
+          class="sort-select"
+          [ngModel]="sortBy"
+          (ngModelChange)="onSortByChange($event)">
+          <option value="name">Name (A-Z)</option>
+          <option value="balance-high">Balance (High to Low)</option>
+          <option value="balance-low">Balance (Low to High)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="result-hint" *ngIf="filteredStudents.length !== students.length">
+      Showing {{ filteredStudents.length }} of {{ students.length }} students
+    </div>
+
+    <div *ngIf="filteredStudents.length === 0" class="empty-results">
+      <p>No students match your search. Try a different keyword.</p>
+    </div>
+
     <div class="students-grid">
-      <div *ngFor="let student of students" class="student-card">
+      <div *ngFor="let student of filteredStudents" class="student-card">
         <div class="student-header">
-          <h3>{{ student.firstName }} {{ student.lastName }}</h3>
-          <span class="student-number">{{ student.studentNumber }}</span>
+          <div>
+            <h3>{{ student.firstName }} {{ student.lastName }}</h3>
+            <span class="student-number">{{ student.studentNumber }}</span>
+          </div>
+          <span class="student-badge" [class.badge-warning]="student.currentInvoiceBalance > 0" [class.badge-success]="student.currentInvoiceBalance <= 0">
+            {{ getStudentBadge(student) }}
+          </span>
         </div>
       
       <div class="student-info">

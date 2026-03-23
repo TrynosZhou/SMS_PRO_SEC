@@ -1058,3 +1058,35 @@
 .sidebar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.5);
 }
+
+/* Class Promotion + E-learning: same row, equal width & height */
+.quick-actions-adjacent-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  grid-column: 1 / -1;
+  align-items: stretch;
+}
+
+.quick-actions-adjacent-pair .adjacent-action-btn {
+  min-height: 72px;
+  height: 100%;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+.modern-actions .elearning-quick-action {
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+}
+
+.modern-actions .elearning-quick-action:hover {
+  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.4);
+}
+
+@media (max-width: 520px) {
+  .quick-actions-adjacent-pair {
+    grid-template-columns: 1fr;
+  }
+}

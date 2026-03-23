@@ -2,7 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FinanceService } from '../../../services/finance.service';
 import { SettingsService } from '../../../services/settings.service';
+import { StudentService } from '../../../services/student.service';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { AuthService } from '../../../services/auth.service';
 
 @Component({
   selector: 'app-record-payment',
@@ -22,9 +24,16 @@ export class RecordPaymentComponent implements OnInit {
     amount: 0,
     term: '',
     paymentDate: new Date().toISOString().split('T')[0],
-    paymentMethod: 'Cash',
-    notes: ''
+    paymentMethod: 'Cash(USD)',
+    notes: '',
+    phoneNumber: '',
+    cardNumber: ''
   };
+
+  showPhoneNumberInput = false;
+  phoneNumberLabel = '';
+  phoneNumberHint = '';
+  showCardNumberInput = false;
   
   currentTerm = '';
   currencySymbol = 'KES';
@@ -34,9 +43,60 @@ export class RecordPaymentComponent implements OnInit {
   showReceipt = false;
   loadingReceipt = false;
 
+  // Name search (Admin/Accountant only)
+  nameSearchFirstName = '';
+  nameSearchLastName = '';
+  nameSearchResults: any[] = [];
+  nameSearchSelectedStudentNumber = '';
+  nameSearchLoading = false;
+  nameSearchError = '';
+  showStudentPicker = false;
+
+  private toNumber(value: any): number {
+    const n = typeof value === 'number' ? value : parseFloat(String(value ?? 0));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  getBalanceAmount(): number {
+    return this.toNumber(this.studentData?.balance ?? 0);
+  }
+
+  /**
+   * Remaining balance after applying the currently selected payment amount.
+   * If negative, the absolute value represents overpayment that will be saved as prepaid credit.
+   */
+  getNewBalance(): number {
+    const balance = this.getBalanceAmount();
+    const payment = this.toNumber(this.paymentForm.amount ?? 0);
+    return balance - payment;
+  }
+
+  getOverpaymentCredit(): number {
+    return Math.max(0, -this.getNewBalance());
+  }
+
+  getAbsNewBalance(): number {
+    return Math.abs(this.getNewBalance());
+  }
+
+  setQuickAmount(multiplier: number): void {
+    const balance = this.getBalanceAmount();
+    if (balance <= 0) {
+      this.paymentForm.amount = 0;
+      return;
+    }
+
+    const raw = balance * multiplier;
+    const amount = Math.max(0.01, this.toNumber(raw));
+    // Keep 2 decimals to match currency expectations
+    this.paymentForm.amount = Math.round(amount * 100) / 100;
+  }
+
   constructor(
     private financeService: FinanceService,
     private settingsService: SettingsService,
+    private studentService: StudentService,
+    private authService: AuthService,
     private sanitizer: DomSanitizer,
     private route: ActivatedRoute
   ) { }
@@ -116,9 +176,15 @@ export class RecordPaymentComponent implements OnInit {
     });
   }
 
-  getBalance(preservePaymentFlag: boolean = false): void {
-    if (!this.studentId || this.studentId.trim() === '') {
-      this.error = 'Please enter a Student ID';
+  private isUuid(value: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(value);
+  }
+
+  getBalance(preservePaymentFlag: boolean = false, skipNameSearch: boolean = false): void {
+    const query = (this.studentId || '').trim();
+    if (!query) {
+      this.error = 'Please enter a Student ID/Student Number or First/Last Name';
       return;
     }
 
@@ -149,7 +215,13 @@ export class RecordPaymentComponent implements OnInit {
     this.studentData = null;
     this.paymentForm.amount = 0;
 
-    this.financeService.getStudentBalance(this.studentId.trim()).subscribe({
+    this.showStudentPicker = false;
+    this.nameSearchResults = [];
+    this.nameSearchSelectedStudentNumber = '';
+    this.nameSearchError = '';
+    this.nameSearchLoading = false;
+
+    this.financeService.getStudentBalance(query).subscribe({
       next: (data: any) => {
         this.studentData = data;
         this.paymentForm.amount = data.balance || 0;
@@ -165,7 +237,76 @@ export class RecordPaymentComponent implements OnInit {
         this.loading = false;
       },
       error: (error: any) => {
-        this.error = error.error?.message || 'Failed to get student balance. Please check the Student ID.';
+        const status = error?.status;
+        const errMsg = error?.error?.message || error?.message || 'Failed to get student balance.';
+
+        // If the user typed a name, allow admin/accountant to resolve it and then retry the balance lookup.
+        if (status === 404 && this.canSearchByName() && !skipNameSearch) {
+          this.loading = false;
+          this.studentData = null;
+          this.paymentRecorded = false;
+          this.lastPaymentInvoiceId = null;
+
+          const searchQuery = query;
+          if (!searchQuery) {
+            this.error = errMsg;
+            return;
+          }
+
+          this.nameSearchLoading = true;
+          this.studentService.getStudents({ page: 1, limit: 10, search: searchQuery }).subscribe({
+            next: (data: any) => {
+              const results = Array.isArray(data) ? data : data?.data || [];
+              this.nameSearchResults = results || [];
+              this.nameSearchLoading = false;
+
+              if (!this.nameSearchResults.length) {
+                this.error = 'Student not found. Please enter a valid Student ID/Student Number or correct First/Last Name.';
+                return;
+              }
+
+              if (this.nameSearchResults.length === 1) {
+                const match = this.nameSearchResults[0];
+                const resolvedLookupId = match.id || match.studentNumber || searchQuery;
+                const resolvedForInput = match.studentNumber || resolvedLookupId;
+                this.studentId = resolvedForInput;
+
+                this.loading = true;
+                this.error = '';
+                this.financeService.getStudentBalance(resolvedLookupId).subscribe({
+                  next: (data2: any) => {
+                    this.studentData = data2;
+                    this.paymentForm.amount = data2.balance || 0;
+                    if (preservePaymentFlag) {
+                      if (preservedInvoiceId) this.lastPaymentInvoiceId = preservedInvoiceId;
+                      if (preservedSuccessMessage) this.success = preservedSuccessMessage;
+                    }
+                    this.loading = false;
+                  },
+                  error: (error2: any) => {
+                    this.loading = false;
+                    this.error = error2?.error?.message || error2?.message || 'Failed to get student balance.';
+                  }
+                });
+
+                return;
+              }
+
+              // Multiple matches: show a picker under the same textbox.
+              this.showStudentPicker = true;
+              this.nameSearchSelectedStudentNumber = '';
+              this.error = '';
+            },
+            error: (err: any) => {
+              this.nameSearchLoading = false;
+              this.error = err?.error?.message || err?.message || 'Failed to search students by name.';
+            }
+          });
+
+          return;
+        }
+
+        this.error = errMsg;
         this.loading = false;
         this.studentData = null;
         this.paymentRecorded = false;
@@ -182,6 +323,13 @@ export class RecordPaymentComponent implements OnInit {
     this.paymentRecorded = false;
     this.lastPaymentInvoiceId = null;
     this.paymentForm.amount = 0;
+    this.paymentForm.phoneNumber = '';
+    this.paymentForm.cardNumber = '';
+    this.showPhoneNumberInput = false;
+    this.showCardNumberInput = false;
+
+    this.resetNameSearch();
+
     // Reload term from settings to ensure it's always current
     this.loadCurrentTerm();
     this.showReceipt = false;
@@ -191,6 +339,93 @@ export class RecordPaymentComponent implements OnInit {
       this.receiptBlobUrl = null;
     }
     this.receiptPdfUrl = null;
+  }
+
+  private resetNameSearch(): void {
+    this.nameSearchFirstName = '';
+    this.nameSearchLastName = '';
+    this.nameSearchResults = [];
+    this.nameSearchSelectedStudentNumber = '';
+    this.nameSearchLoading = false;
+    this.nameSearchError = '';
+    this.showStudentPicker = false;
+  }
+
+  canSearchByName(): boolean {
+    return (
+      this.authService.hasRole('admin') ||
+      this.authService.hasRole('superadmin') ||
+      this.authService.hasRole('accountant')
+    );
+  }
+
+  searchStudentsByName(): void {
+    if (!this.canSearchByName()) return;
+
+    const first = (this.nameSearchFirstName || '').trim();
+    const last = (this.nameSearchLastName || '').trim();
+    const query = [first, last].filter(Boolean).join(' ').trim();
+
+    if (!query) {
+      this.nameSearchError = 'Enter First Name and/or Last Name to search.';
+      this.nameSearchResults = [];
+      return;
+    }
+
+    this.nameSearchError = '';
+    this.nameSearchLoading = true;
+    this.nameSearchResults = [];
+    this.nameSearchSelectedStudentNumber = '';
+
+    this.studentService.getStudents({ page: 1, limit: 10, search: query }).subscribe({
+      next: (data: any) => {
+        // API may return array or paginated response. Normalize.
+        const results = Array.isArray(data) ? data : data?.data || [];
+        this.nameSearchResults = results || [];
+        this.nameSearchLoading = false;
+      },
+      error: (err: any) => {
+        this.nameSearchLoading = false;
+        this.nameSearchError =
+          err?.error?.message || err?.message || 'Failed to search students by name';
+      }
+    });
+  }
+
+  useSelectedStudentFromNameSearch(): void {
+    if (!this.nameSearchSelectedStudentNumber) return;
+    this.studentId = this.nameSearchSelectedStudentNumber;
+    this.nameSearchError = '';
+    this.nameSearchResults = [];
+    this.nameSearchSelectedStudentNumber = '';
+    // Skip name-search retry since this selection should be a direct match.
+    this.getBalance(false, true);
+  }
+
+  onPaymentMethodChange(): void {
+    const method = this.paymentForm.paymentMethod;
+    
+    // Reset both inputs
+    this.showPhoneNumberInput = false;
+    this.showCardNumberInput = false;
+    this.paymentForm.phoneNumber = '';
+    this.paymentForm.cardNumber = '';
+    
+    if (method === 'EcoCash') {
+      this.showPhoneNumberInput = true;
+      this.phoneNumberLabel = 'EcoCash Number';
+      this.phoneNumberHint = 'Enter the EcoCash mobile number for this payment';
+    } else if (method === 'InnBucks') {
+      this.showPhoneNumberInput = true;
+      this.phoneNumberLabel = 'InnBucks Number';
+      this.phoneNumberHint = 'Enter the InnBucks mobile number for this payment';
+    } else if (method === 'ZIG(ZW)') {
+      this.showPhoneNumberInput = true;
+      this.phoneNumberLabel = 'EcoCash Number';
+      this.phoneNumberHint = 'Enter the EcoCash mobile number for ZIG payment';
+    } else if (method === 'Visa Card') {
+      this.showCardNumberInput = true;
+    }
   }
 
   recordPayment(): void {
@@ -209,17 +444,57 @@ export class RecordPaymentComponent implements OnInit {
       return;
     }
 
+    // Validate phone number for mobile payment methods
+    if (this.showPhoneNumberInput) {
+      if (!this.paymentForm.phoneNumber || this.paymentForm.phoneNumber.trim() === '') {
+        this.error = `${this.phoneNumberLabel} is required for ${this.paymentForm.paymentMethod}`;
+        return;
+      }
+
+      // Basic phone number validation (Zimbabwe format)
+      const phoneRegex = /^(\+263|0)?[7][0-9]{8}$/;
+      if (!phoneRegex.test(this.paymentForm.phoneNumber.replace(/\s/g, ''))) {
+        this.error = 'Invalid phone number format. Please use format: 0771234567 or +263771234567';
+        return;
+      }
+    }
+
+    // Validate card number for Visa Card
+    if (this.showCardNumberInput) {
+      if (!this.paymentForm.cardNumber || this.paymentForm.cardNumber.trim() === '') {
+        this.error = 'Card number is required for Visa Card payment';
+        return;
+      }
+
+      // Basic card number validation (digits only, allowing spaces)
+      const cardNumberClean = this.paymentForm.cardNumber.replace(/\s/g, '');
+      if (!/^\d{4,19}$/.test(cardNumberClean)) {
+        this.error = 'Invalid card number. Please enter at least the last 4 digits or full card number';
+        return;
+      }
+    }
+
     this.submitting = true;
     this.error = '';
     this.success = '';
 
-    const paymentData = {
+    const paymentData: any = {
       paidAmount: this.paymentForm.amount,
       paymentDate: this.paymentForm.paymentDate,
       paymentMethod: this.paymentForm.paymentMethod,
       notes: this.paymentForm.notes,
       isPrepayment: false
     };
+
+    // Add phone number if applicable
+    if (this.showPhoneNumberInput && this.paymentForm.phoneNumber) {
+      paymentData.phoneNumber = this.paymentForm.phoneNumber;
+    }
+
+    // Add card number if applicable
+    if (this.showCardNumberInput && this.paymentForm.cardNumber) {
+      paymentData.cardNumber = this.paymentForm.cardNumber;
+    }
 
     // Store the invoice ID before recording payment
     const invoiceIdForPayment = this.studentData.lastInvoiceId;

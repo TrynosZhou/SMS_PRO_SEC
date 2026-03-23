@@ -30,6 +30,10 @@ export class Teacher {
   @Column({ nullable: true })
   qualification: string;
 
+  /** e.g. Male / Female — used for formal title on dashboards (Mr / Mrs) */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  gender: string | null;
+
   @Column({ type: 'uuid', nullable: true })
   teachingSubjectId: string;
 

@@ -14,19 +14,21 @@
   </div>
 
   <div *ngIf="!loading && reportCard" class="report-card-content">
-    <!-- School Header -->
-    <div *ngIf="schoolName || schoolLogo || schoolLogo2" class="school-header">
-      <div class="school-logo-wrapper school-logo-left" *ngIf="schoolLogo">
-        <img [src]="schoolLogo" alt="School Logo" class="school-logo" (error)="schoolLogo = null">
+    <!-- School header: banner (Logo 1 only) + details -->
+    <div *ngIf="schoolName || schoolLogo" class="school-header-block">
+      <div class="report-card-school-banner" *ngIf="schoolLogo">
+        <img [src]="schoolLogo" alt="School banner" class="banner-logo-img" (error)="schoolLogo = null">
       </div>
-      <div class="school-text">
-        <h3 *ngIf="schoolName">{{ schoolName }}</h3>
-        <p *ngIf="schoolAddress" class="school-address">{{ schoolAddress }}</p>
-        <p *ngIf="schoolPhone" class="school-phone">Phone: {{ schoolPhone }}</p>
-        <p *ngIf="academicYear" class="academic-year">Academic Year: {{ academicYear }}</p>
+      <div class="report-card-school-banner banner-fallback" *ngIf="!schoolLogo && schoolName">
+        <span class="banner-school-name">{{ schoolName }}</span>
       </div>
-      <div class="school-logo-wrapper school-logo-right" *ngIf="schoolLogo2">
-        <img [src]="schoolLogo2" alt="School Logo 2" class="school-logo" (error)="schoolLogo2 = null">
+      <div class="school-header-details">
+        <div class="school-text">
+          <h3 *ngIf="schoolName">{{ schoolName }}</h3>
+          <p *ngIf="schoolAddress" class="school-address">{{ schoolAddress }}</p>
+          <p *ngIf="schoolPhone" class="school-phone">Phone: {{ schoolPhone }}</p>
+          <p *ngIf="academicYear" class="academic-year">Academic Year: {{ academicYear }}</p>
+        </div>
       </div>
     </div>
 
@@ -151,4 +153,3 @@
     <p>No report card available for the active term.</p>
   </div>
 </div>
-

@@ -26,6 +26,9 @@ export class MarkAttendanceComponent implements OnInit {
   hasUnsavedChanges = false;
   lastSavedDate: Date | null = null;
 
+  /** School policy: week runs Sunday -> Saturday, but attendance marking is allowed Mon-Fri only. */
+  readonly weekendNotAllowedMessage = 'Attendance can only be marked Monday to Friday (Sundays and Saturdays are not allowed).';
+
   constructor(
     private attendanceService: AttendanceService,
     private classService: ClassService,
@@ -37,8 +40,60 @@ export class MarkAttendanceComponent implements OnInit {
     this.loadClasses();
     this.loadActiveTerm();
     // Set default date to today
-    const today = new Date();
-    this.selectedDate = today.toISOString().split('T')[0];
+    const today = this.normalizeToAllowedDate(new Date());
+    this.selectedDate = this.formatDateToYMD(today);
+  }
+
+  get isMarkingAllowed(): boolean {
+    if (!this.selectedDate) return true;
+    const day = this.getWeekdayFromDateString(this.selectedDate); // Sun=0 ... Sat=6
+    return day >= 1 && day <= 5; // Mon-Fri
+  }
+
+  private getWeekdayFromDateString(dateStr: string): number {
+    // dateStr is expected in YYYY-MM-DD; build a local date to avoid timezone shifts.
+    const parts = dateStr.split('-').map((p) => Number(p));
+    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+      return new Date(dateStr).getDay();
+    }
+    const [y, m, d] = parts;
+    return new Date(y, m - 1, d).getDay();
+  }
+
+  private formatDateToYMD(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  private isWeekendDate(date: Date): boolean {
+    const day = date.getDay(); // Sun=0, Sat=6
+    return day === 0 || day === 6;
+  }
+
+  /**
+   * Normalize a date to the nearest allowed marking day (Mon-Fri).
+   * Sunday -> Monday, Saturday -> Friday.
+   */
+  private normalizeToAllowedDate(date: Date): Date {
+    const dt = new Date(date);
+    const day = dt.getDay();
+    if (day === 0) dt.setDate(dt.getDate() + 1);
+    if (day === 6) dt.setDate(dt.getDate() - 1);
+    return dt;
+  }
+
+  /**
+   * Shift date step-by-step until it lands on Mon-Fri.
+   * Direction is used for consistent navigation (e.g., go to Friday when moving back from Sunday).
+   */
+  private shiftToNextAllowedDate(date: Date, direction: 1 | -1): Date {
+    const dt = new Date(date);
+    while (this.isWeekendDate(dt)) {
+      dt.setDate(dt.getDate() + direction);
+    }
+    return dt;
   }
 
   loadActiveTerm() {
@@ -142,6 +197,11 @@ export class MarkAttendanceComponent implements OnInit {
 
   onDateChange() {
     if (this.selectedClassId && this.selectedDate) {
+      this.hasUnsavedChanges = false;
+      this.lastSavedDate = null;
+      this.success = '';
+      // error is shown via the warning banner; keep it quiet during navigation
+      this.error = '';
       this.loadExistingAttendance();
     }
   }
@@ -157,6 +217,11 @@ export class MarkAttendanceComponent implements OnInit {
   }
 
   markAll(status: string) {
+    if (!this.isMarkingAllowed) {
+      this.error = this.weekendNotAllowedMessage;
+      setTimeout(() => (this.error = ''), 4000);
+      return;
+    }
     this.attendanceData.forEach(item => {
       item.status = status;
     });
@@ -167,6 +232,12 @@ export class MarkAttendanceComponent implements OnInit {
   submitAttendance() {
     if (!this.selectedClassId || !this.selectedDate) {
       this.error = 'Please select a class and date';
+      return;
+    }
+
+    if (!this.isMarkingAllowed) {
+      this.error = this.weekendNotAllowedMessage;
+      setTimeout(() => (this.error = ''), 5000);
       return;
     }
 
@@ -257,6 +328,7 @@ export class MarkAttendanceComponent implements OnInit {
 
   // Quick status update
   updateStatus(studentId: string, status: string) {
+    if (!this.isMarkingAllowed) return;
     const item = this.attendanceData.find(a => a.studentId === studentId);
     if (item) {
       item.status = status;
@@ -267,15 +339,17 @@ export class MarkAttendanceComponent implements OnInit {
 
   // Date navigation
   navigateDate(days: number) {
-    const currentDate = new Date(this.selectedDate);
+    const direction: 1 | -1 = days >= 0 ? 1 : -1;
+    const currentDate = new Date(this.selectedDate + 'T00:00:00');
     currentDate.setDate(currentDate.getDate() + days);
-    this.selectedDate = currentDate.toISOString().split('T')[0];
+    const allowedDate = this.shiftToNextAllowedDate(currentDate, direction);
+    this.selectedDate = this.formatDateToYMD(allowedDate);
     this.onDateChange();
   }
 
   goToToday() {
-    const today = new Date();
-    this.selectedDate = today.toISOString().split('T')[0];
+    const today = this.normalizeToAllowedDate(new Date());
+    this.selectedDate = this.formatDateToYMD(today);
     this.onDateChange();
   }
 
@@ -289,8 +363,7 @@ export class MarkAttendanceComponent implements OnInit {
 
   // Check if date is today
   isToday(): boolean {
-    const today = new Date().toISOString().split('T')[0];
-    return this.selectedDate === today;
+    return this.selectedDate === this.formatDateToYMD(new Date());
   }
 
   // Check if date is in the past

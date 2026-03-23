@@ -256,35 +256,73 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
     this.selectedTeacher = null;
   }
 
+  resettingPasswordForUserId: string | null = null;
+
+  /** Popup after admin reset: show credentials once */
+  showPasswordResetModal = false;
+  passwordResetResult: {
+    teacherName: string;
+    username: string;
+    temporaryPassword: string;
+  } | null = null;
+  copyPasswordFeedback = '';
+
   resetPassword(teacher: any) {
-    if (!confirm(`Reset password for ${teacher.firstName} ${teacher.lastName}? A new temporary password will be generated.`)) {
+    if (!teacher?.userId) {
+      this.error = 'This teacher has no linked user account.';
+      setTimeout(() => (this.error = ''), 5000);
+      return;
+    }
+
+    if (
+      !confirm(
+        `Reset password for ${teacher.firstName} ${teacher.lastName}? A new temporary password will be shown in a popup.`
+      )
+    ) {
       return;
     }
 
     this.error = '';
-    this.success = '';
+    this.resettingPasswordForUserId = teacher.userId;
 
-    // Note: This feature requires a backend endpoint for password reset
-    // For now, we'll show a message that this feature needs to be implemented
-    // You can implement the endpoint and update this method accordingly
-    this.error = 'Password reset feature is not yet implemented. Please contact the system administrator.';
-    setTimeout(() => this.error = '', 5000);
-    
-    // Uncomment and update when backend endpoint is available:
-    /*
-    this.accountService.resetPassword(teacher.userId).subscribe({
+    this.accountService.adminResetTeacherPassword(teacher.userId).subscribe({
       next: (response: any) => {
-        const newPassword = response.temporaryPassword || 'N/A';
-        this.success = `Password reset successfully for ${teacher.firstName} ${teacher.lastName}. ` +
-                      `<strong>New Temporary Password:</strong> ${newPassword}`;
-        setTimeout(() => this.success = '', 10000);
+        this.resettingPasswordForUserId = null;
+        this.passwordResetResult = {
+          teacherName: `${teacher.firstName || ''} ${teacher.lastName || ''}`.trim() || 'Teacher',
+          username: response.username || '—',
+          temporaryPassword: response.temporaryPassword || '—'
+        };
+        this.showPasswordResetModal = true;
+        this.copyPasswordFeedback = '';
       },
       error: (err: any) => {
-        this.error = err.error?.message || 'Failed to reset password';
-        setTimeout(() => this.error = '', 5000);
+        this.resettingPasswordForUserId = null;
+        this.error = err.error?.message || err.message || 'Failed to reset password';
+        setTimeout(() => (this.error = ''), 8000);
       }
     });
-    */
+  }
+
+  closePasswordResetModal() {
+    this.showPasswordResetModal = false;
+    this.passwordResetResult = null;
+    this.copyPasswordFeedback = '';
+  }
+
+  async copyPasswordResetField(text: string, label: string) {
+    const value = text || '';
+    if (!value || value === '—') {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(value);
+      this.copyPasswordFeedback = `${label} copied to clipboard`;
+      setTimeout(() => (this.copyPasswordFeedback = ''), 2500);
+    } catch {
+      this.copyPasswordFeedback = 'Could not copy automatically — select the text and copy manually.';
+      setTimeout(() => (this.copyPasswordFeedback = ''), 4000);
+    }
   }
 
   createAccountForTeacher(teacher: any) {

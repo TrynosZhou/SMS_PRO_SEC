@@ -69,6 +69,20 @@
         </div>
 
         <div class="form-group">
+          <label for="gender">Gender</label>
+          <select
+            id="gender"
+            name="gender"
+            [(ngModel)]="teacher.gender"
+            class="form-input">
+            <option value="">— Select —</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+          <small class="form-hint">Used for formal greeting on the teacher dashboard (Mr / Mrs)</small>
+        </div>
+
+        <div class="form-group">
           <label for="dateOfBirth">Date of Birth</label>
           <input 
             type="date" 

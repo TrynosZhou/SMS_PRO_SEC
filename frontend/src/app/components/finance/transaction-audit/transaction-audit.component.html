@@ -1,0 +1,111 @@
+<div class="container audit-log-wrapper">
+  <div class="audit-log-header">
+    <h1>Transaction Audit</h1>
+    <p class="subtitle">Track payment receipts with anomalies and full history.</p>
+  </div>
+
+  <div class="audit-log-filters">
+    <div class="filter-grid">
+      <div class="filter-group">
+        <label>From Date</label>
+        <input type="date" class="form-control" [(ngModel)]="fromDate" />
+      </div>
+      <div class="filter-group">
+        <label>To Date</label>
+        <input type="date" class="form-control" [(ngModel)]="toDate" />
+      </div>
+      <div class="filter-group filter-span-2">
+        <label>Student (ID / Name)</label>
+        <input type="text" class="form-control" [(ngModel)]="studentSearch" placeholder="Enter student ID / first name / last name" />
+      </div>
+      <div class="filter-group">
+        <label>Payment Method</label>
+        <select class="form-control" [(ngModel)]="paymentMethod">
+          <option *ngFor="let m of paymentMethods" [value]="m.value">{{ m.label }}</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Anomalies Only</label>
+        <div class="checkbox-row">
+          <input type="checkbox" id="anomalyOnly" [(ngModel)]="anomalyOnly" />
+          <label for="anomalyOnly" class="checkbox-label">Show only flagged records</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-actions">
+      <button type="button" class="btn btn-primary" (click)="onSearch()" [disabled]="loading">
+        🔎 Search
+      </button>
+      <button type="button" class="btn btn-secondary" (click)="clearFilters()" [disabled]="loading">
+        🔄 Clear
+      </button>
+    </div>
+  </div>
+
+  <div class="alert alert-error" *ngIf="error">
+    {{ error }}
+  </div>
+
+  <div class="audit-log-table-wrap" *ngIf="!loading">
+    <table class="audit-log-table">
+      <thead>
+        <tr>
+          <th (click)="toggleSort('eventAt')">
+            Date
+            <span *ngIf="sortBy === 'eventAt'">{{ sortDir }}</span>
+          </th>
+          <th (click)="toggleSort('username')">
+            Username
+          </th>
+          <th>StudentID</th>
+          <th (click)="toggleSort('firstName')">First Name</th>
+          <th (click)="toggleSort('lastName')">Last Name</th>
+          <th (click)="toggleSort('amountPaid')">Amount</th>
+          <th (click)="toggleSort('paymentMethod')">Method</th>
+          <th>Reference</th>
+          <th (click)="toggleSort('anomaly')">Anomaly</th>
+          <th>Anomaly Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let log of logs" [ngClass]="highlightAnomaly(log.anomaly)">
+          <td>{{ log.eventAt ? (log.eventAt | date:'yyyy-MM-dd HH:mm:ss') : '—' }}</td>
+          <td>{{ log.username }}</td>
+          <td>{{ log.studentNumber || log.studentId }}</td>
+          <td>{{ log.firstName }}</td>
+          <td>{{ log.lastName }}</td>
+          <td>{{ log.amountPaid }}</td>
+          <td>{{ log.paymentMethod }}</td>
+          <td>{{ log.referenceNumber || '—' }}</td>
+          <td>
+            <span class="anomaly-pill" [class.anomaly-pill-yes]="log.anomaly" [class.anomaly-pill-no]="!log.anomaly">
+              {{ log.anomaly ? 'Yes' : 'No' }}
+            </span>
+          </td>
+          <td class="anomaly-msg">
+            {{ log.anomalyMessage || '—' }}
+          </td>
+        </tr>
+        <tr *ngIf="logs.length === 0">
+          <td colspan="10" class="no-data">No audit records found.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="loading-state" *ngIf="loading">
+    Loading...
+  </div>
+
+  <div class="pagination-row" *ngIf="!loading && totalPages > 1">
+    <button type="button" class="btn btn-secondary" (click)="prevPage()" [disabled]="page <= 1">
+      Previous
+    </button>
+    <span class="page-info">Page {{ page }} of {{ totalPages }}</span>
+    <button type="button" class="btn btn-secondary" (click)="nextPage()" [disabled]="page >= totalPages">
+      Next
+    </button>
+  </div>
+</div>
+

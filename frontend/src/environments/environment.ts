@@ -1,6 +1,10 @@
+const apiUrl = 'http://localhost:3004/api';
+
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:3004/api',
+  apiUrl,
+  /** Backend origin for static files (e.g. /uploads/students). Must match API server port. */
+  serverBaseUrl: apiUrl.replace(/\/api\/?$/, ''),
   sessionTimeoutMinutes: 30
 };
 

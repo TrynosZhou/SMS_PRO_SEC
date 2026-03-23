@@ -7,7 +7,9 @@ const router = Router();
 
 // All enrollment routes require authentication and admin access
 router.use(authenticate);
-router.use(authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT));
+router.use(
+  authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.TEACHER)
+);
 
 // Enroll a student
 router.post('/', enrollmentController.enrollStudent);

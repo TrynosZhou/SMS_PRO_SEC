@@ -5,7 +5,7 @@
         <span class="icon">👨‍🎓</span>
         {{ isEdit ? 'Edit Student' : 'Register New Student' }}
       </h1>
-      <p class="subtitle">{{ isEdit ? 'Update student information' : 'Fill in the details to register a new student. You can enroll them into a class later.' }}</p>
+      <p class="subtitle">{{ isEdit ? 'Update student information' : 'Register personal details, contact details, and student type. Class placement is done separately via Student Manager → Enroll Student.' }}</p>
     </div>
     <div class="header-actions">
       <button type="button" class="btn btn-secondary" (click)="router.navigate(['/students'])">
@@ -22,6 +22,24 @@
   <div class="alert alert-error" *ngIf="error">
     <span class="alert-icon">⚠</span>
     {{ error }}
+  </div>
+
+  <div class="quick-metrics">
+    <div class="metric-item">
+      <span class="metric-label">Form Completion</span>
+      <strong>{{ getCompletionPercent() }}%</strong>
+    </div>
+    <div class="metric-item">
+      <span class="metric-label">Student Age</span>
+      <strong>{{ getAgePreview() || '—' }}</strong>
+    </div>
+    <div class="metric-item" *ngIf="!isEdit">
+      <span class="metric-label">Class</span>
+      <strong>Enroll after registration</strong>
+    </div>
+  </div>
+  <div class="completion-track">
+    <div class="completion-fill" [style.width.%]="getCompletionPercent()"></div>
   </div>
 
   <form (ngSubmit)="onSubmit()" #studentForm="ngForm" class="student-form">
@@ -112,6 +130,7 @@
             [max]="maxDate"
             [class.error]="studentForm.submitted && !student.dateOfBirth">
           <small class="form-hint">Select date of birth</small>
+          <small class="form-hint" *ngIf="getAgePreview()">Age preview: {{ getAgePreview() }} years</small>
         </div>
 
         <div class="form-group">
@@ -289,58 +308,6 @@
         <small class="form-hint" style="margin-top: 8px; display: block;">
           Select if the day scholar student uses school transport and/or dining hall meals. These services will be included in invoice calculations.
         </small>
-      </div>
-    </div>
-
-    <!-- Optional Enrollment Section (only for new registrations) -->
-    <div class="form-section" *ngIf="!isEdit">
-      <div class="section-header">
-        <h2>
-          <span class="section-icon">📚</span>
-          Optional: Class Enrollment
-        </h2>
-        <p class="section-description">You can enroll the student now or enroll them later from the Enrollment page</p>
-      </div>
-
-      <div class="form-group">
-        <label for="classSearch">
-          Class <span class="optional">(Optional)</span>
-          <span class="badge" *ngIf="student.classId">Selected</span>
-        </label>
-        <div class="search-box">
-          <input 
-            type="text" 
-            id="classSearch"
-            [(ngModel)]="classSearchQuery" 
-            name="classSearch"
-            placeholder="Search classes (optional)..."
-            class="search-input"
-            (input)="filterClasses()">
-          <span class="search-icon">🔍</span>
-        </div>
-        <div class="class-selector" *ngIf="filteredClasses.length > 0">
-          <div 
-            *ngFor="let cls of filteredClasses" 
-            class="class-option"
-            [class.selected]="student.classId === cls.id"
-            (click)="selectClass(cls.id)">
-            <div class="class-option-content">
-              <span class="class-icon">📖</span>
-              <div class="class-details">
-                <strong>{{ cls.name }}</strong>
-                <small *ngIf="cls.level">Level: {{ cls.level }}</small>
-              </div>
-              <span class="check-icon" *ngIf="student.classId === cls.id">✓</span>
-            </div>
-          </div>
-        </div>
-        <div class="empty-state" *ngIf="filteredClasses.length === 0 && classes.length > 0">
-          <p>No classes found. Try a different search term.</p>
-        </div>
-        <div class="empty-state" *ngIf="classes.length === 0">
-          <p>No classes available. Please create classes first.</p>
-        </div>
-        <small class="form-hint">If selected, student will be automatically enrolled. Otherwise, enroll them later from the Enrollment page.</small>
       </div>
     </div>
 

@@ -1,7 +1,20 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { StudentService } from '../../../services/student.service';
 import { ClassService } from '../../../services/class.service';
+import { environment } from '../../../../environments/environment';
+
+/** Editable student fields from list / modal (student ID is preview-only). */
+export type StudentQuickEditField =
+  | 'firstName'
+  | 'lastName'
+  | 'classId'
+  | 'contactNumber'
+  | 'studentType'
+  | 'gender'
+  | 'dateOfBirth'
+  | 'address';
 
 @Component({
   selector: 'app-student-list',
@@ -9,6 +22,9 @@ import { ClassService } from '../../../services/class.service';
   styleUrls: ['./student-list.component.css']
 })
 export class StudentListComponent implements OnInit {
+  /** Backend origin for /uploads (must match API server, not a hardcoded port). */
+  readonly serverBaseUrl = environment.serverBaseUrl;
+
   students: any[] = [];
   filteredStudents: any[] = [];
   classes: any[] = [];
@@ -16,7 +32,7 @@ export class StudentListComponent implements OnInit {
   selectedType = '';
   selectedGender = '';
   searchQuery = '';
-  viewMode: 'grid' | 'list' = 'grid';
+  viewMode: 'grid' | 'list' = 'list';
   loading = false;
   error = '';
   success = '';
@@ -30,10 +46,26 @@ export class StudentListComponent implements OnInit {
   pageSizeOptions = [12, 24, 48];
   private searchDebounceTimer: any = null;
 
+  /** ID card PDF preview in modal */
+  idCardPreviewOpen = false;
+  idCardPreviewUrl: SafeResourceUrl | null = null;
+  private idCardBlobUrl: string | null = null;
+
+  /** Quick field edit popup */
+  fieldEditOpen = false;
+  fieldEditStudent: any = null;
+  fieldEditKey: StudentQuickEditField | '' = '';
+  fieldEditLabel = '';
+  fieldEditInputMode: 'text' | 'tel' | 'textarea' | 'select' | 'date' = 'text';
+  fieldEditValue: string = '';
+  fieldEditSelectOptions: { value: string; label: string }[] = [];
+  fieldEditSaving = false;
+
   constructor(
     private studentService: StudentService,
     private classService: ClassService,
-    private router: Router
+    private router: Router,
+    private sanitizer: DomSanitizer
   ) { }
 
   ngOnInit() {
@@ -120,6 +152,8 @@ export class StudentListComponent implements OnInit {
   }
 
   closeStudentDetails() {
+    this.closeFieldEdit();
+    this.closeIdCardPreview();
     this.selectedStudent = null;
   }
 
@@ -131,37 +165,38 @@ export class StudentListComponent implements OnInit {
     this.router.navigate(['/report-cards'], { queryParams: { studentId } });
   }
 
-  getEnrollmentStatus(student: any): string {
-    if (student.classId || student.class?.id || student.classEntity?.id) {
-      return 'Enrolled';
-    }
-    return 'Not Enrolled';
-  }
-
-  getEnrollmentStatusClass(student: any): string {
-    return this.getEnrollmentStatus(student) === 'Enrolled' ? 'status-enrolled' : 'status-not-enrolled';
-  }
-
   getClassName(student: any): string {
     if (student.classEntity?.name) return student.classEntity.name;
     if (student.class?.name) return student.class.name;
     return 'N/A';
   }
 
-  viewStudentIdCard(studentId: string) {
+  /** Initials for avatar placeholder (no emoji) */
+  getInitials(student: any): string {
+    const f = (student?.firstName || '').trim().charAt(0).toUpperCase();
+    const l = (student?.lastName || '').trim().charAt(0).toUpperCase();
+    const s = (f + l).trim();
+    return s || '?';
+  }
+
+  /** Opens PDF preview of student ID card in a modal (does not edit student ID). */
+  openIdCardPreview(studentId: string, event?: Event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
     if (!studentId) {
       return;
     }
-
+    this.closeIdCardPreview();
     this.loading = true;
     this.error = '';
     this.studentService.getStudentIdCard(studentId).subscribe({
       next: (blob: Blob) => {
         this.loading = false;
-        const fileURL = window.URL.createObjectURL(blob);
-        window.open(fileURL, '_blank');
-        // Clean up the object URL after a delay
-        setTimeout(() => window.URL.revokeObjectURL(fileURL), 100);
+        this.idCardBlobUrl = window.URL.createObjectURL(blob);
+        this.idCardPreviewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.idCardBlobUrl);
+        this.idCardPreviewOpen = true;
       },
       error: (err: any) => {
         this.loading = false;
@@ -189,7 +224,7 @@ export class StudentListComponent implements OnInit {
         } else if (err.status === 401) {
           errorMessage = 'Authentication required. Please log in again.';
         } else if (err.status === 0 || err.status === undefined) {
-          errorMessage = 'Cannot connect to server. Please ensure the backend server is running on port 3001.';
+          errorMessage = `Cannot connect to server. Please ensure the backend is running (${environment.serverBaseUrl}).`;
         } else if (err.error) {
           if (typeof err.error === 'object' && err.error.message) {
             errorMessage = err.error.message;
@@ -213,6 +248,188 @@ export class StudentListComponent implements OnInit {
         }, 7000);
       }
     });
+  }
+
+  closeIdCardPreview() {
+    if (this.idCardBlobUrl) {
+      window.URL.revokeObjectURL(this.idCardBlobUrl);
+      this.idCardBlobUrl = null;
+    }
+    this.idCardPreviewUrl = null;
+    this.idCardPreviewOpen = false;
+  }
+
+  openFieldEdit(student: any, field: StudentQuickEditField, event?: Event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    if (!student?.id) {
+      return;
+    }
+    this.fieldEditStudent = student;
+    this.fieldEditKey = field;
+    this.fieldEditSelectOptions = [];
+    this.fieldEditInputMode = 'text';
+
+    switch (field) {
+      case 'firstName':
+        this.fieldEditLabel = 'First name';
+        this.fieldEditValue = (student.firstName || '').trim();
+        break;
+      case 'lastName':
+        this.fieldEditLabel = 'Last name';
+        this.fieldEditValue = (student.lastName || '').trim();
+        break;
+      case 'classId':
+        this.fieldEditLabel = 'Class';
+        this.fieldEditInputMode = 'select';
+        this.fieldEditSelectOptions = [
+          { value: '', label: 'Not assigned' },
+          ...this.classes.map((c) => ({ value: c.id, label: c.name }))
+        ];
+        this.fieldEditValue = student.classId || student.class?.id || student.classEntity?.id || '';
+        break;
+      case 'contactNumber':
+        this.fieldEditLabel = 'Contact number';
+        this.fieldEditInputMode = 'tel';
+        this.fieldEditValue = (student.contactNumber || student.phoneNumber || '').trim();
+        break;
+      case 'studentType':
+        this.fieldEditLabel = 'Student type';
+        this.fieldEditInputMode = 'select';
+        this.fieldEditSelectOptions = [
+          { value: 'Day Scholar', label: 'Day Scholar' },
+          { value: 'Boarder', label: 'Boarder' }
+        ];
+        this.fieldEditValue = student.studentType || 'Day Scholar';
+        break;
+      case 'gender':
+        this.fieldEditLabel = 'Gender';
+        this.fieldEditInputMode = 'select';
+        this.fieldEditSelectOptions = [
+          { value: 'Male', label: 'Male' },
+          { value: 'Female', label: 'Female' }
+        ];
+        this.fieldEditValue = student.gender || 'Male';
+        break;
+      case 'dateOfBirth':
+        this.fieldEditLabel = 'Date of birth';
+        this.fieldEditInputMode = 'date';
+        this.fieldEditValue = this.formatDateForInput(student.dateOfBirth);
+        break;
+      case 'address':
+        this.fieldEditLabel = 'Address';
+        this.fieldEditInputMode = 'textarea';
+        this.fieldEditValue = (student.address || '').trim();
+        break;
+      default:
+        return;
+    }
+    this.fieldEditOpen = true;
+  }
+
+  closeFieldEdit() {
+    this.fieldEditOpen = false;
+    this.fieldEditStudent = null;
+    this.fieldEditKey = '';
+    this.fieldEditValue = '';
+    this.fieldEditSaving = false;
+  }
+
+  saveFieldEdit() {
+    if (!this.fieldEditStudent?.id || !this.fieldEditKey) {
+      return;
+    }
+    const id = this.fieldEditStudent.id;
+    const payload: Record<string, unknown> = {};
+
+    switch (this.fieldEditKey) {
+      case 'firstName':
+        if (!this.fieldEditValue.trim()) {
+          this.error = 'First name is required';
+          return;
+        }
+        payload['firstName'] = this.fieldEditValue.trim();
+        break;
+      case 'lastName':
+        if (!this.fieldEditValue.trim()) {
+          this.error = 'Last name is required';
+          return;
+        }
+        payload['lastName'] = this.fieldEditValue.trim();
+        break;
+      case 'classId':
+        payload['classId'] = this.fieldEditValue ? this.fieldEditValue : null;
+        break;
+      case 'contactNumber':
+        payload['contactNumber'] = this.fieldEditValue.trim() || null;
+        payload['phoneNumber'] = this.fieldEditValue.trim() || null;
+        break;
+      case 'studentType':
+        payload['studentType'] = this.fieldEditValue;
+        break;
+      case 'gender':
+        payload['gender'] = this.fieldEditValue;
+        break;
+      case 'dateOfBirth':
+        if (!this.fieldEditValue) {
+          this.error = 'Date of birth is required';
+          return;
+        }
+        payload['dateOfBirth'] = this.fieldEditValue;
+        break;
+      case 'address':
+        payload['address'] = this.fieldEditValue.trim() || null;
+        break;
+      default:
+        return;
+    }
+
+    this.fieldEditSaving = true;
+    this.error = '';
+    this.studentService.updateStudent(id, payload).subscribe({
+      next: (res: any) => {
+        this.fieldEditSaving = false;
+        const updated = res?.student;
+        if (updated) {
+          this.applyStudentPatch(updated);
+        } else {
+          this.loadStudents();
+        }
+        this.closeFieldEdit();
+        this.success = 'Student updated';
+        setTimeout(() => (this.success = ''), 4000);
+      },
+      error: (err: any) => {
+        this.fieldEditSaving = false;
+        this.error = err.error?.message || err.message || 'Failed to update';
+        setTimeout(() => (this.error = ''), 6000);
+      }
+    });
+  }
+
+  private applyStudentPatch(updated: any) {
+    const id = updated.id;
+    this.filteredStudents = this.filteredStudents.map((s) => (s.id === id ? { ...s, ...updated } : s));
+    this.students = this.students.map((s) => (s.id === id ? { ...s, ...updated } : s));
+    if (this.selectedStudent?.id === id) {
+      this.selectedStudent = { ...this.selectedStudent, ...updated };
+    }
+  }
+
+  private formatDateForInput(d: string | Date | null | undefined): string {
+    if (!d) {
+      return '';
+    }
+    const date = typeof d === 'string' ? new Date(d) : d;
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   changePage(page: number) {
@@ -251,7 +468,7 @@ export class StudentListComponent implements OnInit {
         console.error('Error deleting student:', err);
         let errorMessage = 'Failed to delete student';
         if (err.status === 0 || err.status === undefined) {
-          errorMessage = 'Cannot connect to server. Please ensure the backend server is running on port 3001.';
+          errorMessage = `Cannot connect to server. Please ensure the backend is running (${environment.serverBaseUrl}).`;
         } else if (err.error) {
           if (typeof err.error === 'string') {
             errorMessage = err.error;

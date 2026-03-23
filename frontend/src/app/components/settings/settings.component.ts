@@ -136,7 +136,6 @@ export class SettingsComponent implements OnInit {
   };
 
   readonly gradePointRows = [
-    { label: 'A*', notes: 'Distinction (Top Level)', key: 'excellent', defaultPoints: 5 },
     { label: 'A', notes: 'Distinction', key: 'veryGood', defaultPoints: 5 },
     { label: 'B', notes: 'Merit', key: 'good', defaultPoints: 4 },
     { label: 'C', notes: 'Credit', key: 'satisfactory', defaultPoints: 3 },
@@ -173,6 +172,8 @@ export class SettingsComponent implements OnInit {
   needsFeeCalculation: boolean = false;
   processingOpeningDay: boolean = false;
   processingClosingDay: boolean = false;
+  resettingCoreData: boolean = false;
+  resetConfirmationWord: string = '';
   loadingReminders: boolean = false;
   uniformItems: any[] = [];
   uniformItemForm: {
@@ -1102,6 +1103,49 @@ export class SettingsComponent implements OnInit {
         this.error = err.error?.message || 'Failed to process closing day. Please try again.';
         this.processingClosingDay = false;
         setTimeout(() => this.error = '', 5000);
+      }
+    });
+  }
+
+  canResetCoreData(): boolean {
+    return !this.resettingCoreData
+      && !this.isDemoUser()
+      && (this.authService.hasRole('admin') || this.authService.hasRole('superadmin'))
+      && this.resetConfirmationWord.trim() === 'RESET';
+  }
+
+  resetCoreData() {
+    if (!this.canResetCoreData()) {
+      this.error = 'Type RESET exactly to enable data reset.';
+      setTimeout(() => this.error = '', 5000);
+      return;
+    }
+
+    const confirmed = confirm(
+      'This will permanently erase students, teachers, and transaction data. Settings will be retained. Do you want to continue?'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.resettingCoreData = true;
+    this.error = '';
+    this.success = '';
+
+    this.settingsService.resetCoreData('RESET').subscribe({
+      next: (response: any) => {
+        this.resettingCoreData = false;
+        this.resetConfirmationWord = '';
+        this.success = response?.message || 'Data reset completed successfully.';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => this.success = '', 7000);
+      },
+      error: (err: any) => {
+        this.resettingCoreData = false;
+        this.error = err?.error?.message || 'Failed to reset data. Please try again.';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => this.error = '', 7000);
       }
     });
   }

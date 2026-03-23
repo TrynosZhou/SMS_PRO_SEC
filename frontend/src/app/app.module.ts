@@ -37,6 +37,8 @@ import { LinkStudentsComponent } from './components/parent/link-students/link-st
 import { ManageAccountComponent } from './components/teachers/manage-account/manage-account.component';
 import { ManageAccountsComponent } from './components/admin/manage-accounts/manage-accounts.component';
 import { ClassPromotionComponent } from './components/admin/class-promotion/class-promotion.component';
+import { ElearningComponent } from './components/elearning/elearning.component';
+import { ParentManagementComponent } from './components/admin/parent-management/parent-management.component';
 import { BulkMessageComponent } from './components/dashboard/bulk-message/bulk-message.component';
 import { ParentInboxComponent } from './components/parent/parent-inbox/parent-inbox.component';
 import { MarkAttendanceComponent } from './components/attendance/mark-attendance/mark-attendance.component';
@@ -45,8 +47,16 @@ import { RecordBookComponent } from './components/teacher/record-book/record-boo
 import { MyClassesComponent } from './components/teacher/my-classes/my-classes.component';
 import { TeacherRecordBookComponent } from './components/admin/teacher-record-book/teacher-record-book.component';
 import { TeacherDashboardComponent } from './components/teacher/teacher-dashboard/teacher-dashboard.component';
+import { EtaskComponent } from './components/teacher/etask/etask.component';
+import { EtaskSubmissionsComponent } from './components/teacher/etask-submissions/etask-submissions.component';
+import { StudentElearningTasksComponent } from './components/student/student-elearning-tasks/student-elearning-tasks.component';
 import { RecordPaymentComponent } from './components/finance/record-payment/record-payment.component';
 import { OutstandingBalanceComponent } from './components/finance/outstanding-balance/outstanding-balance.component';
+import { BalanceEnquiryComponent } from './components/finance/balance-enquiry/balance-enquiry.component';
+import { CreditNoteComponent } from './components/finance/credit-note/credit-note.component';
+import { DebitNoteComponent } from './components/finance/debit-note/debit-note.component';
+import { PrepaidAdjustComponent } from './components/finance/prepaid-adjust/prepaid-adjust.component';
+import { UniformListComponent } from './components/finance/uniform-list/uniform-list.component';
 import { TransferFormComponent } from './components/transfers/transfer-form/transfer-form.component';
 import { TransferHistoryComponent } from './components/transfers/transfer-history/transfer-history.component';
 import { EnrollStudentComponent } from './components/enrollments/enroll-student/enroll-student.component';
@@ -60,6 +70,10 @@ import { TimetableViewComponent } from './components/timetable/timetable-view/ti
 import { StudentDashboardComponent } from './components/student/student-dashboard/student-dashboard.component';
 import { StudentReportCardComponent } from './components/student/student-report-card/student-report-card.component';
 import { StudentInvoiceStatementComponent } from './components/student/student-invoice-statement/student-invoice-statement.component';
+import { UserLogComponent } from './components/settings/user-log/user-log.component';
+import { TransactionAuditComponent } from './components/finance/transaction-audit/transaction-audit.component';
+import { PayrollManagementComponent } from './components/payroll/payroll-management/payroll-management.component';
+import { SalaryAssignmentsComponent } from './components/payroll/salary-assignments/salary-assignments.component';
 
 @NgModule({
   declarations: [
@@ -94,6 +108,8 @@ import { StudentInvoiceStatementComponent } from './components/student/student-i
     ManageAccountComponent,
     ManageAccountsComponent,
     ClassPromotionComponent,
+    ElearningComponent,
+    ParentManagementComponent,
     BulkMessageComponent,
     ParentInboxComponent,
     MarkAttendanceComponent,
@@ -102,8 +118,16 @@ import { StudentInvoiceStatementComponent } from './components/student/student-i
     MyClassesComponent,
     TeacherRecordBookComponent,
     TeacherDashboardComponent,
+    EtaskComponent,
+    EtaskSubmissionsComponent,
+    StudentElearningTasksComponent,
     RecordPaymentComponent,
     OutstandingBalanceComponent,
+    BalanceEnquiryComponent,
+    CreditNoteComponent,
+    DebitNoteComponent,
+    PrepaidAdjustComponent,
+    UniformListComponent,
     TransferFormComponent,
     TransferHistoryComponent,
     EnrollStudentComponent,
@@ -116,7 +140,11 @@ import { StudentInvoiceStatementComponent } from './components/student/student-i
     TimetableViewComponent,
     StudentDashboardComponent,
     StudentReportCardComponent,
-    StudentInvoiceStatementComponent
+    StudentInvoiceStatementComponent,
+    UserLogComponent,
+    TransactionAuditComponent,
+    PayrollManagementComponent,
+    SalaryAssignmentsComponent
   ],
   imports: [
     BrowserModule,

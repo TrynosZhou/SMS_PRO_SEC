@@ -9,8 +9,23 @@ import { createReceiptPDF } from '../utils/receiptPdfGenerator';
 import { UniformItem } from '../entities/UniformItem';
 import { InvoiceUniformItem } from '../entities/InvoiceUniformItem';
 import { isDemoUser } from '../utils/demoDataFilter';
-import { parseAmount } from '../utils/numberUtils';
+import { parseAmount, roundMoney } from '../utils/numberUtils';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
+import { logPaymentAuditEvent } from '../utils/paymentAuditLogger';
+import { PaymentAuditEventType } from '../entities/PaymentAuditLog';
+
+/**
+ * Uniform subtotal for an invoice: prefer sum of line items (source of truth) when rows exist,
+ * otherwise the invoices.uniformTotal column (e.g. legacy rows).
+ */
+function getUniformTotalForInvoice(invoice: Invoice | null | undefined): number {
+  if (!invoice) return 0;
+  const lines = invoice.uniformItems;
+  if (Array.isArray(lines) && lines.length > 0) {
+    return roundMoney(lines.reduce((sum, row) => sum + parseAmount(row.lineTotal), 0));
+  }
+  return roundMoney(parseAmount(invoice.uniformTotal));
+}
 
 // Helper function to determine next term
 function getNextTerm(currentTerm: string): string {
@@ -293,9 +308,14 @@ export const getInvoices = async (req: AuthRequest, res: Response) => {
 
     let invoices = await invoiceRepository.find({
       where,
-      relations: ['student'],
+      relations: ['student', 'uniformItems'],
       order: { createdAt: 'DESC' }
     });
+
+    // Uniform subtotal: use sum of line items when present (keeps UI in sync if invoices.uniformTotal was 0)
+    for (const inv of invoices) {
+      (inv as Invoice).uniformTotal = getUniformTotalForInvoice(inv);
+    }
 
     if (searchQuery) {
       invoices = invoices.filter(invoice => {
@@ -336,6 +356,8 @@ export const updateInvoicePayment = async (req: AuthRequest, res: Response) => {
     if (!invoice) {
       return res.status(404).json({ message: 'Invoice not found' });
     }
+
+    const oldInvoiceStatus = invoice.status;
 
     // Ensure all values are numbers to avoid string concatenation
     const oldPaidAmount = parseAmount(invoice.paidAmount);
@@ -404,6 +426,35 @@ export const updateInvoicePayment = async (req: AuthRequest, res: Response) => {
       receiptNumber,
       isPrepayment: isPrepayment || false
     });
+
+    // Audit: record transaction (cash receipt / manual payment update)
+    try {
+      if (req.user) {
+        const eventType =
+          oldPaidAmount === 0 && oldPrepaidAmount === 0 && oldInvoiceStatus === InvoiceStatus.PENDING
+            ? PaymentAuditEventType.CREATE
+            : PaymentAuditEventType.UPDATE;
+
+        const previousInvoiceWasConfirmed =
+          oldInvoiceStatus === InvoiceStatus.PAID || oldInvoiceStatus === InvoiceStatus.PARTIAL;
+
+        await logPaymentAuditEvent({
+          user: { id: req.user.id, username: req.user.username, role: req.user.role },
+          student,
+          amountPaid: paidAmountNum,
+          paymentMethod: paymentMethod || 'Cash',
+          referenceNumber: receiptNumber,
+          eventAt: actualPaymentDate,
+          eventType,
+          paymentId: null,
+          invoiceId: invoice.id,
+          previousInvoiceStatus: oldInvoiceStatus,
+          previousInvoiceWasConfirmed
+        });
+      }
+    } catch (auditErr) {
+      console.error('Payment audit (cash) failed:', auditErr);
+    }
 
     res.json({ 
       message: 'Payment updated successfully', 
@@ -644,7 +695,7 @@ export const generateInvoicePDF = async (req: AuthRequest, res: Response) => {
 
     const invoice = await invoiceRepository.findOne({ 
       where: { id },
-      relations: ['student']
+      relations: ['student', 'uniformItems']
     });
 
     if (!invoice) {
@@ -750,6 +801,128 @@ export const getOutstandingBalances = async (req: AuthRequest, res: Response) =>
   }
 };
 
+/**
+ * Correct prepaid carry-forward by setting the remaining prepaid amount on a given invoice,
+ * then recalculating subsequent invoices balances using the updated prepaid carry-forward.
+ *
+ * This is intended for cases where a user enters an amount wrongly and the system treats it as prepaid.
+ * Strategy supported:
+ * - carryOutOnly: only adjusts prepaidAmount on `fromInvoiceId`, keeps that invoice's balance as-is,
+ *   then recalculates subsequent invoices assuming balances were affected only by prepaid carry-forward.
+ */
+export const correctPrepaidCarryForward = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const {
+      studentId: bodyStudentId,
+      fromInvoiceId,
+      correctedPrepaidAmount,
+      strategy
+    } = req.body as {
+      studentId?: string;
+      fromInvoiceId: string;
+      correctedPrepaidAmount: number;
+      strategy?: 'carryOutOnly';
+    };
+
+    if (!fromInvoiceId) {
+      return res.status(400).json({ message: 'fromInvoiceId is required' });
+    }
+
+    const invoiceRepository = AppDataSource.getRepository(Invoice);
+
+    const fromInvoice = await invoiceRepository.findOne({ where: { id: fromInvoiceId } });
+    if (!fromInvoice) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    const studentId = bodyStudentId || fromInvoice.studentId;
+    if (!studentId) {
+      return res.status(400).json({ message: 'studentId is required' });
+    }
+
+    const corrected = parseAmount(correctedPrepaidAmount);
+    if (!Number.isFinite(corrected) || corrected < 0) {
+      return res.status(400).json({ message: 'correctedPrepaidAmount must be a non-negative number' });
+    }
+
+    const invoices = await invoiceRepository.find({
+      where: { studentId },
+      order: { createdAt: 'ASC' }
+    });
+
+    const startIndex = invoices.findIndex(i => i.id === fromInvoiceId);
+    if (startIndex === -1) {
+      return res.status(404).json({ message: 'fromInvoiceId not found for student' });
+    }
+
+    // Only carryOutOnly is implemented for now.
+    const effectiveStrategy: 'carryOutOnly' = strategy === 'carryOutOnly' || !strategy ? 'carryOutOnly' : 'carryOutOnly';
+
+    if (effectiveStrategy !== 'carryOutOnly') {
+      return res.status(400).json({ message: 'Only carryOutOnly strategy is supported currently' });
+    }
+
+    // Clone to avoid mutating repository objects unexpectedly in case of failures.
+    const updatedInvoices = invoices.map(i => ({ ...i }));
+
+    // Apply corrected prepaid on the selected invoice (keep its balance as-is).
+    updatedInvoices[startIndex].prepaidAmount = corrected;
+
+    // Recalculate subsequent invoices based on updated prepaid carry-forward.
+    for (let i = startIndex + 1; i < updatedInvoices.length; i++) {
+      const prev = updatedInvoices[i - 1];
+      const inv = updatedInvoices[i];
+
+      const prevBalance = parseAmount(prev.balance);
+      const prepaidCarryIn = parseAmount(prev.prepaidAmount);
+
+      const termAmount = parseAmount(inv.amount);
+      const totalInvoiceAmount = prevBalance + termAmount;
+
+      const appliedPrepaid = Math.min(prepaidCarryIn, totalInvoiceAmount);
+      const remainingPrepaid = Math.max(0, prepaidCarryIn - appliedPrepaid);
+      const finalBalance = totalInvoiceAmount - appliedPrepaid;
+
+      inv.previousBalance = prevBalance;
+      inv.paidAmount = appliedPrepaid;
+      inv.prepaidAmount = remainingPrepaid;
+      inv.balance = Math.max(0, finalBalance);
+      inv.status =
+        inv.balance <= 0
+          ? InvoiceStatus.PAID
+          : appliedPrepaid > 0
+            ? InvoiceStatus.PARTIAL
+            : InvoiceStatus.PENDING;
+    }
+
+    // Persist changes from startIndex onwards.
+    const toSave = updatedInvoices.slice(startIndex);
+    for (const inv of toSave) {
+      await invoiceRepository.save(inv);
+    }
+
+    return res.json({
+      message: 'Prepaid carry-forward corrected successfully',
+      updated: toSave.map(i => ({
+        invoiceId: i.id,
+        invoiceNumber: i.invoiceNumber,
+        dueDate: i.dueDate,
+        prepaidAmount: i.prepaidAmount,
+        paidAmount: i.paidAmount,
+        balance: i.balance,
+        status: i.status
+      }))
+    });
+  } catch (error: any) {
+    console.error('Error correcting prepaid carry-forward:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
 export const getStudentBalance = async (req: AuthRequest, res: Response) => {
   try {
     const { studentId } = req.query;
@@ -791,17 +964,32 @@ export const getStudentBalance = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Student not found. Please check the Student ID or Student Number.' });
     }
 
-    // Get the latest invoice to get current balance
+    // Get the latest invoice to get current balance (load uniform line items for accurate uniform subtotal)
     const lastInvoice = await invoiceRepository.findOne({
       where: { studentId: student.id },
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
+      relations: ['uniformItems']
     });
 
-    const balance = parseAmount(lastInvoice?.balance);
+    let balance = parseAmount(lastInvoice?.balance);
     const lastInvoiceAmount = parseAmount(lastInvoice?.amount);
     const previousBalance = parseAmount(lastInvoice?.previousBalance);
     const paidAmount = parseAmount(lastInvoice?.paidAmount);
     const prepaidAmount = parseAmount(lastInvoice?.prepaidAmount);
+    const uniformTotal = getUniformTotalForInvoice(lastInvoice);
+
+    // If balance column is stuck at 0 but the invoice clearly owes only uniform (derived ≈ uniform subtotal), fix display.
+    const derivedBalance = roundMoney(
+      Math.max(0, previousBalance + lastInvoiceAmount - paidAmount)
+    );
+    if (
+      balance <= 0.01 &&
+      uniformTotal > 0.01 &&
+      derivedBalance > 0.01 &&
+      Math.abs(derivedBalance - uniformTotal) < 0.05
+    ) {
+      balance = derivedBalance;
+    }
 
     res.json({
       studentId: student.id,
@@ -811,6 +999,7 @@ export const getStudentBalance = async (req: AuthRequest, res: Response) => {
       fullName: `${student.lastName} ${student.firstName}`,
       balance: balance,
       prepaidAmount: prepaidAmount,
+      uniformTotal,
       lastInvoiceId: lastInvoice?.id || null,
       lastInvoiceNumber: lastInvoice?.invoiceNumber || null,
       lastInvoiceTerm: lastInvoice?.term || null,
@@ -823,6 +1012,359 @@ export const getStudentBalance = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('Error getting student balance:', error);
     res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+/**
+ * Apply a credit note (tuition reduction) for a student who was overcharged.
+ * Reduces the latest invoice balance by the credit amount.
+ * If the student is already paid up (balance is 0), the full credit is carried forward as prepaid for the next term.
+ * If credit exceeds current balance, the excess is carried forward as prepaid.
+ */
+export const applyCreditNote = async (req: AuthRequest, res: Response) => {
+  try {
+    const { studentId, creditAmount } = req.body;
+
+    if (!studentId || creditAmount == null || creditAmount <= 0) {
+      return res.status(400).json({
+        message: 'Student ID and a positive credit amount are required.'
+      });
+    }
+
+    const creditAmountNum = parseAmount(creditAmount);
+    if (!Number.isFinite(creditAmountNum) || creditAmountNum <= 0) {
+      return res.status(400).json({
+        message: 'Credit amount must be a valid positive number.'
+      });
+    }
+
+    const invoiceRepository = AppDataSource.getRepository(Invoice);
+    const studentRepository = AppDataSource.getRepository(Student);
+
+    let student = await studentRepository.findOne({
+      where: { id: studentId },
+      relations: ['classEntity']
+    });
+
+    if (!student) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(String(studentId))) {
+        student = await studentRepository.findOne({
+          where: { studentNumber: String(studentId).trim() },
+          relations: ['classEntity']
+        });
+      }
+    }
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+
+    const latestInvoice = await invoiceRepository.findOne({
+      where: { studentId: student.id },
+      order: { createdAt: 'DESC' },
+      relations: ['student']
+    });
+
+    if (!latestInvoice) {
+      return res.status(404).json({
+        message: 'No invoice found for this student. Create an invoice first.'
+      });
+    }
+
+    const currentBalance = parseAmount(latestInvoice.balance);
+    const currentPrepaid = parseAmount(latestInvoice.prepaidAmount);
+
+    const appliedToBalance = Math.min(creditAmountNum, currentBalance);
+    const excessCredit = Math.max(0, creditAmountNum - currentBalance);
+
+    latestInvoice.balance = Math.max(0, currentBalance - creditAmountNum);
+    latestInvoice.prepaidAmount = currentPrepaid + excessCredit;
+
+    if (latestInvoice.balance <= 0) {
+      latestInvoice.status = InvoiceStatus.PAID;
+    } else if (parseAmount(latestInvoice.paidAmount) > 0) {
+      latestInvoice.status = InvoiceStatus.PARTIAL;
+    }
+
+    await invoiceRepository.save(latestInvoice);
+
+    return res.json({
+      message: 'Credit note applied successfully.',
+      invoice: latestInvoice,
+      appliedToBalance,
+      carriedForwardAsPrepaid: excessCredit,
+      newBalance: latestInvoice.balance,
+      newPrepaidAmount: latestInvoice.prepaidAmount
+    });
+  } catch (error: any) {
+    console.error('Error applying credit note:', error);
+    return res.status(500).json({
+      message: 'Server error',
+      error: error.message || 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Apply a debit note (correction for undercharge) for a student.
+ * Adds the debit amount to the latest invoice balance.
+ */
+export const applyDebitNote = async (req: AuthRequest, res: Response) => {
+  try {
+    const { studentId, debitAmount } = req.body;
+
+    if (!studentId || debitAmount == null || debitAmount <= 0) {
+      return res.status(400).json({
+        message: 'Student ID and a positive debit amount are required.'
+      });
+    }
+
+    const debitAmountNum = parseAmount(debitAmount);
+    if (!Number.isFinite(debitAmountNum) || debitAmountNum <= 0) {
+      return res.status(400).json({
+        message: 'Debit amount must be a valid positive number.'
+      });
+    }
+
+    const invoiceRepository = AppDataSource.getRepository(Invoice);
+    const studentRepository = AppDataSource.getRepository(Student);
+
+    let student = await studentRepository.findOne({
+      where: { id: studentId },
+      relations: ['classEntity']
+    });
+
+    if (!student) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(String(studentId))) {
+        student = await studentRepository.findOne({
+          where: { studentNumber: String(studentId).trim() },
+          relations: ['classEntity']
+        });
+      }
+    }
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+
+    const latestInvoice = await invoiceRepository.findOne({
+      where: { studentId: student.id },
+      order: { createdAt: 'DESC' },
+      relations: ['student']
+    });
+
+    if (!latestInvoice) {
+      return res.status(404).json({
+        message: 'No invoice found for this student. Create an invoice first.'
+      });
+    }
+
+    const currentBalance = parseAmount(latestInvoice.balance);
+    const currentAmount = parseAmount(latestInvoice.amount);
+
+    latestInvoice.balance = currentBalance + debitAmountNum;
+    latestInvoice.amount = currentAmount + debitAmountNum;
+
+    if (latestInvoice.balance <= 0) {
+      latestInvoice.status = InvoiceStatus.PAID;
+    } else if (parseAmount(latestInvoice.paidAmount) > 0) {
+      latestInvoice.status = InvoiceStatus.PARTIAL;
+    } else {
+      latestInvoice.status = InvoiceStatus.PENDING;
+    }
+
+    if (new Date() > latestInvoice.dueDate && latestInvoice.balance > 0) {
+      latestInvoice.status = InvoiceStatus.OVERDUE;
+    }
+
+    await invoiceRepository.save(latestInvoice);
+
+    return res.json({
+      message: 'Debit note applied successfully.',
+      invoice: latestInvoice,
+      newBalance: latestInvoice.balance
+    });
+  } catch (error: any) {
+    console.error('Error applying debit note:', error);
+    return res.status(500).json({
+      message: 'Server error',
+      error: error.message || 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Add uniform line items to the student's latest invoice.
+ * Uniform is tracked separately (uniformTotal + invoice_uniform_items) and shown as its own subtotal on the invoice PDF.
+ * billingMode: 'invoice' — amount is added to balance (bill later).
+ * billingMode: 'cash' — uniform is added to the invoice for record-keeping and paid immediately (paidAmount increased, balance unchanged net).
+ */
+export const addUniformToInvoice = async (req: AuthRequest, res: Response) => {
+  try {
+    const { studentId, uniformItems, billingMode } = req.body as {
+      studentId?: string;
+      uniformItems?: Array<{ itemId?: string; uniformItemId?: string; quantity?: number }>;
+      billingMode?: string;
+    };
+
+    if (!studentId) {
+      return res.status(400).json({ message: 'Student ID is required.' });
+    }
+
+    if (!Array.isArray(uniformItems) || uniformItems.length === 0) {
+      return res.status(400).json({ message: 'Select at least one uniform item with quantity.' });
+    }
+
+    const mode = String(billingMode || 'invoice').toLowerCase();
+    if (mode !== 'invoice' && mode !== 'cash') {
+      return res.status(400).json({ message: 'billingMode must be "invoice" or "cash".' });
+    }
+
+    const invoiceRepository = AppDataSource.getRepository(Invoice);
+    const studentRepository = AppDataSource.getRepository(Student);
+    const uniformItemRepository = AppDataSource.getRepository(UniformItem);
+    const invoiceUniformItemRepository = AppDataSource.getRepository(InvoiceUniformItem);
+
+    let student = await studentRepository.findOne({ where: { id: studentId } });
+    if (!student) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(String(studentId))) {
+        student = await studentRepository.findOne({
+          where: { studentNumber: String(studentId).trim() }
+        });
+      }
+    }
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+
+    const invoice = await invoiceRepository.findOne({
+      where: { studentId: student.id },
+      order: { createdAt: 'DESC' },
+      relations: ['uniformItems', 'student']
+    });
+
+    if (!invoice) {
+      return res.status(404).json({
+        message: 'No invoice found for this student. Create an invoice first.'
+      });
+    }
+
+    let addedTotal = 0;
+    const newLines: InvoiceUniformItem[] = [];
+
+    for (let index = 0; index < uniformItems.length; index++) {
+      const payloadItem = uniformItems[index];
+      const itemId = payloadItem?.itemId || payloadItem?.uniformItemId;
+      const quantityRaw = payloadItem?.quantity;
+      if (!itemId) {
+        return res.status(400).json({ message: `Uniform item ID missing at index ${index}` });
+      }
+      const quantity = parseInt(String(quantityRaw), 10);
+      if (isNaN(quantity) || quantity <= 0) {
+        return res.status(400).json({ message: `Invalid quantity for uniform item at index ${index}` });
+      }
+
+      const uniformItem = await uniformItemRepository.findOne({ where: { id: itemId } });
+      if (!uniformItem || !uniformItem.isActive) {
+        return res.status(400).json({ message: `Uniform item not found or inactive (${itemId})` });
+      }
+
+      const unitPrice = parseAmount(uniformItem.unitPrice);
+      const lineTotal = unitPrice * quantity;
+      addedTotal += lineTotal;
+
+      const line = invoiceUniformItemRepository.create({
+        invoiceId: invoice.id,
+        uniformItem,
+        uniformItemId: uniformItem.id,
+        itemName: uniformItem.name,
+        unitPrice,
+        quantity,
+        lineTotal
+      });
+      newLines.push(line);
+    }
+
+    await invoiceUniformItemRepository.save(newLines);
+
+    // Sum of saved line items is the uniform subtotal (fixes invoices.uniformTotal column stuck at 0)
+    const invoiceWithLines = await invoiceRepository.findOne({
+      where: { id: invoice.id },
+      relations: ['uniformItems']
+    });
+    const totalUniformFromLines = getUniformTotalForInvoice(invoiceWithLines);
+    const prevAmount = parseAmount(invoice.amount);
+    const prevBalance = parseAmount(invoice.balance);
+    const prevPaid = parseAmount(invoice.paidAmount);
+
+    // Uniform increases invoice amount and uniform subtotal; billing mode decides balance vs paid.
+    invoice.uniformTotal = totalUniformFromLines;
+    invoice.amount = roundMoney(prevAmount + addedTotal);
+
+    if (mode === 'invoice') {
+      // Bill later: outstanding balance increases by the uniform total (same rule as debit note).
+      invoice.balance = roundMoney(prevBalance + addedTotal);
+    } else {
+      // Cash: record uniform as paid now — amount and paidAmount both increase; net balance unchanged.
+      invoice.paidAmount = roundMoney(prevPaid + addedTotal);
+      invoice.balance = roundMoney(Math.max(0, prevBalance));
+    }
+
+    if (invoice.balance <= 0) {
+      invoice.status = InvoiceStatus.PAID;
+    } else if (parseAmount(invoice.paidAmount) > 0) {
+      invoice.status = InvoiceStatus.PARTIAL;
+    } else {
+      invoice.status = InvoiceStatus.PENDING;
+    }
+
+    if (new Date() > invoice.dueDate && invoice.balance > 0) {
+      invoice.status = InvoiceStatus.OVERDUE;
+    }
+
+    // Do not save the full `invoice` entity (eager uniformItems can corrupt child rows).
+    // Persist only changed scalars — avoids touching invoice_uniform_items.
+    await invoiceRepository.save({
+      id: invoice.id,
+      uniformTotal: invoice.uniformTotal,
+      amount: invoice.amount,
+      balance: invoice.balance,
+      paidAmount: invoice.paidAmount,
+      status: invoice.status
+    } as Invoice);
+
+    const withRelations = await invoiceRepository.findOne({
+      where: { id: invoice.id },
+      relations: ['uniformItems', 'student']
+    });
+
+    const inv = withRelations ?? invoice;
+    const balanceOut = roundMoney(parseAmount(inv.balance));
+    const uniformOut = getUniformTotalForInvoice(inv);
+    const amountOut = roundMoney(parseAmount(inv.amount));
+
+    return res.json({
+      message:
+        mode === 'cash'
+          ? 'Uniform items added and recorded as cash paid on the invoice.'
+          : 'Uniform items added and billed on the student invoice.',
+      invoice: withRelations ?? invoice,
+      addedTotal: roundMoney(addedTotal),
+      billingMode: mode,
+      newBalance: balanceOut,
+      newUniformTotal: uniformOut,
+      newAmount: amountOut
+    });
+  } catch (error: any) {
+    console.error('Error adding uniform to invoice:', error);
+    return res.status(500).json({
+      message: 'Server error',
+      error: error.message || 'Unknown error'
+    });
   }
 };
 

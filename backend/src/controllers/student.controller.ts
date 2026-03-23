@@ -13,13 +13,45 @@ import { AuthRequest } from '../middleware/auth';
 import { generateStudentId } from '../utils/studentIdGenerator';
 import { Settings } from '../entities/Settings';
 import QRCode from 'qrcode';
-import { createStudentIdCardPDF } from '../utils/studentIdCardPdf';
+import { createStudentIdCardPDF, createClassStudentIdCardsPDF } from '../utils/studentIdCardPdf';
 import { isDemoUser } from '../utils/demoDataFilter';
 import { parseAmount } from '../utils/numberUtils';
 import { calculateAge } from '../utils/ageUtils';
 import { In } from 'typeorm';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
 import { createClassListPDF } from '../utils/classListPdfGenerator';
+
+/** Current logged-in student's profile (for dashboard display name). */
+export const getCurrentStudent = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+    const role = req.user.role as string;
+    if (role !== UserRole.STUDENT && role !== 'student') {
+      return res.status(403).json({ message: 'Only students can access this endpoint' });
+    }
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+    const studentRepo = AppDataSource.getRepository(Student);
+    const student = await studentRepo.findOne({
+      where: { userId: req.user.id },
+      relations: ['classEntity', 'parent']
+    });
+    if (!student) {
+      return res.status(404).json({ message: 'Student profile not found' });
+    }
+    const fullName = `${student.firstName} ${student.lastName}`.trim();
+    res.json({
+      ...student,
+      fullName
+    });
+  } catch (error: any) {
+    console.error('[getCurrentStudent]', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
 
 export const registerStudent = async (req: AuthRequest, res: Response) => {
   try {
@@ -920,6 +952,124 @@ export const generateStudentIdCard = async (req: AuthRequest, res: Response) => 
   }
 };
 
+/**
+ * PDF bundle: one ID card per active student in a class (same layout as single /:id/id-card).
+ * Query: download=1 → Content-Disposition attachment; omit/false → inline (browser viewer / print preview).
+ */
+export const generateClassStudentIdCardsPDF = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const { classId } = req.params;
+    const download =
+      req.query.download === '1' ||
+      req.query.download === 'true' ||
+      String(req.query.download || '').toLowerCase() === 'yes';
+
+    if (!classId) {
+      return res.status(400).json({ message: 'Class ID is required' });
+    }
+
+    const allowedRoles = [
+      UserRole.SUPERADMIN,
+      UserRole.ADMIN,
+      UserRole.ACCOUNTANT,
+      UserRole.TEACHER,
+      UserRole.DEMO_USER
+    ];
+    if (!allowedRoles.includes(user.role)) {
+      return res.status(403).json({
+        message: 'Insufficient permissions to generate class ID cards.'
+      });
+    }
+
+    const studentRepository = AppDataSource.getRepository(Student);
+    const classRepository = AppDataSource.getRepository(Class);
+    const settingsRepository = AppDataSource.getRepository(Settings);
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+
+    const classEntity = await classRepository.findOne({ where: { id: classId } });
+    if (!classEntity) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    if (user.role === UserRole.TEACHER) {
+      if (!user.teacher?.id) {
+        return res.status(403).json({ message: 'Teacher account is not linked to a staff profile.' });
+      }
+      const teacher = await teacherRepository.findOne({
+        where: { id: user.teacher.id },
+        relations: ['classes']
+      });
+      if (!teacher || !teacher.classes?.some((c) => c.id === classId)) {
+        return res.status(403).json({ message: 'You are not assigned to this class' });
+      }
+    }
+
+    const students = await studentRepository.find({
+      where: {
+        classId,
+        isActive: true
+      },
+      relations: ['classEntity', 'parent'],
+      order: { lastName: 'ASC', firstName: 'ASC' }
+    });
+
+    if (!students.length) {
+      return res.status(404).json({ message: 'No active students in this class' });
+    }
+
+    const settings = await settingsRepository.findOne({
+      where: {},
+      order: { createdAt: 'DESC' }
+    });
+
+    const items: {
+      student: Student;
+      settings: Settings | null;
+      qrDataUrl: string;
+      photoPath?: string | null;
+    }[] = [];
+
+    for (const student of students) {
+      const qrPayload = {
+        studentId: student.id,
+        studentNumber: student.studentNumber,
+        name: `${student.firstName} ${student.lastName}`.trim(),
+        class: student.classEntity?.name || null,
+        studentType: student.studentType,
+        issuedAt: new Date().toISOString()
+      };
+      const qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrPayload));
+      items.push({
+        student,
+        settings: settings || null,
+        qrDataUrl,
+        photoPath: student.photo
+      });
+    }
+
+    const pdfBuffer = await createClassStudentIdCardsPDF(items);
+
+    const safeName = (classEntity.name || classEntity.form || 'class').replace(/[^a-zA-Z0-9-_]/g, '_');
+    const fileName = `${safeName}-student-id-cards.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${fileName}"`);
+    return res.send(pdfBuffer);
+  } catch (error: any) {
+    console.error('Error generating class student ID cards PDF:', error);
+    return res.status(500).json({ message: 'Failed to generate class ID cards PDF' });
+  }
+};
+
 // Get DH Services Report - Students using dining hall
 export const getDHServicesReport = async (req: AuthRequest, res: Response) => {
   try {
@@ -1432,16 +1582,14 @@ export const getStudentReportCard = async (req: AuthRequest, res: Response) => {
     });
 
     // Grade calculation function - uses settings thresholds and labels
-    type GradeKey = 'excellent' | 'veryGood' | 'good' | 'satisfactory' | 'needsImprovement' | 'basic' | 'fail';
+    // Cambridge-style mapping without A*: A maps to the whole "veryGood" band (typically >= thresholds.veryGood).
+    type GradeKey = 'veryGood' | 'good' | 'satisfactory' | 'needsImprovement' | 'basic' | 'fail';
     const getGradeInfo = (percentage: number | null): { key: GradeKey; label: string } => {
       if (percentage === null || percentage === undefined || isNaN(percentage)) {
         return { key: 'fail', label: gradeLabels.fail || 'N/A' };
       }
       if (percentage === 0) {
         return { key: 'fail', label: gradeLabels.fail || 'UNCLASSIFIED' };
-      }
-      if (percentage >= (thresholds.excellent || 90)) {
-        return { key: 'excellent', label: gradeLabels.excellent || 'OUTSTANDING' };
       }
       if (percentage >= (thresholds.veryGood || 80)) {
         return { key: 'veryGood', label: gradeLabels.veryGood || 'VERY HIGH' };
@@ -1825,7 +1973,7 @@ export const downloadStudentReportCardPDF = async (req: AuthRequest, res: Respon
       if (percentage === null || percentage === undefined || isNaN(percentage)) {
         return gradeLabels.fail || 'N/A';
       }
-      if (percentage >= (thresholds.excellent || 90)) return gradeLabels.excellent || 'EXCELLENT';
+      // Cambridge mapping without A*: the "A" band is everything >= veryGood threshold.
       if (percentage >= (thresholds.veryGood || 80)) return gradeLabels.veryGood || 'VERY GOOD';
       if (percentage >= (thresholds.good || 70)) return gradeLabels.good || 'GOOD';
       if (percentage >= (thresholds.satisfactory || 60)) return gradeLabels.satisfactory || 'SATISFACTORY';

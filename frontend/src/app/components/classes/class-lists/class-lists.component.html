@@ -132,13 +132,37 @@
         <tbody>
           <tr *ngFor="let student of paginatedStudents; let i = index">
             <td>{{ (pagination.page - 1) * pagination.limit + i + 1 }}</td>
-            <td class="student-number">{{ student.studentNumber || 'N/A' }}</td>
-            <td>{{ student.firstName || 'N/A' }}</td>
-            <td>{{ student.lastName || 'N/A' }}</td>
-            <td>{{ student.gender || 'N/A' }}</td>
-            <td>{{ formatDate(student.dateOfBirth) }}</td>
-            <td>{{ student.studentType || 'N/A' }}</td>
-            <td>{{ student.contactNumber || student.phoneNumber || 'N/A' }}</td>
+              <td class="student-number">{{ student.studentNumber || 'N/A' }}</td>
+              <td>
+                <span class="editable-cell" (click)="openEditModal(student, 'firstName')">
+                  {{ student.firstName || 'N/A' }}
+                </span>
+              </td>
+              <td>
+                <span class="editable-cell" (click)="openEditModal(student, 'lastName')">
+                  {{ student.lastName || 'N/A' }}
+                </span>
+              </td>
+              <td>
+                <span class="editable-cell" (click)="openEditModal(student, 'gender')">
+                  {{ student.gender || 'N/A' }}
+                </span>
+              </td>
+              <td>
+                <span class="editable-cell" (click)="openEditModal(student, 'dateOfBirth')">
+                  {{ formatDate(student.dateOfBirth) }}
+                </span>
+              </td>
+              <td>
+                <span class="editable-cell" (click)="openEditModal(student, 'studentType')">
+                  {{ student.studentType || 'N/A' }}
+                </span>
+              </td>
+              <td>
+                <span class="editable-cell" (click)="openEditModal(student, 'contactNumber')">
+                  {{ student.contactNumber || student.phoneNumber || 'N/A' }}
+                </span>
+              </td>
           </tr>
         </tbody>
       </table>
@@ -179,6 +203,47 @@
     <span class="empty-icon">📋</span>
     <h3>Select Class and Term</h3>
     <p>Please select a class and term above to view the class list.</p>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="edit-modal-overlay" *ngIf="showEditModal">
+  <div class="edit-modal">
+    <div class="edit-modal-header">
+      <h3>Edit {{ editingFieldLabel }}</h3>
+      <button type="button" class="modal-close" (click)="closeEditModal()" aria-label="Close">
+        ×
+      </button>
+    </div>
+
+    <div class="edit-modal-body">
+      <div class="alert alert-error" *ngIf="editError">
+        {{ editError }}
+      </div>
+
+      <div *ngIf="editInputType === 'select'">
+        <select class="form-control" [(ngModel)]="editValue" [ngModelOptions]="{ standalone: true }" name="editValue">
+          <option *ngFor="let opt of editSelectOptions" [value]="opt">{{ opt }}</option>
+        </select>
+      </div>
+
+      <div *ngIf="editInputType === 'date'">
+        <input type="date" class="form-control" [(ngModel)]="editValue" [ngModelOptions]="{ standalone: true }" name="editValue" />
+      </div>
+
+      <div *ngIf="editInputType === 'text'">
+        <input type="text" class="form-control" [(ngModel)]="editValue" [ngModelOptions]="{ standalone: true }" name="editValue" />
+      </div>
+    </div>
+
+    <div class="edit-modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeEditModal()" [disabled]="editSaving">
+        Cancel
+      </button>
+      <button type="button" class="btn btn-primary" (click)="saveEdit()" [disabled]="editSaving">
+        {{ editSaving ? 'Saving...' : 'Save' }}
+      </button>
+    </div>
   </div>
 </div>
 

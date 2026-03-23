@@ -4,6 +4,19 @@ import { TeacherService } from '../../../services/teacher.service';
 import { SubjectService } from '../../../services/subject.service';
 import { ClassService } from '../../../services/class.service';
 
+/** Editable teacher fields from list / grid / modal (Staff / Employee ID is read-only). */
+export type TeacherQuickEditField =
+  | 'firstName'
+  | 'lastName'
+  | 'gender'
+  | 'phoneNumber'
+  | 'address'
+  | 'dateOfBirth'
+  | 'qualification'
+  | 'subjectIds'
+  | 'classIds'
+  | 'isActive';
+
 @Component({
   selector: 'app-teacher-list',
   templateUrl: './teacher-list.component.html',
@@ -18,7 +31,7 @@ export class TeacherListComponent implements OnInit {
   searchQuery = '';
   selectedSubjectFilter = '';
   selectedClassFilter = '';
-  viewMode: 'grid' | 'list' = 'grid';
+  viewMode: 'grid' | 'list' = 'list';
   selectedTeacher: any = null;
   error = '';
   success = '';
@@ -31,12 +44,30 @@ export class TeacherListComponent implements OnInit {
   pageSizeOptions = [12, 24, 48];
   private searchDebounceTimer: any = null;
 
+  /** Quick field edit popup */
+  fieldEditOpen = false;
+  fieldEditTeacher: any = null;
+  fieldEditKey: TeacherQuickEditField | '' = '';
+  fieldEditLabel = '';
+  fieldEditInputMode: 'text' | 'tel' | 'textarea' | 'select' | 'date' | 'multiselect' = 'text';
+  fieldEditValue = '';
+  fieldEditSelectOptions: { value: string; label: string }[] = [];
+  fieldEditMultiIds: string[] = [];
+  fieldEditCheckboxOptions: { id: string; label: string }[] = [];
+  fieldEditSaving = false;
+  maxDobDate = '';
+  private readonly phoneRegex = /^\+?\d{9,15}$/;
+  readonly phoneValidationMessage = 'Enter a valid number, e.g. +263771234567 (9–15 digits, optional +).';
+
   constructor(
     private teacherService: TeacherService,
     private subjectService: SubjectService,
     private classService: ClassService,
     private router: Router
-  ) { }
+  ) {
+    const today = new Date();
+    this.maxDobDate = today.toISOString().split('T')[0];
+  }
 
   ngOnInit() {
     this.loadTeachers();
@@ -148,7 +179,246 @@ export class TeacherListComponent implements OnInit {
   }
 
   closeTeacherDetails() {
+    this.closeFieldEdit();
     this.selectedTeacher = null;
+  }
+
+  openFieldEdit(teacher: any, field: TeacherQuickEditField, event?: Event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    if (!teacher?.id) {
+      return;
+    }
+    this.error = '';
+    this.fieldEditTeacher = teacher;
+    this.fieldEditKey = field;
+    this.fieldEditSelectOptions = [];
+    this.fieldEditCheckboxOptions = [];
+    this.fieldEditMultiIds = [];
+    this.fieldEditInputMode = 'text';
+
+    switch (field) {
+      case 'firstName':
+        this.fieldEditLabel = 'First name';
+        this.fieldEditValue = (teacher.firstName || '').trim();
+        break;
+      case 'lastName':
+        this.fieldEditLabel = 'Last name';
+        this.fieldEditValue = (teacher.lastName || '').trim();
+        break;
+      case 'gender':
+        this.fieldEditLabel = 'Gender';
+        this.fieldEditInputMode = 'select';
+        this.fieldEditSelectOptions = [
+          { value: 'Male', label: 'Male' },
+          { value: 'Female', label: 'Female' },
+          { value: '', label: 'Not specified' }
+        ];
+        this.fieldEditValue = (teacher.gender || '').trim();
+        break;
+      case 'phoneNumber':
+        this.fieldEditLabel = 'Phone number';
+        this.fieldEditInputMode = 'tel';
+        this.fieldEditValue = (teacher.phoneNumber || '').trim();
+        break;
+      case 'address':
+        this.fieldEditLabel = 'Address';
+        this.fieldEditInputMode = 'textarea';
+        this.fieldEditValue = (teacher.address || '').trim();
+        break;
+      case 'dateOfBirth':
+        this.fieldEditLabel = 'Date of birth';
+        this.fieldEditInputMode = 'date';
+        this.fieldEditValue = this.formatDateForInput(teacher.dateOfBirth);
+        break;
+      case 'qualification':
+        this.fieldEditLabel = 'Qualification';
+        this.fieldEditInputMode = 'textarea';
+        this.fieldEditValue = (teacher.qualification || '').trim();
+        break;
+      case 'isActive':
+        this.fieldEditLabel = 'Status';
+        this.fieldEditInputMode = 'select';
+        this.fieldEditSelectOptions = [
+          { value: 'true', label: 'Active' },
+          { value: 'false', label: 'Inactive' }
+        ];
+        this.fieldEditValue = teacher.isActive !== false ? 'true' : 'false';
+        break;
+      case 'subjectIds':
+        this.fieldEditLabel = 'Teaching subjects';
+        this.fieldEditInputMode = 'multiselect';
+        this.fieldEditCheckboxOptions = [...this.allSubjects]
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+          .map((s: any) => ({ id: s.id, label: s.name }));
+        this.fieldEditMultiIds = (teacher.subjects || []).map((s: any) => s.id);
+        break;
+      case 'classIds':
+        this.fieldEditLabel = 'Assigned classes';
+        this.fieldEditInputMode = 'multiselect';
+        this.fieldEditCheckboxOptions = [...this.allClasses]
+          .map((c: any) => ({ id: c.id, label: c.name }));
+        this.fieldEditMultiIds = (teacher.classes || []).map((c: any) => c.id);
+        break;
+      default:
+        return;
+    }
+    this.fieldEditOpen = true;
+  }
+
+  closeFieldEdit() {
+    this.fieldEditOpen = false;
+    this.fieldEditTeacher = null;
+    this.fieldEditKey = '';
+    this.fieldEditValue = '';
+    this.fieldEditMultiIds = [];
+    this.fieldEditCheckboxOptions = [];
+    this.fieldEditSaving = false;
+  }
+
+  toggleMultiId(id: string): void {
+    const i = this.fieldEditMultiIds.indexOf(id);
+    if (i >= 0) {
+      this.fieldEditMultiIds.splice(i, 1);
+    } else {
+      this.fieldEditMultiIds.push(id);
+    }
+  }
+
+  isMultiIdChecked(id: string): boolean {
+    return this.fieldEditMultiIds.includes(id);
+  }
+
+  saveFieldEdit() {
+    if (!this.fieldEditTeacher?.id || !this.fieldEditKey) {
+      return;
+    }
+    const id = this.fieldEditTeacher.id;
+    const field = this.fieldEditKey;
+
+    if (field === 'classIds') {
+      this.fieldEditSaving = true;
+      this.error = '';
+      this.teacherService.assignClassesToTeacher(id, [...this.fieldEditMultiIds]).subscribe({
+        next: (res: any) => {
+          this.fieldEditSaving = false;
+          const updated = res?.teacher;
+          if (updated) {
+            this.applyTeacherPatch(updated);
+          } else {
+            this.loadTeachers();
+          }
+          this.closeFieldEdit();
+          this.success = 'Teacher updated';
+          setTimeout(() => (this.success = ''), 4000);
+        },
+        error: (err: any) => {
+          this.fieldEditSaving = false;
+          this.error = err.error?.message || err.message || 'Failed to update classes';
+          setTimeout(() => (this.error = ''), 6000);
+        }
+      });
+      return;
+    }
+
+    const payload: Record<string, unknown> = {};
+
+    switch (field) {
+      case 'firstName':
+        if (!this.fieldEditValue.trim()) {
+          this.error = 'First name is required';
+          return;
+        }
+        payload['firstName'] = this.fieldEditValue.trim();
+        break;
+      case 'lastName':
+        if (!this.fieldEditValue.trim()) {
+          this.error = 'Last name is required';
+          return;
+        }
+        payload['lastName'] = this.fieldEditValue.trim();
+        break;
+      case 'gender':
+        payload['gender'] = this.fieldEditValue.trim() || null;
+        break;
+      case 'phoneNumber': {
+        const trimmed = this.fieldEditValue.trim();
+        if (!trimmed || !this.phoneRegex.test(trimmed)) {
+          this.error = this.phoneValidationMessage;
+          return;
+        }
+        payload['phoneNumber'] = trimmed;
+        break;
+      }
+      case 'address':
+        payload['address'] = this.fieldEditValue.trim() || null;
+        break;
+      case 'dateOfBirth':
+        if (!this.fieldEditValue) {
+          this.error = 'Date of birth is required';
+          return;
+        }
+        payload['dateOfBirth'] = this.fieldEditValue;
+        break;
+      case 'qualification':
+        payload['qualification'] = this.fieldEditValue.trim() || null;
+        break;
+      case 'isActive':
+        payload['isActive'] = this.fieldEditValue === 'true';
+        break;
+      case 'subjectIds':
+        payload['subjectIds'] = [...this.fieldEditMultiIds];
+        break;
+      default:
+        return;
+    }
+
+    this.fieldEditSaving = true;
+    this.error = '';
+    this.teacherService.updateTeacher(id, payload).subscribe({
+      next: (res: any) => {
+        this.fieldEditSaving = false;
+        const updated = res?.teacher;
+        if (updated) {
+          this.applyTeacherPatch(updated);
+        } else {
+          this.loadTeachers();
+        }
+        this.closeFieldEdit();
+        this.success = 'Teacher updated';
+        setTimeout(() => (this.success = ''), 4000);
+      },
+      error: (err: any) => {
+        this.fieldEditSaving = false;
+        this.error = err.error?.message || err.message || 'Failed to update';
+        setTimeout(() => (this.error = ''), 6000);
+      }
+    });
+  }
+
+  private applyTeacherPatch(updated: any) {
+    const uid = updated.id;
+    this.filteredTeachers = this.filteredTeachers.map((t) => (t.id === uid ? { ...t, ...updated } : t));
+    this.teachers = this.teachers.map((t) => (t.id === uid ? { ...t, ...updated } : t));
+    if (this.selectedTeacher?.id === uid) {
+      this.selectedTeacher = { ...this.selectedTeacher, ...updated };
+    }
+  }
+
+  private formatDateForInput(d: string | Date | null | undefined): string {
+    if (!d) {
+      return '';
+    }
+    const date = typeof d === 'string' ? new Date(d) : d;
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   editTeacher(id: string) {
@@ -198,7 +468,9 @@ export class TeacherListComponent implements OnInit {
         setTimeout(() => this.success = '', 5000);
       },
       error: (err: any) => {
-        console.error('Error deleting teacher:', err);
+        if (err.status !== 400) {
+          console.error('Error deleting teacher:', err);
+        }
         let errorMessage = 'Failed to delete teacher';
         if (err.status === 0 || err.status === undefined) {
           errorMessage = 'Cannot connect to server. Please ensure the backend server is running.';
@@ -213,7 +485,10 @@ export class TeacherListComponent implements OnInit {
         }
         this.error = errorMessage;
         this.loading = false;
-        setTimeout(() => this.error = '', 5000);
+        setTimeout(() => {
+          document.querySelector('.teachers-container .alert-error')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 0);
+        setTimeout(() => this.error = '', 10000);
       }
     });
   }
@@ -242,5 +517,30 @@ export class TeacherListComponent implements OnInit {
     this.pagination.limit = parsedLimit;
     this.pagination.page = 1;
     this.loadTeachers();
+  }
+
+  /** List table: primary subject(s) or qualification */
+  getSubjectsDisplay(teacher: any): string {
+    if (teacher?.subjects?.length) {
+      if (teacher.subjects.length <= 2) {
+        return teacher.subjects.map((s: any) => s.name).join(', ');
+      }
+      return `${teacher.subjects.length} subjects`;
+    }
+    if (teacher?.qualification?.trim()) {
+      return teacher.qualification.trim();
+    }
+    return '—';
+  }
+
+  isTeacherActive(teacher: any): boolean {
+    return teacher?.isActive !== false;
+  }
+
+  /** Modal avatar initials */
+  getInitials(teacher: any): string {
+    const f = (teacher?.firstName || '').trim().charAt(0).toUpperCase();
+    const l = (teacher?.lastName || '').trim().charAt(0).toUpperCase();
+    return (f + l).trim() || '?';
   }
 }

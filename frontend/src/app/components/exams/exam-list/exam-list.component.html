@@ -9,17 +9,21 @@
         </h1>
         <p class="subtitle">Enter and manage student exam marks</p>
       </div>
-      <div style="display: flex; gap: 10px;" *ngIf="isAdmin">
-        <button 
-          class="btn btn-danger btn-icon" 
-          (click)="deleteAllExams()" 
-          [disabled]="loading || loadingStudents"
-          title="Delete all exams">
-          🗑️ Delete All
-        </button>
-        <button class="btn btn-primary btn-icon" routerLink="/exams/new" title="Create new exam">
-          ➕ Create Exam
-        </button>
+    </div>
+
+    <!-- Modern stepper + progress -->
+    <div class="exam-stepper" *ngIf="!loadingStudents">
+      <div class="step" [class.active]="!showMarksEntry">
+        <div class="step-index">1</div>
+        <div class="step-label">Select Criteria</div>
+      </div>
+      <div class="step" [class.active]="showMarksEntry && !isPublished">
+        <div class="step-index">2</div>
+        <div class="step-label">Enter Marks</div>
+      </div>
+      <div class="step" [class.active]="isPublished">
+        <div class="step-index">3</div>
+        <div class="step-label">Published</div>
       </div>
     </div>
 
@@ -125,8 +129,8 @@
       <div class="form-actions-inline">
         <button 
           class="btn btn-primary btn-load" 
-          (click)="loadStudents()" 
-          [disabled]="!isSelectionValid() || loadingStudents">
+          (click)="manualLoadStudents()" 
+          [disabled]="!isSelectionValid() || loadingStudents || showMarksEntry">
           <span *ngIf="!loadingStudents">
             🔍 Load Students
           </span>
@@ -146,53 +150,6 @@
 
     <!-- Marks Entry Section -->
     <div *ngIf="showMarksEntry && students.length > 0" class="marks-entry-section">
-      <!-- Summary Card -->
-      <div class="summary-card">
-        <div class="summary-header">
-          <h3>
-            <span class="summary-icon">📊</span>
-            Marks Entry Summary
-          </h3>
-          <div *ngIf="isAdmin && showMarksEntry && isPublished" style="margin-left: auto;">
-            <span class="status-badge" style="background-color: #28a745; color: white; padding: 8px 16px; border-radius: 4px; font-weight: bold;">
-              ✓ Published
-            </span>
-          </div>
-        </div>
-        <div class="summary-content">
-          <div class="summary-item">
-            <span class="summary-label">Class:</span>
-            <span class="summary-value">{{ getSelectedClassName() }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">Term:</span>
-            <span class="summary-value">{{ selectedTerm }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">Exam Type:</span>
-            <span class="summary-value">{{ getSelectedExamTypeLabel() }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">Subject:</span>
-            <span class="summary-value">{{ getSelectedSubjectName() }}</span>
-          </div>
-          <div class="summary-item highlight">
-            <span class="summary-label">Total Students:</span>
-            <span class="summary-value">{{ students.length }}</span>
-          </div>
-        </div>
-        
-        <!-- Marks Progress Indicator -->
-        <div class="marks-progress-container">
-          <div class="progress-line-top" [style.--progress-width.%]="getMarksProgress()"></div>
-          <div class="progress-bar-main">
-            <div class="progress-label-box">
-              <span class="progress-label-text">{{ getEnteredMarksCount() }} / {{ students.length }} Marks Entered</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Search and Quick Actions -->
       <div class="table-controls">
         <div class="search-box">
@@ -217,6 +174,22 @@
             [disabled]="loading || isPublished">
             🔢 Fill Empty with 0
           </button>
+        </div>
+      </div>
+
+      <!-- Completion progress -->
+      <div class="marks-progress-container" *ngIf="!isPublished">
+        <div
+          class="progress-line-top"
+          [ngStyle]="{ '--progress-width': getMarksProgress() + '%' }"
+          title="Completion based on marks entered"
+        ></div>
+        <div class="progress-bar-main">
+          <div class="progress-label-box">
+            <div class="progress-label-text">
+              {{ getMarksProgress() }}% Marks Entered
+            </div>
+          </div>
         </div>
       </div>
 
@@ -260,14 +233,14 @@
                       (input)="onMarkChange(student.id)"
                       (blur)="validateMark(student.id); onStudentBlur(student.id)"
                       (focus)="onStudentFocus(student.id)">
-                    <div class="save-status-indicator-mark" *ngIf="getSavingStatus(student.id)">
-                      <span *ngIf="getSavingStatus(student.id) === 'saving'" class="saving-indicator">
+                    <div class="save-status-indicator-mark" *ngIf="getMarkSavingStatus(student.id)">
+                      <span *ngIf="getMarkSavingStatus(student.id) === 'saving'" class="saving-indicator">
                         <span class="spinner-small"></span>
                       </span>
-                      <span *ngIf="getSavingStatus(student.id) === 'saved'" class="saved-indicator">
+                      <span *ngIf="getMarkSavingStatus(student.id) === 'saved'" class="saved-indicator">
                         ✓
                       </span>
-                      <span *ngIf="getSavingStatus(student.id) === 'error'" class="error-indicator">
+                      <span *ngIf="getMarkSavingStatus(student.id) === 'error'" class="error-indicator">
                         ✗
                       </span>
                     </div>
@@ -292,14 +265,14 @@
                         <span class="spinner-small"></span>
                         <span class="ai-text">AI</span>
                       </div>
-                      <div class="save-status-indicator" *ngIf="getSavingStatus(student.id) && !isGeneratingRemark(student.id)">
-                        <span *ngIf="getSavingStatus(student.id) === 'saving'" class="saving-indicator">
+                      <div class="save-status-indicator" *ngIf="getCommentsSavingStatus(student.id) && !isGeneratingRemark(student.id)">
+                        <span *ngIf="getCommentsSavingStatus(student.id) === 'saving'" class="saving-indicator">
                           <span class="spinner-small"></span>
                         </span>
-                        <span *ngIf="getSavingStatus(student.id) === 'saved'" class="saved-indicator">
+                        <span *ngIf="getCommentsSavingStatus(student.id) === 'saved'" class="saved-indicator">
                           ✓
                         </span>
-                        <span *ngIf="getSavingStatus(student.id) === 'error'" class="error-indicator">
+                        <span *ngIf="getCommentsSavingStatus(student.id) === 'error'" class="error-indicator">
                           ✗
                         </span>
                       </div>
@@ -334,9 +307,50 @@
             <span class="stat-value warning">{{ filteredStudents.length - getEnteredMarksCount() }}</span>
           </div>
           <div class="stat-item">
+            <span class="stat-label">Remarks Entered:</span>
+            <span class="stat-value success">{{ getEnteredRemarksCount() }}</span>
+          </div>
+          <div class="stat-item">
             <span class="stat-label">Average Score:</span>
             <span class="stat-value">{{ getAverageScore() | number:'1.0-0' }}</span>
           </div>
+        </div>
+
+        <!-- Actions bar -->
+        <div class="marks-actions-bar" *ngIf="!isPublished">
+          <button
+            type="button"
+            class="btn btn-primary btn-load"
+            (click)="onSubmit()"
+            [disabled]="loading || isPublished || filteredStudents.length === 0"
+            title="Save marks and remarks"
+          >
+            <span *ngIf="!loading">💾 Save Marks</span>
+            <span *ngIf="loading" class="loading-content">
+              <span class="spinner-small"></span>
+              Saving...
+            </span>
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-success btn-load"
+            *ngIf="isAdmin"
+            (click)="openPublishResults()"
+            [disabled]="loading || !canPublish"
+            title="Publish results (admin only)"
+          >
+            📢 Publish Results
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-secondary btn-load"
+            (click)="openMarkInputProgress()"
+            title="View completion progress"
+          >
+            📈 Progress
+          </button>
         </div>
 
         <div *ngIf="isPublished" class="alert alert-info" style="margin-top: 15px; background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb;">

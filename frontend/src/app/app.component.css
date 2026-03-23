@@ -236,7 +236,7 @@
 .sidebar-subitem {
   display: flex;
   align-items: center;
-  padding: 0.625rem 1rem 0.625rem 2.5rem;
+  padding: 0.625rem 1rem 0.625rem 1.9rem;
   border-radius: 8px;
   text-decoration: none;
   color: #cbd5e1;
@@ -244,6 +244,14 @@
   transition: all 0.2s;
   white-space: nowrap;
   position: relative;
+}
+
+.sidebar-subicon {
+  width: 1.35rem;
+  text-align: center;
+  margin-right: 0.6rem;
+  flex-shrink: 0;
+  font-size: 0.95rem;
 }
 
 .sidebar-subitem:hover {

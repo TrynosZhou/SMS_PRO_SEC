@@ -11,6 +11,9 @@ import { In } from 'typeorm';
 import { isDemoUser } from '../utils/demoDataFilter';
 import { Student } from '../entities/Student';
 import { User } from '../entities/User';
+import { StudentEnrollment } from '../entities/StudentEnrollment';
+import { RecordBook } from '../entities/RecordBook';
+import { TeacherClass } from '../entities/TeacherClass';
 import { ensureDemoDataAvailable } from '../utils/demoDataEnsurer';
 import { linkClassToTeachers } from '../utils/teacherClassLinker';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
@@ -385,11 +388,12 @@ router.delete('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMI
     const classRepository = AppDataSource.getRepository(Class);
     const examRepository = AppDataSource.getRepository(Exam);
     const remarksRepository = AppDataSource.getRepository(ReportCardRemarks);
+    const studentRepository = AppDataSource.getRepository(Student);
 
-    // Find the class with all relations
+    // Find the class with relations needed for cleanup (subjects, teachers for M2M)
     const classEntity = await classRepository.findOne({
       where: { id },
-      relations: ['students', 'teachers', 'subjects']
+      relations: ['teachers', 'subjects']
     });
 
     if (!classEntity) {
@@ -397,67 +401,52 @@ router.delete('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMI
       return res.status(404).json({ message: 'Class not found' });
     }
 
-    console.log('Found class:', classEntity.name);
-    console.log('Students count:', classEntity.students?.length || 0);
-    console.log('Teachers count:', classEntity.teachers?.length || 0);
-
-    // Check for associated records
-    // For demo users, only count demo students/teachers
-    let studentCount = 0;
-    let teacherCount = 0;
-    
-    if (isDemoUser(req)) {
-      // For demo users, only count demo students and teachers
-      if (classEntity.students) {
-        const studentRepository = AppDataSource.getRepository(Student);
-        const demoStudents = await studentRepository.find({
-          where: { 
-            classId: id,
-            user: { isDemo: true }
-          },
-          relations: ['user']
-        });
-        studentCount = demoStudents.length;
-      }
-      
-      // Count only demo teachers
-      if (classEntity.teachers) {
-        const teacherRepository = AppDataSource.getRepository(Teacher);
-        const demoTeachers = await teacherRepository.find({
-          where: {
-            user: { isDemo: true }
-          },
-          relations: ['user', 'classes']
-        });
-        // Filter to only teachers assigned to this class
-        teacherCount = demoTeachers.filter(t => 
-          t.classes?.some(c => c.id === id)
-        ).length;
-      }
-    } else {
-      // For non-demo users, count all students and teachers
-      studentCount = classEntity.students?.length || 0;
-      teacherCount = classEntity.teachers?.length || 0;
+    // Accurate DB counts (relation arrays can be incomplete; demo vs non-demo must use same rules)
+    const studentCount = await studentRepository.count({ where: { classId: id } });
+    const m2mTeacherCount = classEntity.teachers?.length ?? 0;
+    let junctionTeacherCount = 0;
+    try {
+      const teacherClassRepository = AppDataSource.getRepository(TeacherClass);
+      junctionTeacherCount = await teacherClassRepository.count({ where: { classId: id } });
+    } catch {
+      junctionTeacherCount = 0;
     }
-    
-    // Check for exams associated with this class
-    const exams = await examRepository.find({
-      where: { classId: id }
-    });
-    const examCount = exams.length;
-    console.log('Exams count:', examCount);
-    console.log('Filtered student count:', studentCount);
-    console.log('Filtered teacher count:', teacherCount);
+    const teacherCount = Math.max(m2mTeacherCount, junctionTeacherCount);
 
-    // Prevent deletion if there are associated records
-    if (studentCount > 0 || teacherCount > 0 || examCount > 0) {
-      console.log('Cannot delete class - has associated records');
+    const examCount = await examRepository.count({ where: { classId: id } });
+
+    let enrollmentCount = 0;
+    try {
+      const enrollmentRepository = AppDataSource.getRepository(StudentEnrollment);
+      enrollmentCount = await enrollmentRepository.count({ where: { classId: id } });
+    } catch {
+      enrollmentCount = 0;
+    }
+
+    let recordBookCount = 0;
+    try {
+      const recordBookRepository = AppDataSource.getRepository(RecordBook);
+      recordBookCount = await recordBookRepository.count({ where: { classId: id } });
+    } catch {
+      recordBookCount = 0;
+    }
+
+    const blockingReasons: string[] = [];
+    if (studentCount > 0) blockingReasons.push(`${studentCount} student(s) still assigned to this class`);
+    if (teacherCount > 0) blockingReasons.push(`${teacherCount} teacher link(s) (assignments)`);
+    if (examCount > 0) blockingReasons.push(`${examCount} exam(s) for this class`);
+    if (enrollmentCount > 0) blockingReasons.push(`${enrollmentCount} enrollment record(s)`);
+    if (recordBookCount > 0) blockingReasons.push(`${recordBookCount} record book row(s)`);
+
+    if (blockingReasons.length > 0) {
       return res.status(400).json({
-        message: 'Cannot delete class with associated records',
+        message: `Cannot delete "${classEntity.name}": ${blockingReasons.join('; ')}. Remove or reassign these first, then try again.`,
         details: {
           students: studentCount,
           teachers: teacherCount,
-          exams: examCount
+          exams: examCount,
+          enrollments: enrollmentCount,
+          recordBooks: recordBookCount
         }
       });
     }

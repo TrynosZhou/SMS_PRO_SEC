@@ -48,7 +48,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   loadingStats = true;
   recentStudents: any[] = [];
   recentInvoices: any[] = [];
-  
+
   constructor(
     private authService: AuthService,
     private router: Router,
@@ -63,16 +63,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.user = this.authService.getCurrentUser();
-    
+
+    // Teachers use the dedicated Teacher Portal — keep admin/accountant dashboard separate
+    if (this.authService.hasRole('teacher')) {
+      this.router.navigate(['/teacher/dashboard'], { replaceUrl: true });
+      return;
+    }
+
     // Load module access from service
     this.moduleAccessService.loadModuleAccess();
     this.loadSettings();
-    if (this.isAdmin() || this.isAccountant() || this.isTeacher()) {
+    if (this.isAdmin() || this.isAccountant()) {
       this.loadStatistics();
-    }
-    // Load teacher name if user is a teacher (this will set teacherName immediately from user.teacher)
-    if (this.isTeacher()) {
-      this.loadTeacherName();
     }
   }
 

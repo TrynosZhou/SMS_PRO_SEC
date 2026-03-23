@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { ExamService } from '../../../services/exam.service';
 import { SettingsService } from '../../../services/settings.service';
 import { AuthService } from '../../../services/auth.service';
+import { ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'app-publish-results',
@@ -25,17 +26,27 @@ export class PublishResultsComponent implements OnInit {
   constructor(
     private examService: ExamService,
     private settingsService: SettingsService,
-    private authService: AuthService
+    private authService: AuthService,
+    private route: ActivatedRoute
   ) {
     const user = this.authService.getCurrentUser();
     this.isAdmin = user ? (user.role === 'admin' || user.role === 'superadmin') : false;
   }
 
   ngOnInit() {
+    // Optional pre-fill from /exams screen
+    this.route.queryParams.subscribe((params: any) => {
+      if (params?.examType) this.publishExamType = params.examType;
+      if (params?.term) this.publishTerm = params.term;
+    });
     this.loadActiveTerm();
   }
 
   loadActiveTerm() {
+    // If a term was provided via query params, don't override it.
+    if (this.publishTerm) {
+      return;
+    }
     this.loadingTerm = true;
     this.settingsService.getActiveTerm().subscribe({
       next: (data: any) => {

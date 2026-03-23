@@ -45,7 +45,7 @@ export class InvoiceListComponent implements OnInit {
   studentIdLookup = '';
   studentBalanceInfo: any = null;
   loadingBalance = false;
-  currencySymbol = 'KES'; // Default, will be loaded from settings
+  currencySymbol = '$'; // Default, will be loaded from settings
   academicYear = ''; // Will be loaded from settings
   currentTermFromSettings = ''; // Current term from settings
   quickPaymentAmount = 0;
@@ -81,6 +81,16 @@ export class InvoiceListComponent implements OnInit {
   };
   pageSizeOptions = [10, 20, 50];
   private searchDebounceTimer: any = null;
+
+  // Invoice Management quick actions (matches the uploaded UI)
+  showManagementModal = false;
+  managementModalTitle = '';
+  managementModalMessage = '';
+  managementModalMode: 'message' = 'message';
+  managementAutoFollowingTerm = 'Auto (following term)';
+  managementFromDate = '';
+  managementToDate = '';
+  managementLoading = false;
   
   getFollowingTerm(currentTerm: string): string {
     if (!currentTerm) return '';
@@ -116,6 +126,89 @@ export class InvoiceListComponent implements OnInit {
     return currentTerm;
   }
 
+  private openManagementModal(title: string, message: string): void {
+    this.managementModalTitle = title;
+    this.managementModalMessage = message;
+    this.managementModalMode = 'message';
+    this.showManagementModal = true;
+  }
+
+  closeManagementModal(): void {
+    this.showManagementModal = false;
+    this.managementModalTitle = '';
+    this.managementModalMessage = '';
+    this.managementModalMode = 'message';
+    this.managementLoading = false;
+  }
+
+  private parseDateInput(dateValue: string): number | null {
+    if (!dateValue) return null;
+    const t = new Date(dateValue).getTime();
+    return isNaN(t) ? null : t;
+  }
+
+  private pickInvoiceForRange(): any | null {
+    const fromT = this.parseDateInput(this.managementFromDate);
+    const toT = this.parseDateInput(this.managementToDate);
+
+    const candidates = this.filteredInvoices
+      .filter(inv => {
+        const dueT = inv?.dueDate ? new Date(inv.dueDate).getTime() : NaN;
+        if (!Number.isFinite(dueT)) return false;
+        const inFrom = fromT === null ? true : dueT >= fromT;
+        const inTo = toT === null ? true : dueT <= toT;
+        return inFrom && inTo;
+      })
+      .filter(inv => parseFloat(String(inv?.balance || 0)) > 0);
+
+    candidates.sort((a: any, b: any) => {
+      const aT = new Date(a.dueDate).getTime();
+      const bT = new Date(b.dueDate).getTime();
+      return aT - bT;
+    });
+
+    return candidates[0] || null;
+  }
+
+  onCreditNote(): void {
+    this.router.navigate(['/invoices/creditnote']);
+  }
+
+  onDebitNote(): void {
+    this.router.navigate(['/invoices/debitnote']);
+  }
+
+  onUniformItems(): void {
+    this.router.navigate(['/invoices/uniform_list']);
+  }
+
+  onBulkCreate(): void {
+    this.openBulkInvoiceForm();
+  }
+
+  onReverseBulk(): void {
+    this.openManagementModal(
+      'Reverse Bulk',
+      'Reverse Bulk is not available yet. (There is no backend endpoint to rollback bulk-created invoices.)'
+    );
+  }
+
+  onTuitionExemption(): void {
+    this.openManagementModal(
+      'Tuition Exemption',
+      'Tuition Exemption feature is not implemented yet. If you want, I can add the required backend endpoints and UI.'
+    );
+  }
+
+  onCorrectPrepaid(): void {
+    this.router.navigate(['/invoices/prepaid_adjust']);
+  }
+
+  onReconciliationAudit(): void {
+    // Closest existing view: invoice statements.
+    this.router.navigate(['/invoices/statements']);
+  }
+
   constructor(
     public financeService: FinanceService,
     private studentService: StudentService,
@@ -144,9 +237,10 @@ export class InvoiceListComponent implements OnInit {
   loadSettings() {
     this.settingsService.getSettings().subscribe({
       next: (data: any) => {
-        this.currencySymbol = data.currencySymbol || 'KES';
-        this.academicYear = data.academicYear || new Date().getFullYear().toString();
-        this.currentTermFromSettings = data.currentTerm || `Term 1 ${new Date().getFullYear()}`;
+        const row = Array.isArray(data) && data.length ? data[0] : data;
+        this.currencySymbol = row?.currencySymbol || '$';
+        this.academicYear = row?.academicYear || new Date().getFullYear().toString();
+        this.currentTermFromSettings = row?.currentTerm || `Term 1 ${new Date().getFullYear()}`;
         
         // Always set quickPaymentTerm from currentTerm in settings to ensure it matches
         // This ensures the term field always reflects the current term from settings

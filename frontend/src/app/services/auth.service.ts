@@ -110,7 +110,18 @@ export class AuthService {
   }
 
   logout(reason: 'manual' | 'timeout' | 'unauthorized' = 'manual'): void {
+    const currentUser = this.getCurrentUser();
+    const userId = currentUser?.id;
+
     this.stopInactivityTracking();
+    
+    // Update logout time in the backend (used by Activity Log).
+    // This endpoint does not require auth, so we can call it even after clearing local storage.
+    this.http.post(`${this.apiUrl}/auth/logout`, { userId, reason }).subscribe({
+      next: () => {},
+      error: () => {}
+    });
+
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     this.currentUserSubject.next(null);
@@ -119,13 +130,6 @@ export class AuthService {
       sessionStorage.setItem(this.logoutMessageKey, 'Your session has expired due to inactivity. Please log in again.');
     } else if (reason === 'unauthorized') {
       sessionStorage.setItem(this.logoutMessageKey, 'Your session has expired. Please log in again.');
-    }
-
-    if (reason === 'manual') {
-      this.http.post(`${this.apiUrl}/auth/logout`, {}).subscribe({
-        next: () => {},
-        error: () => {}
-      });
     }
 
     this.router.navigate(['/login']);
@@ -153,6 +157,17 @@ export class AuthService {
 
   requestPasswordReset(email: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/auth/reset-password`, { email });
+  }
+
+  verifyStudentPasswordReset(studentNumber: string, dateOfBirth: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/reset-password/student/verify`, {
+      studentNumber,
+      dateOfBirth,
+    });
+  }
+
+  verifyTeacherPasswordReset(teacherId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/reset-password/teacher/verify`, { teacherId });
   }
 
   resetPassword(token: string, newPassword: string): Observable<any> {

@@ -25,7 +25,7 @@ export function createInvoicePDF(
       doc.on('error', reject);
 
       const { invoice, student, settings } = data;
-      const currencySymbol = settings?.currencySymbol || 'KES';
+      const currencySymbol = settings?.currencySymbol || '$';
 
       // School Header
       const schoolName = settings?.schoolName || 'School Management System';
@@ -350,9 +350,16 @@ export function createInvoicePDF(
         }
       }
 
-      // Show uniform items subtotal ONLY - individual items must NOT appear on the invoice
-      // Only the subtotal should be displayed, not individual items like "Track suit (x1)"
-      if (uniformTotal > 0) {
+      // Show each uniform line separately, then subtotal (distinct from tuition fees)
+      const uniformItemsList = Array.isArray((invoice as any).uniformItems) ? (invoice as any).uniformItems : [];
+      if (uniformItemsList.length > 0) {
+        for (const ui of uniformItemsList) {
+          const qty = Number(ui.quantity) || 1;
+          const label = `${ui.itemName || 'Uniform item'} (×${qty})`;
+          renderTableRow(label, parseAmount(ui.lineTotal), { fill: '#FFF7ED', textColor: '#9A3412' });
+        }
+        renderTableRow('School Uniform Subtotal', uniformTotal, { fill: '#FFE8CC', textColor: '#C05621' });
+      } else if (uniformTotal > 0) {
         renderTableRow('School Uniform Subtotal', uniformTotal, { fill: '#FFE8CC', textColor: '#C05621' });
       }
 

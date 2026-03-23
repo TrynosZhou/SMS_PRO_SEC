@@ -23,6 +23,12 @@ export class MarkInputProgressComponent implements OnInit {
   progressData: any = null;
   loading = false;
   error = '';
+
+  // Modern UI state
+  viewMode: 'cards' | 'table' = 'cards';
+  classSearch = '';
+  autoLoadProgress = false;
+  lastLoadedAt: number | null = null;
   
   examTypes = [
     { value: 'mid_term', label: 'Mid Term' },
@@ -134,6 +140,7 @@ export class MarkInputProgressComponent implements OnInit {
     ).subscribe(
       (data: any) => {
         this.progressData = data;
+        this.lastLoadedAt = Date.now();
         this.loading = false;
       },
       (error: any) => {
@@ -144,11 +151,72 @@ export class MarkInputProgressComponent implements OnInit {
     );
   }
 
+  get filteredProgress(): any[] {
+    const progress = this.progressData?.progress;
+    if (!Array.isArray(progress)) return [];
+
+    const q = this.classSearch.trim().toLowerCase();
+    if (!q) return progress;
+
+    // Filter classes inside each stream, then remove empty streams
+    return progress
+      .map((stream: any) => {
+        const filteredClasses = (stream.classes || []).filter((c: any) =>
+          String(c?.className || '').toLowerCase().includes(q)
+        );
+
+        // Recompute stream-level totals from the filtered classes
+        const streamTotal = (filteredClasses || []).reduce(
+          (sum: number, c: any) => sum + Number(c?.totalStudents || 0),
+          0
+        );
+        const streamWithMarks = (filteredClasses || []).reduce(
+          (sum: number, c: any) => sum + Number(c?.studentsWithMarks || 0),
+          0
+        );
+        const streamCompletionPercentage =
+          streamTotal > 0 ? parseFloat(((streamWithMarks / streamTotal) * 100).toFixed(2)) : 0;
+
+        return {
+          ...stream,
+          classes: filteredClasses,
+          streamTotal,
+          streamWithMarks,
+          streamCompletionPercentage
+        };
+      })
+      .filter((s: any) => (s.classes || []).length > 0);
+  }
+
+  get overallStats(): { totalStudents: number; withMarks: number; completion: number; streams: number } {
+    const streams = this.filteredProgress;
+    let totalStudents = 0;
+    let withMarks = 0;
+
+    for (const stream of streams) {
+      for (const cls of stream.classes || []) {
+        totalStudents += Number(cls?.totalStudents || 0);
+        withMarks += Number(cls?.studentsWithMarks || 0);
+      }
+    }
+
+    const completion = totalStudents > 0 ? Math.round((withMarks / totalStudents) * 1000) / 10 : 0;
+    return {
+      totalStudents,
+      withMarks,
+      completion,
+      streams: streams.length
+    };
+  }
+
   resetFilters() {
     this.selectedExamId = '';
     this.selectedSubjectId = '';
     this.selectedSubjectCode = '';
     this.selectedExamType = '';
+    this.classSearch = '';
+    this.viewMode = 'cards';
+    this.autoLoadProgress = false;
     // Reload term from settings when resetting
     this.loadSettings();
     this.progressData = null;
@@ -163,6 +231,21 @@ export class MarkInputProgressComponent implements OnInit {
 
   getProgressWidth(percentage: number): string {
     return `${Math.min(100, Math.max(0, percentage))}%`;
+  }
+
+  onAnyFilterChange() {
+    if (this.autoLoadProgress) {
+      this.loadProgress();
+    }
+  }
+
+  getCompletionStatus(percentage: number): { label: string; cls: string } {
+    // Keep aligned with getProgressColor() thresholds: >=80, >=50, >=25
+    if (percentage >= 80) return { label: 'On Track (80+)', cls: 'status-completed' };
+    if (percentage >= 50) return { label: 'Almost Done (50+)', cls: 'status-almost' };
+    if (percentage >= 25) return { label: 'In Progress (25+)', cls: 'status-progress' };
+    if (percentage > 0) return { label: 'Started', cls: 'status-started' };
+    return { label: 'Not Started', cls: 'status-not-started' };
   }
 }
 

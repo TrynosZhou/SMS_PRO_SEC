@@ -6,13 +6,13 @@
   <!-- Check Student Balance Section -->
   <div class="search-section">
     <div class="search-form">
-      <label for="studentId">Student ID</label>
+      <label for="studentId">Student ID / First Name / Last Name</label>
       <div class="input-group">
         <input
           type="text"
           id="studentId"
           [(ngModel)]="studentId"
-          placeholder="Enter Student ID or Student Number"
+          placeholder="Enter Student ID / Student Number / First Name / Last Name"
           class="form-control"
           (keyup.enter)="getBalance()"
         />
@@ -30,6 +30,27 @@
           (click)="clear()"
         >
           <span class="icon">🗑️</span> Clear
+        </button>
+      </div>
+
+      <!-- Admin/Accountant: If multiple matches are found, let them pick -->
+      <div class="name-search-results"
+           *ngIf="canSearchByName() && showStudentPicker && nameSearchResults.length > 1 && !nameSearchLoading">
+        <label class="results-label">Select Student</label>
+        <select class="form-control" [(ngModel)]="nameSearchSelectedStudentNumber">
+          <option value="">-- Select --</option>
+          <option *ngFor="let s of nameSearchResults" [value]="s.id || s.studentNumber">
+            {{ s.firstName }} {{ s.lastName }} ({{ s.studentNumber }})
+          </option>
+        </select>
+
+        <button
+          type="button"
+          class="btn btn-primary mt-10"
+          (click)="useSelectedStudentFromNameSearch()"
+          [disabled]="!nameSearchSelectedStudentNumber"
+        >
+          Use Selected
         </button>
       </div>
     </div>
@@ -85,6 +106,15 @@
                 required
               />
               <small class="form-hint">Default is set to the balance</small>
+
+              <!-- Quick Amounts -->
+              <div class="quick-amounts" *ngIf="studentData && getBalanceAmount() > 0">
+                <span class="quick-label">Quick:</span>
+                <button type="button" class="quick-btn" (click)="setQuickAmount(0.25)">25%</button>
+                <button type="button" class="quick-btn" (click)="setQuickAmount(0.5)">50%</button>
+                <button type="button" class="quick-btn" (click)="setQuickAmount(0.75)">75%</button>
+                <button type="button" class="quick-btn quick-full" (click)="setQuickAmount(1)">Full</button>
+              </div>
             </div>
             <div class="form-group">
               <label for="term">Term *</label>
@@ -99,6 +129,23 @@
               <small class="form-hint">Term for this payment (from settings: {{ currentTerm }})</small>
             </div>
           </div>
+
+          <!-- After Payment Preview -->
+          <div class="payment-preview" *ngIf="studentData">
+            <div class="preview-row">
+              <div class="preview-label">After Payment</div>
+              <div class="preview-value" [ngClass]="{ 'text-warning': getNewBalance() > 0, 'text-danger': getNewBalance() < 0, 'text-success': getNewBalance() === 0 }">
+                {{ currencySymbol }} {{ formatCurrency(getAbsNewBalance()) }}
+                <span class="preview-suffix" *ngIf="getNewBalance() > 0">remaining</span>
+                <span class="preview-suffix" *ngIf="getNewBalance() < 0">credit</span>
+                <span class="preview-suffix" *ngIf="getNewBalance() === 0">settled</span>
+              </div>
+            </div>
+            <div class="preview-help" *ngIf="getOverpaymentCredit() > 0">
+              Overpayment will be saved as prepaid credit: <strong>{{ currencySymbol }} {{ formatCurrency(getOverpaymentCredit()) }}</strong>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label for="paymentDate">Payment Date *</label>
@@ -118,14 +165,49 @@
                 [(ngModel)]="paymentForm.paymentMethod"
                 name="paymentMethod"
                 class="form-control"
+                (change)="onPaymentMethodChange()"
                 required
               >
-                <option value="Cash">Cash</option>
+                <option value="Cash(USD)">Cash (USD)</option>
+                <option value="ZIG(ZW)">ZIG (ZW)</option>
+                <option value="EcoCash">EcoCash</option>
+                <option value="InnBucks">InnBucks</option>
+                <option value="Visa Card">Visa Card</option>
                 <option value="Bank Transfer">Bank Transfer</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Mobile Money">Mobile Money</option>
-                <option value="Other">Other</option>
               </select>
+            </div>
+          </div>
+          <!-- Conditional Phone Number Input -->
+          <div class="form-row" *ngIf="showPhoneNumberInput">
+            <div class="form-group">
+              <label for="phoneNumber">{{ phoneNumberLabel }} *</label>
+              <input
+                type="text"
+                id="phoneNumber"
+                [(ngModel)]="paymentForm.phoneNumber"
+                name="phoneNumber"
+                class="form-control"
+                placeholder="e.g., 0771234567 or +263771234567"
+                [required]="showPhoneNumberInput"
+              />
+              <small class="form-hint">{{ phoneNumberHint }}</small>
+            </div>
+          </div>
+          <!-- Conditional Card Number Input -->
+          <div class="form-row" *ngIf="showCardNumberInput">
+            <div class="form-group">
+              <label for="cardNumber">Visa Card Number *</label>
+              <input
+                type="text"
+                id="cardNumber"
+                [(ngModel)]="paymentForm.cardNumber"
+                name="cardNumber"
+                class="form-control"
+                placeholder="e.g., 4111 1111 1111 1111"
+                maxlength="19"
+                [required]="showCardNumberInput"
+              />
+              <small class="form-hint">Enter the last 4 digits or full card number for record purposes</small>
             </div>
           </div>
           <div class="form-group">

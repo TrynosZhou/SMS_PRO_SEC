@@ -4,7 +4,7 @@
     <div class="header-content">
       <h1>
         <span class="header-icon">✅</span>
-        Mark Attendance
+        Mark Register
       </h1>
       <div class="header-actions" *ngIf="selectedClassId && students.length > 0">
         <div class="save-indicator" *ngIf="hasUnsavedChanges">
@@ -76,6 +76,9 @@
           </div>
           <div class="date-display" *ngIf="selectedDate">
             {{ getFormattedDate() }}
+          </div>
+          <div class="weekend-warning" *ngIf="selectedDate && !isMarkingAllowed">
+            {{ weekendNotAllowedMessage }}
           </div>
         </div>
       </div>
@@ -169,13 +172,13 @@
 
       <div class="toolbar-right">
         <div class="bulk-actions">
-          <button type="button" class="bulk-btn present" (click)="markAll('present')" title="Mark all as Present">
+          <button type="button" class="bulk-btn present" (click)="markAll('present')" [disabled]="!isMarkingAllowed || submitting" title="Mark all as Present">
             ✓ All Present
           </button>
-          <button type="button" class="bulk-btn absent" (click)="markAll('absent')" title="Mark all as Absent">
+          <button type="button" class="bulk-btn absent" (click)="markAll('absent')" [disabled]="!isMarkingAllowed || submitting" title="Mark all as Absent">
             ✗ All Absent
           </button>
-          <button type="button" class="bulk-btn late" (click)="markAll('late')" title="Mark all as Late">
+          <button type="button" class="bulk-btn late" (click)="markAll('late')" [disabled]="!isMarkingAllowed || submitting" title="Mark all as Late">
             ⏰ All Late
           </button>
         </div>
@@ -216,6 +219,7 @@
                   class="status-btn present" 
                   [class.active]="item.status === 'present'"
                   (click)="updateStatus(item.studentId, 'present')"
+                  [disabled]="!isMarkingAllowed"
                   title="Present">
                   ✓ Present
                 </button>
@@ -224,6 +228,7 @@
                   class="status-btn absent" 
                   [class.active]="item.status === 'absent'"
                   (click)="updateStatus(item.studentId, 'absent')"
+                  [disabled]="!isMarkingAllowed"
                   title="Absent">
                   ✗ Absent
                 </button>
@@ -232,6 +237,7 @@
                   class="status-btn late" 
                   [class.active]="item.status === 'late'"
                   (click)="updateStatus(item.studentId, 'late')"
+                  [disabled]="!isMarkingAllowed"
                   title="Late">
                   ⏰ Late
                 </button>
@@ -240,6 +246,7 @@
                   class="status-btn excused" 
                   [class.active]="item.status === 'excused'"
                   (click)="updateStatus(item.studentId, 'excused')"
+                  [disabled]="!isMarkingAllowed"
                   title="Excused">
                   📝 Excused
                 </button>
@@ -252,6 +259,7 @@
                 [name]="'remarks_' + i"
                 placeholder="Optional remarks..."
                 class="remarks-input"
+                [disabled]="!isMarkingAllowed"
                 (input)="hasUnsavedChanges = true">
             </td>
           </tr>
@@ -280,7 +288,7 @@
         type="submit" 
         class="btn btn-primary submit-btn" 
         (click)="submitAttendance()"
-        [disabled]="submitting || !hasUnsavedChanges">
+        [disabled]="submitting || !hasUnsavedChanges || !isMarkingAllowed">
         <span *ngIf="!submitting">💾 Save Attendance</span>
         <span *ngIf="submitting" class="loading-spinner">⏳ Saving...</span>
       </button>

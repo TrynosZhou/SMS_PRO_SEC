@@ -6,6 +6,49 @@
   padding: 20px;
 }
 
+/* Full-width top banner — Logo 1 only; contain scaling avoids blur/stretch (wide letterheads) */
+.report-cards-page-banner {
+  width: calc(100% + 40px);
+  margin: -20px -20px 20px -20px;
+  border-radius: 0 0 16px 16px;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  background: #f1f5f9;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+.report-cards-page-banner .banner-logo-img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 160px;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  vertical-align: middle;
+}
+
+.report-cards-page-banner.banner-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+.report-cards-page-banner.banner-fallback .banner-school-name {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 /* Header Section */
 .form-header {
   display: flex;
@@ -471,59 +514,62 @@
   gap: 10px;
 }
 
-/* School Header */
-.school-header {
+/* School header on each preview — banner (Logo 1) + text block */
+.school-header-block {
+  margin-bottom: 25px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.report-card-school-banner {
+  width: 100%;
+  background: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  flex-wrap: wrap;
-  margin-bottom: 25px;
-  padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 8px;
-  position: relative;
+  padding: 8px 10px;
+  box-sizing: border-box;
 }
 
-.school-logo-wrapper {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-
-.school-logo-wrapper.school-logo-left {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  margin: 0;
-}
-
-.school-logo-wrapper.school-logo-right {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  margin: 0;
-}
-
-.school-logo {
-  max-height: 80px;
-  max-width: 150px;
+.report-card-school-banner .banner-logo-img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 140px;
   object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+.report-card-school-banner.banner-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.report-card-school-banner.banner-fallback .banner-school-name {
+  color: #1e293b;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.school-header-details {
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
 .school-text {
   text-align: center;
   min-width: 200px;
-  flex: 1;
   margin: 0 auto;
-  max-width: calc(100% - 400px); /* Ensure text has space between logos */
 }
 
-.school-header h3 {
+.school-header-block h3,
+.school-header-details h3 {
   margin: 0 0 10px 0;
   font-size: 24px;
   color: #000000;

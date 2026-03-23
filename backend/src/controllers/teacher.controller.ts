@@ -12,6 +12,8 @@ import { isValidPhoneNumber, PHONE_VALIDATION_MESSAGE } from '../utils/phoneNumb
 import { linkTeacherToClasses, syncManyToManyToJunctionTable } from '../utils/teacherClassLinker';
 import { calculateAge } from '../utils/ageUtils';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
+import { TeacherClass } from '../entities/TeacherClass';
+import { formatTeacherTitleName } from '../utils/teacherDisplayName';
 
 export const registerTeacher = async (req: AuthRequest, res: Response) => {
   try {
@@ -20,7 +22,7 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
       await AppDataSource.initialize();
     }
 
-    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds } = req.body;
+    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds, gender } = req.body;
     
     // Validate required fields
     if (!firstName || !lastName) {
@@ -66,7 +68,8 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
       teacherId,
       phoneNumber: trimmedPhoneNumber,
       address: address?.trim() || null,
-      qualification: qualification?.trim() || null
+      qualification: qualification?.trim() || null,
+      gender: gender !== undefined && gender !== null && String(gender).trim() ? String(gender).trim() : null
     };
 
     // Only include dateOfBirth if it's provided
@@ -456,7 +459,8 @@ export const getCurrentTeacher = async (req: AuthRequest, res: Response) => {
       // Add fullName property in LastName + FirstName format
       const teacherResponse: any = {
         ...teacher,
-        fullName: `${teacher.lastName || ''} ${teacher.firstName || ''}`.trim() || 'Teacher'
+        fullName: `${teacher.lastName || ''} ${teacher.firstName || ''}`.trim() || 'Teacher',
+        formattedTitleName: formatTeacherTitleName(teacher.firstName, teacher.lastName, teacher.gender)
       };
       
       res.json(teacherResponse);
@@ -559,7 +563,7 @@ export const updateTeacher = async (req: AuthRequest, res: Response) => {
     }
 
     const { id } = req.params;
-    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds } = req.body;
+    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds, isActive, gender } = req.body;
     
     const teacherRepository = AppDataSource.getRepository(Teacher);
     const teacher = await teacherRepository.findOne({
@@ -582,11 +586,18 @@ export const updateTeacher = async (req: AuthRequest, res: Response) => {
     }
     if (address !== undefined) teacher.address = address?.trim() || null;
     if (qualification !== undefined) teacher.qualification = qualification?.trim() || null;
+    if (isActive !== undefined) {
+      teacher.isActive = Boolean(isActive);
+    }
     if (dateOfBirth) {
       const parsedDate = typeof dateOfBirth === 'string' ? new Date(dateOfBirth) : dateOfBirth;
       if (!isNaN(parsedDate.getTime())) {
         teacher.dateOfBirth = parsedDate;
       }
+    }
+    if (gender !== undefined) {
+      const g = gender === null || gender === '' ? null : String(gender).trim();
+      teacher.gender = g || null;
     }
 
     // Update teaching subjects if provided
@@ -643,36 +654,50 @@ export const deleteTeacher = async (req: AuthRequest, res: Response) => {
 
     console.log('Found teacher:', teacher.firstName, teacher.lastName, `(${teacher.teacherId})`);
 
-    // Check if teacher has associated classes or subjects
-    const classCount = teacher.classes?.length || 0;
-    const subjectCount = teacher.subjects?.length || 0;
+    const userIdToDelete = teacher.userId || undefined;
 
-    if (classCount > 0 || subjectCount > 0) {
-      // Remove associations instead of preventing deletion
-      teacher.classes = [];
-      teacher.subjects = [];
-      await teacherRepository.save(teacher);
+    // Clear ManyToMany links so join tables are updated before remove
+    teacher.classes = [];
+    teacher.subjects = [];
+    await teacherRepository.save(teacher);
+
+    // Explicitly clear teacher_classes junction (may exist alongside M2M)
+    try {
+      const teacherClassRepository = AppDataSource.getRepository(TeacherClass);
+      await teacherClassRepository.delete({ teacherId: id });
+    } catch (junctionErr: any) {
+      console.warn('[deleteTeacher] teacher_classes cleanup:', junctionErr?.message || junctionErr);
     }
 
-    // Delete associated user account if it exists
-    if (teacher.userId) {
-      const user = await userRepository.findOne({ where: { id: teacher.userId } });
+    // IMPORTANT: Delete teacher row BEFORE user row — teachers.userId FK references users.id.
+    // Deleting the user first causes a foreign key violation.
+    console.log('Deleting teacher:', teacher.firstName, teacher.lastName);
+    await teacherRepository.remove(teacher);
+    console.log('Teacher deleted successfully');
+
+    if (userIdToDelete) {
+      const user = await userRepository.findOne({ where: { id: userIdToDelete } });
       if (user) {
         console.log('Deleting associated user account');
         await userRepository.remove(user);
       }
     }
 
-    // Delete the teacher
-    console.log('Deleting teacher:', teacher.firstName, teacher.lastName);
-    await teacherRepository.remove(teacher);
-    console.log('Teacher deleted successfully');
-
     res.json({ message: 'Teacher deleted successfully' });
   } catch (error: any) {
     console.error('Error deleting teacher:', error);
     console.error('Error stack:', error.stack);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    const msg = error?.message || 'Unknown error';
+    const code = error?.code || error?.driverError?.code;
+    // PostgreSQL foreign key violation
+    if (code === '23503') {
+      return res.status(400).json({
+        message:
+          'Cannot delete this teacher while other records still reference them (e.g. timetable, classes, or linked data). Remove those links first, then try again.',
+        error: msg
+      });
+    }
+    res.status(500).json({ message: 'Server error', error: msg });
   }
 };
 

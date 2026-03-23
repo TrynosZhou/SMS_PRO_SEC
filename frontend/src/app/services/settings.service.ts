@@ -39,6 +39,10 @@ export class SettingsService {
     return this.http.post(`${this.apiUrl}/settings/closing-day`, {});
   }
 
+  resetCoreData(confirmationWord: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/settings/reset-data`, { confirmationWord });
+  }
+
   getUniformItems(): Observable<any> {
     return this.http.get(`${this.apiUrl}/settings/uniform-items`);
   }

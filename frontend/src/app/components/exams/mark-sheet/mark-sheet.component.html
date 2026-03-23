@@ -9,6 +9,7 @@
 
     <div class="alert alert-success" *ngIf="success">{{ success }}</div>
     <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+    <div class="alert alert-error" *ngIf="pdfError">{{ pdfError }}</div>
 
     <!-- Selection Form -->
     <div class="selection-form">
@@ -77,13 +78,30 @@
             <span class="student-count-pill">{{ markSheetData.markSheet.length }} students</span>
           </div>
           <div class="header-action-buttons">
-            <button class="action-btn" (click)="exportToCSV()" title="Download">
-              <span>⬇️</span>
+            <button
+              type="button"
+              class="action-btn"
+              (click)="downloadPDF()"
+              [disabled]="!!pdfBusy || loading"
+              title="Download mark sheet as PDF">
+              <span *ngIf="pdfBusy !== 'download'">⬇️</span>
+              <span *ngIf="pdfBusy === 'download'" class="action-btn-spinner" aria-hidden="true"></span>
             </button>
-            <button class="action-btn" (click)="printMarkSheet()" title="Print">
-              <span>🖨️</span>
+            <button
+              type="button"
+              class="action-btn"
+              (click)="printMarkSheet()"
+              [disabled]="!!pdfBusy || loading"
+              title="Open PDF in a new tab — use the viewer Print button (Ctrl+P)">
+              <span *ngIf="pdfBusy !== 'print'">🖨️</span>
+              <span *ngIf="pdfBusy === 'print'" class="action-btn-spinner" aria-hidden="true"></span>
             </button>
-            <button class="action-btn" (click)="generateMarkSheet()" title="Refresh">
+            <button
+              type="button"
+              class="action-btn"
+              (click)="generateMarkSheet()"
+              [disabled]="loading || !!pdfBusy"
+              title="Refresh data from server">
               <span>🔄</span>
             </button>
           </div>
@@ -128,11 +146,12 @@
               <th>STUDENT NAME</th>
               <th *ngFor="let subject of markSheetData.subjects">{{ subject.name.toUpperCase() }}</th>
               <th>PASSED</th>
-              <th>A*S</th>
-              <th>AS</th>
-              <th>BS</th>
-              <th>CS</th>
-              <th>DS</th>
+              <th>As</th>
+              <th>Bs</th>
+              <th>Cs</th>
+              <th>Ds</th>
+              <th>Es</th>
+              <th>Us</th>
               <th>MEAN</th>
               <th>POSITION</th>
             </tr>
@@ -147,11 +166,12 @@
                 </span>
               </td>
               <td class="passed-col">{{ row.passed || 0 }}</td>
-              <td class="grade-col">{{ getGradeCount(row, 'aStar') }}</td>
               <td class="grade-col">{{ getGradeCount(row, 'a') }}</td>
               <td class="grade-col">{{ getGradeCount(row, 'b') }}</td>
               <td class="grade-col">{{ getGradeCount(row, 'c') }}</td>
               <td class="grade-col">{{ getGradeCount(row, 'd') }}</td>
+              <td class="grade-col">{{ getGradeCount(row, 'e') }}</td>
+              <td class="grade-col">{{ getGradeCount(row, 'u') }}</td>
               <td class="mean-col">{{ row.average.toFixed(1) }}</td>
               <td class="position-col">{{ row.position }}</td>
             </tr>

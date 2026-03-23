@@ -82,6 +82,15 @@
   cursor: not-allowed;
 }
 
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
 .card {
   background: white;
   border-radius: 16px;
@@ -215,6 +224,18 @@
   color: white;
   padding: 10px 16px;
   text-align: center;
+}
+
+.top-band-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+
+.top-band-school-logo {
+  width: 44px; /* reduced to fit nicely in the header */
+  height: 44px;
+  object-fit: contain;
 }
 
 .school-name-header {

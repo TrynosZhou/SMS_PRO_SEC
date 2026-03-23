@@ -12,10 +12,19 @@ import { AuthService } from '../../../services/auth.service';
 export class OutstandingBalanceComponent implements OnInit {
   outstandingBalances: any[] = [];
   filteredBalances: any[] = [];
+  pagedBalances: any[] = [];
   loading = false;
   error = '';
   searchQuery = '';
   currencySymbol = 'KES';
+
+  // Modern UI controls (client-side)
+  sortBy: 'studentNumber' | 'name' | 'invoiceBalance' = 'invoiceBalance';
+  sortDirection: 'asc' | 'desc' = 'desc';
+  riskFilter: 'all' | 'low' | 'medium' | 'high' = 'all';
+  page = 1;
+  pageSize = 10;
+  maxBalance = 0;
 
   constructor(
     private financeService: FinanceService,
@@ -49,7 +58,9 @@ export class OutstandingBalanceComponent implements OnInit {
     this.financeService.getOutstandingBalances().subscribe({
       next: (data: any) => {
         this.outstandingBalances = data;
-        this.filteredBalances = data;
+        this.maxBalance = this.getMaxOutstanding(this.outstandingBalances);
+        this.page = 1;
+        this.filterBalances();
         this.loading = false;
       },
       error: (error: any) => {
@@ -57,32 +68,133 @@ export class OutstandingBalanceComponent implements OnInit {
         this.loading = false;
         this.outstandingBalances = [];
         this.filteredBalances = [];
+        this.pagedBalances = [];
       }
     });
   }
 
   filterBalances(): void {
-    if (!this.searchQuery || this.searchQuery.trim() === '') {
-      this.filteredBalances = this.outstandingBalances;
-      return;
-    }
+    const query = this.searchQuery?.toLowerCase().trim() || '';
 
-    const query = this.searchQuery.toLowerCase().trim();
-    this.filteredBalances = this.outstandingBalances.filter(balance => {
-      return (
-        balance.studentNumber?.toLowerCase().includes(query) ||
-        balance.firstName?.toLowerCase().includes(query) ||
-        balance.lastName?.toLowerCase().includes(query) ||
-        balance.studentId?.toLowerCase().includes(query) ||
-        balance.phoneNumber?.toLowerCase().includes(query)
-      );
+    const baseFiltered = !query
+      ? this.outstandingBalances
+      : this.outstandingBalances.filter(balance => {
+          const studentNumber = String(balance.studentNumber || balance.studentId || '');
+          const firstName = String(balance.firstName || '');
+          const lastName = String(balance.lastName || '');
+          const phone = String(balance.phoneNumber || '');
+
+          return (
+            studentNumber.toLowerCase().includes(query) ||
+            firstName.toLowerCase().includes(query) ||
+            lastName.toLowerCase().includes(query) ||
+            phone.toLowerCase().includes(query)
+          );
+        });
+
+    const filteredByRisk = baseFiltered.filter(balance => {
+      if (this.riskFilter === 'all') return true;
+      const risk = this.getRiskCategory(this.getBalance(balance));
+      return risk.toLowerCase() === this.riskFilter;
     });
+
+    this.filteredBalances = filteredByRisk;
+    this.page = 1;
+    this.applySortingAndPagination();
+  }
+
+  applySortingAndPagination(): void {
+    const dir = this.sortDirection === 'asc' ? 1 : -1;
+
+    const sorted = [...this.filteredBalances].sort((a, b) => {
+      switch (this.sortBy) {
+        case 'studentNumber': {
+          const an = String(a.studentNumber || a.studentId || '').toLowerCase();
+          const bn = String(b.studentNumber || b.studentId || '').toLowerCase();
+          return an.localeCompare(bn) * dir;
+        }
+        case 'name': {
+          const al = String(a.lastName || '').toLowerCase();
+          const bl = String(b.lastName || '').toLowerCase();
+          const lastCmp = al.localeCompare(bl);
+          if (lastCmp !== 0) return lastCmp * dir;
+          const af = String(a.firstName || '').toLowerCase();
+          const bf = String(b.firstName || '').toLowerCase();
+          return af.localeCompare(bf) * dir;
+        }
+        case 'invoiceBalance':
+        default: {
+          const av = this.getBalance(a);
+          const bv = this.getBalance(b);
+          return (av - bv) * dir;
+        }
+      }
+    });
+
+    this.maxBalance = this.getMaxOutstanding(this.outstandingBalances);
+    const totalPages = this.getTotalPages(sorted.length);
+    this.page = Math.min(Math.max(1, this.page), totalPages);
+
+    const start = (this.page - 1) * this.pageSize;
+    this.pagedBalances = sorted.slice(start, start + this.pageSize);
   }
 
   getTotalOutstanding(): number {
     return this.filteredBalances.reduce((sum, balance) => {
       return sum + parseFloat(String(balance.invoiceBalance || 0));
     }, 0);
+  }
+
+  getAverageOutstanding(): number {
+    if (this.filteredBalances.length === 0) return 0;
+    return this.getTotalOutstanding() / this.filteredBalances.length;
+  }
+
+  getHighestOutstanding(): number {
+    if (this.filteredBalances.length === 0) return 0;
+    return Math.max(
+      ...this.filteredBalances.map(b => this.getBalance(b))
+    );
+  }
+
+  getMaxOutstanding(balances: any[]): number {
+    if (!balances || balances.length === 0) return 0;
+    return Math.max(...balances.map(b => this.getBalance(b)));
+  }
+
+  getBalance(balance: any): number {
+    return parseFloat(String(balance?.invoiceBalance ?? 0)) || 0;
+  }
+
+  // Risk is relative to the maximum outstanding on this page (for simple, explainable UI).
+  getRiskCategory(amount: number): 'High' | 'Medium' | 'Low' {
+    if (!this.maxBalance || this.maxBalance <= 0) return 'Low';
+    const ratio = amount / this.maxBalance;
+    if (ratio >= 0.66) return 'High';
+    if (ratio >= 0.34) return 'Medium';
+    return 'Low';
+  }
+
+  getRiskClass(amount: number): string {
+    const risk = this.getRiskCategory(amount).toLowerCase(); // high|medium|low
+    return `risk-${risk}`;
+  }
+
+  getTotalPages(sourceLength: number = this.filteredBalances.length): number {
+    return Math.max(1, Math.ceil(sourceLength / this.pageSize));
+  }
+
+  changePage(nextPage: number): void {
+    this.page = nextPage;
+    this.applySortingAndPagination();
+  }
+
+  onPageSizeChange(value: string | number): void {
+    const parsed = typeof value === 'string' ? parseInt(value, 10) : value;
+    if (!parsed || parsed === this.pageSize) return;
+    this.pageSize = parsed;
+    this.page = 1;
+    this.applySortingAndPagination();
   }
 
   formatCurrency(amount: number): string {

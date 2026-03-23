@@ -271,15 +271,18 @@ export const searchStudents = async (req: AuthRequest, res: Response) => {
 
     const studentRepository = AppDataSource.getRepository(Student);
     
-    // Search by student number or name
+    // Search by student number, first name, or last name (case-insensitive)
+    const term = `%${query.trim()}%`;
     const students = await studentRepository
       .createQueryBuilder('student')
-          .leftJoinAndSelect('student.classEntity', 'classEntity')
+      .leftJoinAndSelect('student.classEntity', 'classEntity')
       .where(
-        '(student.studentNumber LIKE :query OR student.firstName LIKE :query OR student.lastName LIKE :query OR CONCAT(student.firstName, \' \', student.lastName) LIKE :query)',
-        { query: `%${query}%` }
+        '(student.studentNumber ILIKE :term OR student.firstName ILIKE :term OR student.lastName ILIKE :term OR CONCAT(student.firstName, \' \', student.lastName) ILIKE :term)',
+        { term }
       )
-      .limit(20)
+      .orderBy('student.lastName', 'ASC')
+      .addOrderBy('student.firstName', 'ASC')
+      .limit(50)
       .getMany();
 
     res.json({ students });

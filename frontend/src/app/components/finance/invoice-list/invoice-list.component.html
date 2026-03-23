@@ -19,6 +19,90 @@
   
   <div class="alert alert-success" *ngIf="success">{{ success }}</div>
   <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+
+  <!-- Invoice Management Quick Actions (uploaded UI) -->
+  <div class="management-quick-card" *ngIf="canManageFinance()">
+    <!-- Top buttons -->
+    <div class="management-buttons-row">
+      <button type="button" class="mg-action-btn mg-credit" (click)="onCreditNote()">
+        <span class="mg-btn-icon">➕</span> Credit Note
+      </button>
+      <button type="button" class="mg-action-btn mg-debit" (click)="onDebitNote()">
+        <span class="mg-btn-icon">➖</span> Debit Note
+      </button>
+      <button type="button" class="mg-action-btn mg-uniform" (click)="onUniformItems()">
+        <span class="mg-btn-icon">🧥</span> Uniform Items
+      </button>
+      <button type="button" class="mg-action-btn mg-bulk" (click)="onBulkCreate()">
+        <span class="mg-btn-icon">📦</span> Bulk Create
+      </button>
+      <button type="button" class="mg-action-btn mg-reverse" (click)="onReverseBulk()">
+        <span class="mg-btn-icon">↩️</span> Reverse Bulk
+      </button>
+    </div>
+
+    <!-- Auto + Date range -->
+    <div class="management-form">
+      <div class="mg-form-row">
+        <label class="mg-label">Auto (following term)</label>
+        <select class="mg-select" [(ngModel)]="managementAutoFollowingTerm">
+          <option>Auto (following term)</option>
+        </select>
+      </div>
+
+      <div class="mg-date-range">
+        <div class="mg-date-field">
+          <label class="mg-label">From date</label>
+          <div class="mg-date-input-wrap">
+            <input type="date" class="mg-date-input" [(ngModel)]="managementFromDate" />
+            <span class="mg-date-icon">📅</span>
+          </div>
+        </div>
+
+        <div class="mg-date-field">
+          <label class="mg-label">To date</label>
+          <div class="mg-date-input-wrap">
+            <input type="date" class="mg-date-input" [(ngModel)]="managementToDate" />
+            <span class="mg-date-icon">📅</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom buttons -->
+    <div class="management-buttons-bottom">
+      <button type="button" class="mg-action-btn mg-exemption" (click)="onTuitionExemption()">
+        <span class="mg-btn-icon">💡</span> Tuition Exemption
+      </button>
+      <button type="button" class="mg-action-btn mg-prepaid" (click)="onCorrectPrepaid()">
+        <span class="mg-btn-icon">🧾</span> Correct Prepaid
+      </button>
+      <button type="button" class="mg-action-btn mg-audit" (click)="onReconciliationAudit()">
+        <span class="mg-btn-icon">🔎</span> Reconciliation Audit
+      </button>
+    </div>
+  </div>
+
+  <!-- Management Modal -->
+  <div *ngIf="showManagementModal" class="modal-overlay" (click)="closeManagementModal()">
+    <div class="management-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-header-content">
+          <h2>{{ managementModalTitle }}</h2>
+        </div>
+        <button class="modal-close-btn" (click)="closeManagementModal()" title="Close">
+          <span>&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" *ngIf="managementModalMode === 'message'">
+        <p style="margin: 0; white-space: pre-wrap;">{{ managementModalMessage }}</p>
+      </div>
+
+      <div class="modal-footer" *ngIf="managementModalMode === 'message'">
+        <button class="btn btn-primary" type="button" (click)="closeManagementModal()">OK</button>
+      </div>
+    </div>
+  </div>
   
   <!-- Statistics Cards -->
   <div class="stats-grid" *ngIf="!loading && pagination.total > 0">

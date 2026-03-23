@@ -2,6 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { AuthService } from './services/auth.service';
 import { SettingsService } from './services/settings.service';
 import { ModuleAccessService } from './services/module-access.service';
+import { Router, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
+import { UserActivityService } from './services/user-activity.service';
 
 @Component({
   selector: 'app-root',
@@ -13,11 +16,15 @@ export class AppComponent implements OnInit {
   mobileMenuOpen = false;
   sidebarCollapsed = false;
   expandedMenus: { [key: string]: boolean } = {};
+  private lastMenuAccessLogged = '';
+  private lastMenuAccessLoggedAt = 0;
 
   constructor(
     public authService: AuthService, 
     private settingsService: SettingsService,
-    public moduleAccessService: ModuleAccessService
+    public moduleAccessService: ModuleAccessService,
+    private router: Router,
+    private userActivityService: UserActivityService
   ) { }
 
   ngOnInit(): void {
@@ -35,6 +42,37 @@ export class AppComponent implements OnInit {
       // Load module access settings
       this.moduleAccessService.loadModuleAccess();
     }
+
+    // Track menu access (used by Activity Log)
+    this.router.events
+      .pipe(filter((event: any) => event instanceof NavigationEnd))
+      .subscribe((event: any) => {
+        if (!this.authService.isAuthenticated()) return;
+
+        const user = this.authService.getCurrentUser();
+        const role = user?.role;
+        const shouldLog =
+          role === 'admin' || role === 'superadmin' || role === 'accountant';
+
+        if (!shouldLog) return;
+
+        const url: string = event.urlAfterRedirects || event.url || '';
+        const cleanUrl = url.split('?')[0];
+
+        const now = Date.now();
+        if (cleanUrl === this.lastMenuAccessLogged && now - this.lastMenuAccessLoggedAt < 3000) {
+          return;
+        }
+
+        this.lastMenuAccessLogged = cleanUrl;
+        this.lastMenuAccessLoggedAt = now;
+
+        // Fire-and-forget: activity log should never block navigation.
+        this.userActivityService.logMenuAccess(cleanUrl).subscribe({
+          next: () => {},
+          error: () => {}
+        });
+      });
   }
 
   isAuthenticated(): boolean {
@@ -68,6 +106,15 @@ export class AppComponent implements OnInit {
 
   canAccessModule(moduleName: string): boolean {
     return this.moduleAccessService.canAccessModule(moduleName);
+  }
+
+  /** Who may use Student Manager → Enroll Student / enrollment APIs */
+  canEnrollStudents(): boolean {
+    return (
+      this.isTeacher() ||
+      this.isAdmin() ||
+      this.authService.hasRole('accountant')
+    );
   }
 
   toggleMobileMenu(): void {

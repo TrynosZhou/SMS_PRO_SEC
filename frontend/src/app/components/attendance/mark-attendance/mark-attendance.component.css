@@ -209,6 +209,17 @@ label {
   font-style: italic;
 }
 
+.weekend-warning {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff1f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 /* Statistics Cards */
 .stats-grid {
   display: grid;
@@ -577,6 +588,15 @@ tbody tr.row-highlight {
   white-space: nowrap;
 }
 
+.status-btn:disabled,
+.bulk-btn:disabled,
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .status-btn.present {
   border-color: #d1fae5;
   color: #059669;
@@ -634,6 +654,12 @@ tbody tr.row-highlight {
   outline: none;
   border-color: #4f46e5;
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.remarks-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f3f4f6;
 }
 
 /* Empty States */

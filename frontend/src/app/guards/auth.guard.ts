@@ -16,7 +16,7 @@ export class AuthGuard implements CanActivate {
 
     const user = this.authService.getCurrentUser();
     if (user?.role === 'accountant') {
-      const allowedPrefixes = ['/dashboard', '/students', '/invoices'];
+      const allowedPrefixes = ['/dashboard', '/students', '/invoices', '/user_log', '/audit_log', '/settings', '/payroll'];
       const isAllowed = allowedPrefixes.some(prefix => state.url.startsWith(prefix));
       if (!isAllowed) {
         this.router.navigate(['/invoices']);

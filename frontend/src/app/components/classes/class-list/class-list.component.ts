@@ -205,9 +205,10 @@ export class ClassListComponent implements OnInit {
         this.loadClasses();
       },
       error: (err: any) => {
-        console.error('Error deleting class:', err);
-        console.error('Error status:', err.status);
-        console.error('Error response:', err.error);
+        // 400 = expected validation (class still in use); avoid noisy error logs in the console
+        if (err.status !== 400) {
+          console.error('Error deleting class:', err);
+        }
         
         // Handle different error response formats
         let errorMessage = 'Failed to delete class';
@@ -216,25 +217,20 @@ export class ClassListComponent implements OnInit {
           // Connection error (backend not running)
           errorMessage = 'Cannot connect to server. Please ensure the backend server is running on port 3001.';
         } else if (err.status === 400) {
-          // Bad Request - usually means class has associated records
-          if (err.error) {
-            if (typeof err.error === 'string') {
-              errorMessage = err.error;
-            } else if (err.error.message) {
-              errorMessage = err.error.message;
-            }
-            
-            // Add details if available
-            if (err.error.details) {
-              const details = err.error.details;
-              const detailParts: string[] = [];
-              if (details.students > 0) detailParts.push(`${details.students} student(s)`);
-              if (details.teachers > 0) detailParts.push(`${details.teachers} teacher(s)`);
-              if (details.exams > 0) detailParts.push(`${details.exams} exam(s)`);
-              
-              if (detailParts.length > 0) {
-                errorMessage = `Cannot delete class "${className}". This class has: ${detailParts.join(', ')}. Please remove or reassign these associations first.`;
-              }
+          if (typeof err.error === 'string') {
+            errorMessage = err.error;
+          } else if (err.error?.message) {
+            errorMessage = err.error.message;
+          } else if (err.error?.details) {
+            const details = err.error.details;
+            const detailParts: string[] = [];
+            if (details.students > 0) detailParts.push(`${details.students} student(s)`);
+            if (details.teachers > 0) detailParts.push(`${details.teachers} teacher link(s)`);
+            if (details.exams > 0) detailParts.push(`${details.exams} exam(s)`);
+            if (details.enrollments > 0) detailParts.push(`${details.enrollments} enrollment record(s)`);
+            if (details.recordBooks > 0) detailParts.push(`${details.recordBooks} record book row(s)`);
+            if (detailParts.length > 0) {
+              errorMessage = `Cannot delete class "${className}". This class still has: ${detailParts.join(', ')}. Remove or reassign these first, then try again.`;
             }
           }
         } else if (err.error) {
@@ -249,11 +245,15 @@ export class ClassListComponent implements OnInit {
         
         this.error = errorMessage;
         this.loading = false;
+
+        setTimeout(() => {
+          document.querySelector('.classes-container .alert-error')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 0);
         
-        // Clear error message after 8 seconds
+        // Clear error message after 12 seconds (longer when message explains multiple blockers)
         setTimeout(() => {
           this.error = '';
-        }, 8000);
+        }, 12000);
       }
     });
   }

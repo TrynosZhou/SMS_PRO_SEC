@@ -30,7 +30,7 @@ export function createReceiptPDF(
       doc.on('error', reject);
 
       const { invoice, student, settings, paymentAmount, paymentDate, paymentMethod, notes, receiptNumber, isPrepayment } = data;
-      const currencySymbol = settings?.currencySymbol || 'KES';
+      const currencySymbol = settings?.currencySymbol || '$';
 
       // School Header
       const schoolName = settings?.schoolName || 'School Management System';
