@@ -548,7 +548,11 @@ export const register = async (req: Request, res: Response) => {
     }
 
     const normalizedRole = role ? String(role).trim().toLowerCase() : null;
-    const requestedRole = normalizedRole === 'administrator'
+    const requestedRole = (
+      normalizedRole === 'administrator' ||
+      normalizedRole === 'school administrator' ||
+      normalizedRole === 'school_admin'
+    )
       ? UserRole.ADMIN
       : (normalizedRole as UserRole | null);
 

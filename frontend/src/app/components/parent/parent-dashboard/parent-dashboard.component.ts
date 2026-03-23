@@ -151,6 +151,10 @@ export class ParentDashboardComponent implements OnInit {
     return this.students.length;
   }
 
+  getPendingFeesCount(): number {
+    return this.getStudentsWithDueBalance();
+  }
+
   getOutstandingBalance(): number {
     return this.students.reduce((sum, student) => {
       const balance = Number(student.currentInvoiceBalance || 0);
@@ -167,6 +171,30 @@ export class ParentDashboardComponent implements OnInit {
 
   getStudentsWithClearTermBalance(): number {
     return this.students.filter((student) => Number(student.termBalance || 0) === 0).length;
+  }
+
+  getStudentsWithDueBalance(): number {
+    return this.students.filter((student) => Number(student.currentInvoiceBalance || 0) > 0).length;
+  }
+
+  getStudentsInCreditCount(): number {
+    return this.students.filter((student) => Number(student.currentInvoiceBalance || 0) < 0).length;
+  }
+
+  getStudentsSettledCount(): number {
+    return this.students.filter((student) => Number(student.currentInvoiceBalance || 0) === 0).length;
+  }
+
+  getStudentsWithRestrictedReportCard(): number {
+    return this.students.filter((student) => Number(student.termBalance || 0) > 0).length;
+  }
+
+  getAverageOutstandingPerDueStudent(): number {
+    const dueStudents = this.students.filter((student) => Number(student.currentInvoiceBalance || 0) > 0);
+    if (dueStudents.length === 0) {
+      return 0;
+    }
+    return this.getOutstandingBalance() / dueStudents.length;
   }
 
   getPaymentReadinessPercent(): number {
@@ -189,11 +217,39 @@ export class ParentDashboardComponent implements OnInit {
     return 'Settled';
   }
 
+  getTermBalanceBadge(student: any): string {
+    return Number(student.termBalance || 0) > 0 ? 'Report Card Locked' : 'Report Card Ready';
+  }
+
+  getTermBalanceIsClear(student: any): boolean {
+    return Number(student.termBalance || 0) === 0;
+  }
+
+  formatCurrency(amount: number): string {
+    return `${this.currencySymbol} ${Number(amount || 0).toFixed(2)}`;
+  }
+
   getLastUpdatedText(): string {
     if (!this.lastUpdated) {
       return 'Not yet refreshed';
     }
     return this.lastUpdated.toLocaleString();
+  }
+
+  getWelcomeGreeting(): string {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  }
+
+  getTodayDisplayDate(): string {
+    return new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
   }
 
   onSearchTermChange(term: string) {
@@ -249,6 +305,14 @@ export class ParentDashboardComponent implements OnInit {
     if (firstStudent) {
       this.viewReportCard(firstStudent);
     }
+  }
+
+  openInbox() {
+    this.router.navigate(['/parent/inbox']);
+  }
+
+  openOutbox() {
+    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'outbox' } });
   }
 
   makePayment() {

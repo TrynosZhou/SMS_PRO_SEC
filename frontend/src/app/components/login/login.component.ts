@@ -265,8 +265,9 @@ export class LoginComponent implements OnInit {
 
   onSignUp() {
     // Validation
+    const contactRequired = this.signupRole !== 'ADMIN';
     if (!this.signupRole || !this.signupUsername || !this.signupPassword || !this.signupConfirmPassword || 
-        !this.signupFirstName || !this.signupLastName || !this.signupContactNumber) {
+        !this.signupFirstName || !this.signupLastName || (contactRequired && !this.signupContactNumber)) {
       this.error = 'Please fill in all fields';
       return;
     }
@@ -347,8 +348,8 @@ export class LoginComponent implements OnInit {
       role: roleLower,
       firstName: this.signupFirstName.trim(),
       lastName: this.signupLastName.trim(),
-      phoneNumber: this.signupContactNumber.trim(),
-      contactNumber: this.signupContactNumber.trim()
+      phoneNumber: this.signupContactNumber.trim() || null,
+      contactNumber: this.signupContactNumber.trim() || null
     };
 
     if (this.signupRole === 'STUDENT') {
