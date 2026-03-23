@@ -549,23 +549,30 @@ export const register = async (req: Request, res: Response) => {
 
     const requestedRole = role ? (role.toLowerCase() as UserRole) : null;
 
-    // Public self-registration: only Student and Parent. Staff accounts are created by administrators.
-    if (requestedRole !== UserRole.STUDENT && requestedRole !== UserRole.PARENT) {
+    // Public self-registration: Student, Parent, and Administrator only.
+    if (
+      requestedRole !== UserRole.STUDENT &&
+      requestedRole !== UserRole.PARENT &&
+      requestedRole !== UserRole.ADMIN
+    ) {
       return res.status(400).json({
         message:
-          'Self-registration is only available for Student and Parent accounts. Administrator, Accountant, and Teacher accounts must be created from Manage Accounts.',
+          'Self-registration is only available for Student, Parent, and Administrator accounts. Accountant, Superadmin, and Teacher accounts must be created from Manage Accounts.',
       });
     }
 
     let userEmail: string | null = null;
-    if (requestedRole === UserRole.PARENT) {
+    if (requestedRole === UserRole.PARENT || requestedRole === UserRole.ADMIN) {
       if (!email || !String(email).trim()) {
-        return res.status(400).json({ message: 'Email is required for parent registration' });
+        return res.status(400).json({ message: 'Email is required for this registration type' });
       }
+      userEmail = String(email).trim();
+    }
+
+    if (requestedRole === UserRole.PARENT) {
       if (!gender || !String(gender).trim()) {
         return res.status(400).json({ message: 'Gender is required for parent registration' });
       }
-      userEmail = String(email).trim();
     } else if (requestedRole === UserRole.STUDENT) {
       userEmail = `${String(username).trim()}@student.local`;
     }

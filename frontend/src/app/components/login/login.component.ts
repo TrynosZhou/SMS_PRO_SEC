@@ -271,9 +271,9 @@ export class LoginComponent implements OnInit {
       return;
     }
 
-    if (this.signupRole === 'PARENT') {
+    if (this.signupRole === 'PARENT' || this.signupRole === 'ADMIN') {
       if (!this.signupEmail) {
-        this.error = 'Please provide an email address for parent accounts';
+        this.error = 'Please provide an email address';
         return;
       }
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -281,6 +281,9 @@ export class LoginComponent implements OnInit {
         this.error = 'Please enter a valid email address';
         return;
       }
+    }
+
+    if (this.signupRole === 'PARENT') {
       if (!this.signupParentGender) {
         this.error = 'Please select gender';
         return;
@@ -308,8 +311,7 @@ export class LoginComponent implements OnInit {
       return;
     }
 
-    // Only Student and Parent may self-register; staff accounts are created in Manage Accounts
-    const validRoles = ['STUDENT', 'PARENT'];
+    const validRoles = ['STUDENT', 'PARENT', 'ADMIN'];
     if (!validRoles.includes(this.signupRole)) {
       this.error = 'Please select a valid role';
       return;
@@ -325,6 +327,9 @@ export class LoginComponent implements OnInit {
     let generatedEmail = '';
     switch (this.signupRole) {
       case 'PARENT':
+        generatedEmail = this.signupEmail.trim();
+        break;
+      case 'ADMIN':
         generatedEmail = this.signupEmail.trim();
         break;
       case 'STUDENT':
