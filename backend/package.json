@@ -4,7 +4,7 @@
   "type": "commonjs",
   "main": "dist/server.js",
   "scripts": {
-    "clean": "rimraf dist",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && npx tsc",
     "vercel-build": "npm run clean && npx tsc",
     "dev": "nodemon src/server.ts",
