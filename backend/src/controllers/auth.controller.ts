@@ -547,7 +547,10 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Username is required' });
     }
 
-    const requestedRole = role ? (role.toLowerCase() as UserRole) : null;
+    const normalizedRole = role ? String(role).trim().toLowerCase() : null;
+    const requestedRole = normalizedRole === 'administrator'
+      ? UserRole.ADMIN
+      : (normalizedRole as UserRole | null);
 
     // Public self-registration: Student, Parent, and Administrator only.
     if (
