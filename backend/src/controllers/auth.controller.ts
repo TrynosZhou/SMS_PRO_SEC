@@ -551,7 +551,8 @@ export const register = async (req: Request, res: Response) => {
     const requestedRole = (
       normalizedRole === 'administrator' ||
       normalizedRole === 'school administrator' ||
-      normalizedRole === 'school_admin'
+      normalizedRole === 'school_admin' ||
+      !!normalizedRole?.includes('admin')
     )
       ? UserRole.ADMIN
       : (normalizedRole as UserRole | null);

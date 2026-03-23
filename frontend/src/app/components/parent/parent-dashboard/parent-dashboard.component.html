@@ -1,183 +1,127 @@
-<div class="parent-dashboard-container">
-  <button class="mobile-menu-toggle" (click)="toggleMobileMenu()" *ngIf="isMobile">☰</button>
+<div class="parent-dashboard-page">
+  <header class="pd-hero">
+    <div class="pd-hero-copy">
+      <p class="pd-kicker">Parent Dashboard</p>
+      <h1>{{ getWelcomeGreeting() }}, {{ parentName }}</h1>
+      <p class="pd-date">{{ getTodayDisplayDate() }}</p>
+    </div>
+    <div class="pd-hero-actions">
+      <button class="btn btn-light" (click)="manageAccount()">My Account</button>
+      <button class="btn btn-primary" (click)="linkMoreStudents()">Link Child (Student ID)</button>
+    </div>
+  </header>
 
-  <aside class="sidebar" [class.mobile-open]="mobileMenuOpen" (click)="closeMobileMenu()">
-    <div class="sidebar-header">
-      <h2>Parent Portal</h2>
-      <p class="user-info">{{ parentName }}</p>
+  <section class="pd-summary" *ngIf="!loading">
+    <article class="pd-stat">
+      <p>Linked Children</p>
+      <h3>{{ getTotalStudents() }}</h3>
+    </article>
+    <article class="pd-stat">
+      <p>Outstanding Total</p>
+      <h3>{{ formatCurrency(getOutstandingBalance()) }}</h3>
+    </article>
+    <article class="pd-stat">
+      <p>Ready Report Cards</p>
+      <h3>{{ getStudentsWithClearTermBalance() }}</h3>
+    </article>
+    <article class="pd-stat">
+      <p>Pending Balances</p>
+      <h3>{{ getPendingFeesCount() }}</h3>
+    </article>
+  </section>
+
+  <section class="pd-actions" *ngIf="!loading && students.length > 0">
+    <button class="action-tile" (click)="viewReportCardForFirstStudent()">
+      <span>Report Cards</span>
+      <small>View latest results</small>
+    </button>
+    <button class="action-tile" (click)="viewCurrentInvoice()">
+      <span>Invoice Statement</span>
+      <small>View and download invoice PDF</small>
+    </button>
+    <button class="action-tile" (click)="openInbox()">
+      <span>Inbox</span>
+      <small>School communication</small>
+    </button>
+    <button class="action-tile" (click)="openOutbox()">
+      <span>Outbox</span>
+      <small>Sent messages</small>
+    </button>
+  </section>
+
+  <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+  <div class="loading-message" *ngIf="loading">Loading dashboard...</div>
+
+  <section class="pd-children" *ngIf="!loading && students.length > 0">
+    <div class="pd-children-head">
+      <h2>Your Children</h2>
+      <div class="pd-tools">
+        <input
+          type="text"
+          class="search-input"
+          [ngModel]="searchTerm"
+          (ngModelChange)="onSearchTermChange($event)"
+          placeholder="Search by name, Student ID or class" />
+        <select
+          class="sort-select"
+          [ngModel]="sortBy"
+          (ngModelChange)="onSortByChange($event)">
+          <option value="name">Sort: Name</option>
+          <option value="balance-high">Sort: Highest Balance</option>
+          <option value="balance-low">Sort: Lowest Balance</option>
+        </select>
+        <button class="btn btn-outline" (click)="refreshDashboard()">Refresh</button>
+      </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <div class="menu-section">
-        <ul class="menu-list">
-          <li><a routerLink="/parent/dashboard" routerLinkActive="active" (click)="closeMobileMenu()"><span class="menu-icon">📊</span> Dashboard</a></li>
-          <li><a routerLink="/parent/inbox" routerLinkActive="active" (click)="closeMobileMenu()"><span class="menu-icon">📧</span> My Inbox</a></li>
-          <li><a (click)="openInbox(); closeMobileMenu()" style="cursor: pointer;"><span class="menu-icon">✉️</span> Send Message</a></li>
-          <li><a (click)="openOutbox(); closeMobileMenu()" style="cursor: pointer;"><span class="menu-icon">📤</span> Outbox</a></li>
-          <li><a (click)="viewCurrentInvoice(); closeMobileMenu()" style="cursor: pointer;"><span class="menu-icon">🧾</span> My Invoice Statement</a></li>
-          <li><a (click)="viewReportCardForFirstStudent(); closeMobileMenu()" style="cursor: pointer;"><span class="menu-icon">🎓</span> Student Portal</a></li>
-        </ul>
-      </div>
-
-      <div class="menu-section logout-section">
-        <ul class="menu-list">
-          <li><a (click)="logout()" class="logout-link"><span class="menu-icon">🚪</span> Logout</a></li>
-        </ul>
-      </div>
-    </nav>
-  </aside>
-
-  <main class="main-content">
-    <section class="hero-card">
-      <div>
-        <p class="hero-kicker">Welcome back</p>
-        <h1>{{ getWelcomeGreeting() }}, {{ parentName }}</h1>
-        <p class="hero-date">{{ getTodayDisplayDate() }}</p>
-      </div>
-      <div class="hero-actions">
-        <button class="btn btn-primary" (click)="linkMoreStudents()">➕ Link Students</button>
-        <button class="btn btn-outline" (click)="manageAccount()">👤 My Account</button>
-      </div>
-    </section>
-
-    <div class="metrics-grid" *ngIf="!loading">
-      <div class="metric-card">
-        <span class="metric-icon">👨‍👩‍👧</span>
-        <div>
-          <span class="metric-value">{{ getTotalStudents() }}</span>
-          <span class="metric-title">Linked students</span>
-        </div>
-      </div>
-      <div class="metric-card success">
-        <span class="metric-icon">💰</span>
-        <div>
-          <span class="metric-value">{{ formatCurrency(getOutstandingBalance()) }}</span>
-          <span class="metric-title">Total outstanding fees</span>
-        </div>
-      </div>
-      <div class="metric-card clear">
-        <span class="metric-icon">✅</span>
-        <div>
-          <span class="metric-value">{{ getStudentsWithClearTermBalance() }}</span>
-          <span class="metric-title">Students cleared</span>
-        </div>
-      </div>
-      <div class="metric-card warning">
-        <span class="metric-icon">⚠️</span>
-        <div>
-          <span class="metric-value">{{ getPendingFeesCount() }}</span>
-          <span class="metric-title">Pending fees</span>
-        </div>
-      </div>
-    </div>
-
-    <section class="quick-actions-section" *ngIf="!loading && students.length > 0">
-      <h3>⚡ Quick Actions</h3>
-      <div class="quick-actions-grid">
-        <button class="quick-action-btn" (click)="viewReportCardForFirstStudent()">
-          <span class="action-icon">📄</span>
-          <span class="action-label">Report Card</span>
-        </button>
-        <button class="quick-action-btn" (click)="viewCurrentInvoice()">
-          <span class="action-icon">👁️</span>
-          <span class="action-label">View Invoice</span>
-        </button>
-        <button class="quick-action-btn" (click)="viewCurrentInvoice()">
-          <span class="action-icon">⬇️</span>
-          <span class="action-label">Download Invoice</span>
-        </button>
-        <button class="quick-action-btn" (click)="openInbox()">
-          <span class="action-icon">✉️</span>
-          <span class="action-label">Send Message</span>
-        </button>
-      </div>
-    </section>
-
-    <div class="alert alert-error" *ngIf="error">{{ error }}</div>
-    <div class="loading-message" *ngIf="loading">Loading students...</div>
-
-    <section class="students-section" *ngIf="!loading && students.length > 0">
-      <div class="section-header">
-        <h2>🎓 Your Students</h2>
-        <button class="btn btn-outline" (click)="linkMoreStudents()">➕ Link More</button>
-      </div>
-
-      <div class="toolbar">
-        <div class="search-wrap">
-          <input
-            type="text"
-            class="search-input"
-            [ngModel]="searchTerm"
-            (ngModelChange)="onSearchTermChange($event)"
-            placeholder="Search by name, student number, or class" />
-        </div>
-        <div class="sort-wrap">
-          <label for="sortBy">Sort</label>
-          <select
-            id="sortBy"
-            class="sort-select"
-            [ngModel]="sortBy"
-            (ngModelChange)="onSortByChange($event)">
-            <option value="name">Name (A-Z)</option>
-            <option value="balance-high">Balance (High to Low)</option>
-            <option value="balance-low">Balance (Low to High)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="students-grid">
-        <article *ngFor="let student of filteredStudents" class="student-card">
-          <header class="student-header">
-            <div class="student-identity">
-              <div class="student-avatar">{{ (student.firstName || '?').charAt(0) }}{{ (student.lastName || '').charAt(0) }}</div>
-              <div>
-                <h3>{{ student.firstName }} {{ student.lastName }}</h3>
-                <span class="student-number">{{ student.studentNumber }}</span>
+    <div class="pd-table-wrap">
+      <table class="pd-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Student ID</th>
+            <th>Class</th>
+            <th>Current Balance</th>
+            <th>Report Card</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let student of filteredStudents">
+            <td>
+              <div class="student-name">
+                <span class="avatar">{{ (student.firstName || '?').charAt(0) }}{{ (student.lastName || '').charAt(0) }}</span>
+                <span>{{ student.firstName }} {{ student.lastName }}</span>
               </div>
-            </div>
-            <span class="student-badge" [class.badge-warning]="student.currentInvoiceBalance > 0" [class.badge-success]="student.currentInvoiceBalance <= 0" [class.badge-credit]="student.currentInvoiceBalance < 0">
-              {{ getStudentBadge(student) }}
-            </span>
-          </header>
-
-          <div class="student-info">
-            <div class="info-item"><span class="label">Class</span><span class="value">{{ student.class?.name || 'N/A' }}</span></div>
-            <div class="info-item"><span class="label">Student Type</span><span class="value">{{ student.studentType || 'Day Scholar' }}</span></div>
-          </div>
-
-          <div class="dual-balance">
-            <div class="mini-balance">
-              <div class="mini-label">Tuition Balance</div>
-              <div class="mini-value" [class.positive]="student.currentInvoiceBalance > 0" [class.negative]="student.currentInvoiceBalance <= 0">
-                {{ formatCurrency(student.currentInvoiceBalance || 0) }}
+            </td>
+            <td>{{ student.studentNumber }}</td>
+            <td>{{ student.class?.name || 'Not Assigned' }}</td>
+            <td [class.balance-due]="(student.currentInvoiceBalance || 0) > 0" [class.balance-clear]="(student.currentInvoiceBalance || 0) <= 0">
+              {{ formatCurrency(student.currentInvoiceBalance || 0) }}
+            </td>
+            <td>
+              <span class="pill ready" *ngIf="(student.termBalance || 0) === 0">Ready</span>
+              <span class="pill locked" *ngIf="(student.termBalance || 0) > 0">Locked</span>
+            </td>
+            <td>
+              <div class="table-actions">
+                <button class="btn btn-primary" (click)="viewReportCard(student)" [disabled]="(student.termBalance || 0) > 0">Report Card</button>
+                <button class="btn btn-danger-soft" (click)="unlinkStudent(student.id)">Unlink</button>
               </div>
-            </div>
-            <div class="mini-balance">
-              <div class="mini-label">Uniform Balance</div>
-              <div class="mini-value neutral">{{ formatCurrency(0) }}</div>
-              <small>Billed separately from tuition</small>
-            </div>
-          </div>
-
-          <div class="status-pill" [class.ready]="(student.termBalance || 0) === 0" [class.locked]="(student.termBalance || 0) > 0">
-            <span *ngIf="(student.termBalance || 0) === 0">✅ Report card accessible — tuition balance cleared</span>
-            <span *ngIf="(student.termBalance || 0) > 0">⚠️ Report card restricted — outstanding term balance</span>
-          </div>
-
-          <div class="student-actions">
-            <button class="btn btn-primary" (click)="viewReportCard(student)" [disabled]="(student.termBalance || 0) > 0">📄 Report Card</button>
-            <button class="btn btn-danger-soft" (click)="unlinkStudent(student.id)">🔗 Unlink</button>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <div *ngIf="!loading && students.length === 0" class="empty-state">
-      <div class="empty-state-content">
-        <h2>No Linked Students</h2>
-        <p>You have not linked any students yet. Use the button below to link a student profile.</p>
-        <button class="btn btn-primary" (click)="linkMoreStudents()">➕ Link Students</button>
-      </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-  </main>
+  </section>
+
+  <section class="empty-state" *ngIf="!loading && students.length === 0">
+    <h2>No linked children yet</h2>
+    <p>Use Student ID to link your child and start tracking reports and billing.</p>
+    <button class="btn btn-primary" (click)="linkMoreStudents()">Link Child by Student ID</button>
+  </section>
+
+  <footer class="pd-footer">
+    <button class="ghost-link" (click)="logout()">Logout</button>
+  </footer>
 </div>

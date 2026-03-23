@@ -23,10 +23,9 @@ export class ParentService {
     return this.http.post(`${this.apiUrl}/parent/link-student`, { studentId });
   }
 
-  linkStudentByIdAndDob(studentId: string, dateOfBirth: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/parent/link-student-by-id-dob`, { 
-      studentId, 
-      dateOfBirth 
+  linkStudentByIdAndDob(studentId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/parent/link-student-by-id-dob`, {
+      studentId
     });
   }
 

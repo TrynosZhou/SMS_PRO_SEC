@@ -126,9 +126,10 @@ export const linkStudent = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Parent profile not found' });
     }
 
-    const student = await studentRepository.findOne({ where: { id: studentId } });
+    const normalizedStudentId = String(studentId).trim();
+    const student = await studentRepository.findOne({ where: { studentNumber: normalizedStudentId } });
     if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
+      return res.status(404).json({ message: 'Student not found. Please check the Student ID.' });
     }
 
     // Check if student is already linked to this parent
@@ -186,18 +187,18 @@ export const unlinkStudent = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Link a student to parent by Student ID (studentNumber) and DOB
+// Link a student to parent by Student ID (studentNumber) only
 export const linkStudentByIdAndDob = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { studentId, dateOfBirth } = req.body;
+    const { studentId } = req.body;
 
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    if (!studentId || !dateOfBirth) {
-      return res.status(400).json({ message: 'Student ID and Date of Birth are required' });
+    if (!studentId) {
+      return res.status(400).json({ message: 'Student ID is required' });
     }
 
     const parentRepository = AppDataSource.getRepository(Parent);
@@ -209,25 +210,14 @@ export const linkStudentByIdAndDob = async (req: AuthRequest, res: Response) => 
     }
 
     // Find student by studentNumber (Student ID)
+    const normalizedStudentId = String(studentId).trim();
     const student = await studentRepository.findOne({
-      where: { studentNumber: studentId },
+      where: { studentNumber: normalizedStudentId },
       relations: ['classEntity']
     });
 
     if (!student) {
       return res.status(404).json({ message: 'Student not found. Please check the Student ID.' });
-    }
-
-    // Verify Date of Birth
-    const studentDob = new Date(student.dateOfBirth);
-    const providedDob = new Date(dateOfBirth);
-    
-    // Compare dates (ignoring time)
-    const studentDobDate = new Date(studentDob.getFullYear(), studentDob.getMonth(), studentDob.getDate());
-    const providedDobDate = new Date(providedDob.getFullYear(), providedDob.getMonth(), providedDob.getDate());
-
-    if (studentDobDate.getTime() !== providedDobDate.getTime()) {
-      return res.status(400).json({ message: 'Date of Birth does not match. Please verify the information.' });
     }
 
     // Check if student is already linked to this parent
