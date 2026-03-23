@@ -14,11 +14,14 @@ export class AuthInterceptor implements HttpInterceptor {
 
   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<any> {
     const token = this.authService.getToken();
+
+    // Normalize malformed production URLs (e.g. onrender....api) before request dispatch.
+    const normalizedUrl = this.normalizeApiUrl(req.url);
+    let authReq = normalizedUrl !== req.url ? req.clone({ url: normalizedUrl }) : req;
     
     // Clone the request and add the authorization header if token exists
-    let authReq = req;
     if (token) {
-      authReq = req.clone({
+      authReq = authReq.clone({
         setHeaders: {
           Authorization: `Bearer ${token}`
         }
@@ -30,9 +33,9 @@ export class AuthInterceptor implements HttpInterceptor {
         // Handle 401 errors
         if (error.status === 401) {
           // Skip auto-logout for auth endpoints (login, register, reset-password)
-          const isAuthEndpoint = req.url.includes('/auth/login') || 
-                                 req.url.includes('/auth/register') || 
-                                 req.url.includes('/auth/reset-password');
+          const isAuthEndpoint = authReq.url.includes('/auth/login') || 
+                                 authReq.url.includes('/auth/register') || 
+                                 authReq.url.includes('/auth/reset-password');
           
           if (!isAuthEndpoint && token) {
             // Token is invalid or expired - clear it and redirect to login
@@ -57,6 +60,25 @@ export class AuthInterceptor implements HttpInterceptor {
         return throwError(() => error);
       })
     );
+  }
+
+  private normalizeApiUrl(url: string): string {
+    if (!url || !url.includes('onrender')) {
+      return url;
+    }
+
+    let normalized = url.trim();
+
+    // Fix common malformed Render hosts:
+    // - sms-xxx.onrender....api -> sms-xxx.onrender.com/api
+    // - sms-xxx.onrender/api     -> sms-xxx.onrender.com/api
+    normalized = normalized.replace(/\.onrender\.\.\.\.+api/i, '.onrender.com/api');
+    normalized = normalized.replace(/\.onrender\.\.\.\.?api/i, '.onrender.com/api');
+    normalized = normalized.replace(/\.onrender\/api/i, '.onrender.com/api');
+    normalized = normalized.replace(/\.onrender(?=\/|$)/i, '.onrender.com');
+    normalized = normalized.replace(/^https:\//i, 'https://').replace(/^http:\//i, 'http://');
+
+    return normalized;
   }
 }
 
