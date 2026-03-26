@@ -1,8 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { ParentService } from '../../../services/parent.service';
 import { AuthService } from '../../../services/auth.service';
-import { ExamService } from '../../../services/exam.service';
+import { MessageService } from '../../../services/message.service';
 import { SettingsService } from '../../../services/settings.service';
 import { FinanceService } from '../../../services/finance.service';
 
@@ -17,38 +17,45 @@ export class ParentDashboardComponent implements OnInit {
   loading = false;
   error = '';
   currencySymbol = 'KES';
-  parentName = '';
   mobileMenuOpen = false;
   isMobile = false;
   searchTerm = '';
   sortBy: 'name' | 'balance-high' | 'balance-low' = 'name';
   lastUpdated: Date | null = null;
+  unreadCount = 0;
+  pendingUnlinkId: string | null = null;
+  pendingUnlinkName = '';
 
   constructor(
     private parentService: ParentService,
     private authService: AuthService,
-    private examService: ExamService,
+    private messageService: MessageService,
     private settingsService: SettingsService,
     private financeService: FinanceService,
     private router: Router
-  ) {
-    const user = this.authService.getCurrentUser();
-    if (user?.parent) {
-      this.parentName = `${user.parent.firstName || ''} ${user.parent.lastName || ''}`.trim() || 'Parent';
-    } else {
-      this.parentName = 'Parent';
-    }
-  }
+  ) {}
 
   ngOnInit() {
     this.loadSettings();
     this.loadStudents();
+    this.loadUnreadBadge();
     this.checkMobile();
-    window.addEventListener('resize', () => this.checkMobile());
+  }
+
+  @HostListener('window:resize')
+  onWindowResize() {
+    this.checkMobile();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(ev: KeyboardEvent) {
+    if (ev.key === 'Escape' && this.pendingUnlinkId) {
+      this.cancelUnlink();
+    }
   }
 
   checkMobile() {
-    this.isMobile = window.innerWidth <= 768;
+    this.isMobile = window.innerWidth <= 900;
     if (!this.isMobile) {
       this.mobileMenuOpen = false;
     }
@@ -100,38 +107,63 @@ export class ParentDashboardComponent implements OnInit {
   }
 
   viewReportCard(student: any) {
+    this.closeMobileMenu();
     // Check if term balance allows access (term balance must be zero)
     const termBalance = parseFloat(String(student.termBalance || 0));
-    
+
     if (termBalance > 0) {
       this.error = `Report card access is restricted. Please clear the outstanding term balance of ${this.currencySymbol} ${termBalance.toFixed(2)} to view the report card.`;
       setTimeout(() => this.error = '', 8000);
       return;
     }
 
-    // Navigate to report card page with student ID
     this.router.navigate(['/report-cards'], {
       queryParams: { studentId: student.id }
     });
   }
 
-  unlinkStudent(studentId: string) {
-    if (!confirm('Are you sure you want to unlink this student?')) {
+  requestUnlink(student: any) {
+    this.pendingUnlinkId = student.id;
+    this.pendingUnlinkName =
+      `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'this student';
+  }
+
+  cancelUnlink() {
+    this.pendingUnlinkId = null;
+    this.pendingUnlinkName = '';
+  }
+
+  confirmUnlink() {
+    if (!this.pendingUnlinkId) {
       return;
     }
-
-    this.parentService.unlinkStudent(studentId).subscribe({
+    const id = this.pendingUnlinkId;
+    this.cancelUnlink();
+    this.parentService.unlinkStudent(id).subscribe({
       next: () => {
         this.loadStudents();
       },
       error: (err: any) => {
         this.error = err.error?.message || 'Failed to unlink student';
-        setTimeout(() => this.error = '', 5000);
+        setTimeout(() => (this.error = ''), 5000);
+      }
+    });
+  }
+
+  loadUnreadBadge() {
+    this.messageService.getParentMessages().subscribe({
+      next: (res: any) => {
+        const msgs = res.messages || [];
+        this.unreadCount = msgs.filter((m: any) => !m.isRead).length;
+      },
+      error: () => {
+        this.unreadCount = 0;
       }
     });
   }
 
   linkMoreStudents() {
+    this.closeMobileMenu();
     this.router.navigate(['/parent/link-students']);
   }
 
@@ -140,6 +172,7 @@ export class ParentDashboardComponent implements OnInit {
   }
 
   manageAccount() {
+    this.closeMobileMenu();
     this.router.navigate(['/parent/manage-account']);
   }
 
@@ -243,6 +276,50 @@ export class ParentDashboardComponent implements OnInit {
     return 'Good Evening';
   }
 
+  getParentDisplayName(): string {
+    const user = this.authService.getCurrentUser();
+    const p = user?.parent;
+    if (!p) {
+      return 'Parent';
+    }
+    const name = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    return name || 'Parent';
+  }
+
+  getParentTitleGreeting(): string {
+    const greeting = this.getWelcomeGreeting();
+    const user = this.authService.getCurrentUser();
+    const parent = user?.parent;
+    if (!parent) {
+      return `${greeting}, Parent`;
+    }
+
+    const firstName = String(parent.firstName || '').trim();
+    const lastName = String(parent.lastName || '').trim();
+    const initial = firstName ? firstName.charAt(0).toUpperCase() : '';
+
+    const genderNorm = this.normalizeParentGender(parent.gender);
+    if (!genderNorm) {
+      const fallback = `${firstName} ${lastName}`.trim() || 'Parent';
+      return `${greeting}, ${fallback}`;
+    }
+
+    const title = genderNorm === 'male' ? 'Mr' : 'Mrs';
+    const namePart = lastName
+      ? (initial ? `${lastName} ${initial}` : lastName)
+      : (firstName || 'Parent');
+
+    return `${greeting} ${title} ${namePart}`.trim();
+  }
+
+  private normalizeParentGender(g: unknown): 'male' | 'female' | null {
+    if (g === null || g === undefined) return null;
+    const s = String(g).trim().toLowerCase();
+    if (s === 'male' || s === 'm') return 'male';
+    if (s === 'female' || s === 'f') return 'female';
+    return null;
+  }
+
   getTodayDisplayDate(): string {
     return new Date().toLocaleDateString('en-US', {
       weekday: 'long',
@@ -264,6 +341,7 @@ export class ParentDashboardComponent implements OnInit {
 
   refreshDashboard() {
     this.loadStudents();
+    this.loadUnreadBadge();
   }
 
   applyFilters() {
@@ -302,25 +380,48 @@ export class ParentDashboardComponent implements OnInit {
 
   viewReportCardForFirstStudent() {
     const firstStudent = this.filteredStudents.length > 0 ? this.filteredStudents[0] : this.getFirstStudent();
-    if (firstStudent) {
-      this.viewReportCard(firstStudent);
+    if (!firstStudent) {
+      this.closeMobileMenu();
+      return;
     }
+    this.viewReportCard(firstStudent);
   }
 
+  /** Opens the student dashboard (parent view for a linked child). */
+  openStudentPortal() {
+    this.closeMobileMenu();
+    const firstStudent = this.filteredStudents.length > 0 ? this.filteredStudents[0] : this.getFirstStudent();
+    if (!firstStudent) {
+      this.error = 'No linked students. Link a child first from Link Students.';
+      setTimeout(() => (this.error = ''), 6000);
+      return;
+    }
+    this.router.navigate(['/student/dashboard'], { queryParams: { studentId: firstStudent.id } });
+  }
+
+  /** Opens the school inbox (received messages). */
   openInbox() {
     this.router.navigate(['/parent/inbox']);
+    this.closeMobileMenu();
+  }
+
+  openCompose() {
+    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'compose' } });
+    this.closeMobileMenu();
   }
 
   openOutbox() {
     this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'outbox' } });
+    this.closeMobileMenu();
   }
 
   makePayment() {
-    // Navigate to payment page or open payment modal
+    this.closeMobileMenu();
     this.router.navigate(['/parent/payment']);
   }
 
   viewCurrentInvoice() {
+    this.closeMobileMenu();
     if (this.students.length === 0) {
       this.error = 'No linked students found. Please link a student first.';
       setTimeout(() => this.error = '', 5000);

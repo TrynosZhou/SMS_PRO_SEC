@@ -2,24 +2,31 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  padding: 24px;
+  /* +30% vs previous 100vh */
+  min-height: 130vh;
+  /* +30% vs previous 24px */
+  padding: 31px;
   background: #ffffff;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .splash-wrapper {
   width: 100%;
-  max-width: 560px;
+  /* +30% vs previous 560px */
+  max-width: 728px;
+  /* Shift splash content 2 layout units higher (2 × 8px grid) */
+  transform: translateY(-16px);
 }
 
 .splash-image-frame {
   position: relative;
   width: 100%;
-  border: 2px solid #ececec;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+  /* +30% vs previous 2px / 22px / shadow */
+  border: 3px solid #ececec;
+  box-shadow: 0 23px 52px rgba(15, 23, 42, 0.16);
   background: #fff;
-  border-radius: 22px;
+  border-radius: 29px;
   overflow: hidden;
 }
 

@@ -547,25 +547,29 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Username is required' });
     }
 
-    const normalizedRole = role ? String(role).trim().toLowerCase() : null;
-    const requestedRole = (
-      normalizedRole === 'administrator' ||
-      normalizedRole === 'school administrator' ||
-      normalizedRole === 'school_admin' ||
-      !!normalizedRole?.includes('admin')
-    )
-      ? UserRole.ADMIN
-      : (normalizedRole as UserRole | null);
+    /** Public signup page only — explicit strings (no substring matching). */
+    const normalizePublicSelfRegistrationRole = (raw: unknown): UserRole | null => {
+      if (raw === undefined || raw === null) return null;
+      const n = String(raw).trim().toLowerCase();
+      if (n === 'student') return UserRole.STUDENT;
+      if (n === 'parent') return UserRole.PARENT;
+      if (
+        n === 'admin' ||
+        n === 'administrator' ||
+        n === 'school_admin' ||
+        n === 'school administrator'
+      ) {
+        return UserRole.ADMIN;
+      }
+      return null;
+    };
 
-    // Public self-registration: Student, Parent, and Administrator only.
-    if (
-      requestedRole !== UserRole.STUDENT &&
-      requestedRole !== UserRole.PARENT &&
-      requestedRole !== UserRole.ADMIN
-    ) {
+    const requestedRole = normalizePublicSelfRegistrationRole(role);
+
+    if (!requestedRole) {
       return res.status(400).json({
         message:
-          'Self-registration is only available for Student, Parent, and Administrator accounts. Accountant, Superadmin, and Teacher accounts must be created from Manage Accounts.',
+          'Invalid role for self-registration. Only Student, Parent, or Administrator can sign up here. Other roles are created by the Administrator under User Management.',
       });
     }
 

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { ParentService } from '../../../services/parent.service';
 import { AuthService } from '../../../services/auth.service';
@@ -16,18 +16,45 @@ export class LinkStudentsComponent implements OnInit {
   error = '';
   success = '';
 
+  parentName = '';
+  pendingUnlinkId: string | null = null;
+  pendingUnlinkName = '';
+
   constructor(
     private parentService: ParentService,
     private authService: AuthService,
     private router: Router
-  ) { }
+  ) {
+    const user = this.authService.getCurrentUser();
+    if (user?.parent) {
+      this.parentName = `${user.parent.firstName || ''} ${user.parent.lastName || ''}`.trim() || 'Parent';
+    } else {
+      this.parentName = 'Parent';
+    }
+  }
 
   ngOnInit() {
     this.loadLinkedStudents();
   }
 
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.pendingUnlinkId) {
+      this.cancelUnlink();
+    }
+  }
+
+  get linkedCount(): number {
+    return this.linkedStudents.length;
+  }
+
+  get canSubmitLink(): boolean {
+    return !!this.studentId?.trim() && !this.linking;
+  }
+
   loadLinkedStudents() {
     this.loading = true;
+    this.error = '';
     this.parentService.getLinkedStudents().subscribe({
       next: (response: any) => {
         this.linkedStudents = response.students || [];
@@ -35,63 +62,94 @@ export class LinkStudentsComponent implements OnInit {
       },
       error: (err: any) => {
         this.loading = false;
-        this.error = err.error?.message || 'Failed to load linked students';
-        setTimeout(() => this.error = '', 5000);
+        if (err.status === 401) {
+          this.error = 'Please log in again.';
+          setTimeout(() => this.authService.logout(), 2000);
+        } else {
+          this.error = err.error?.message || 'Failed to load linked students';
+        }
+        setTimeout(() => (this.error = ''), 6000);
       }
     });
   }
 
   linkStudent() {
-    // Reset messages
     this.error = '';
     this.success = '';
 
-    // Validate inputs
-    if (!this.studentId || !this.studentId.trim()) {
+    const id = this.studentId?.trim();
+    if (!id) {
       this.error = 'Please enter a Student ID';
-      setTimeout(() => this.error = '', 5000);
+      setTimeout(() => (this.error = ''), 5000);
       return;
     }
 
     this.linking = true;
 
-    this.parentService.linkStudentByIdAndDob(this.studentId.trim()).subscribe({
+    this.parentService.linkStudentByIdAndDob(id).subscribe({
       next: (response: any) => {
         this.linking = false;
-        this.success = `Successfully linked ${response.student?.firstName || ''} ${response.student?.lastName || ''}`;
-        // Clear form
+        const name = `${response.student?.firstName || ''} ${response.student?.lastName || ''}`.trim();
+        this.success = name ? `Linked successfully — ${name}` : 'Student linked successfully.';
         this.studentId = '';
-        // Reload linked students
         this.loadLinkedStudents();
-        setTimeout(() => this.success = '', 5000);
+        setTimeout(() => (this.success = ''), 6000);
       },
       error: (err: any) => {
         this.linking = false;
-        this.error = err.error?.message || 'Failed to link student. Please verify the Student ID and Date of Birth.';
-        setTimeout(() => this.error = '', 5000);
+        this.error =
+          err.error?.message ||
+          'Could not link this student. Check the Student ID and that the date of birth on file matches.';
+        setTimeout(() => (this.error = ''), 8000);
       }
     });
   }
 
-  unlinkStudent(studentId: string) {
-    if (!confirm('Are you sure you want to unlink this student?')) {
+  requestUnlink(student: any) {
+    this.pendingUnlinkId = student.id;
+    this.pendingUnlinkName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'this student';
+  }
+
+  cancelUnlink() {
+    this.pendingUnlinkId = null;
+    this.pendingUnlinkName = '';
+  }
+
+  confirmUnlink() {
+    if (!this.pendingUnlinkId) {
       return;
     }
+    const id = this.pendingUnlinkId;
+    this.cancelUnlink();
 
-    this.parentService.unlinkStudent(studentId).subscribe({
+    this.parentService.unlinkStudent(id).subscribe({
       next: () => {
-        this.success = 'Student unlinked successfully';
+        this.success = 'Student unlinked successfully.';
         this.loadLinkedStudents();
-        setTimeout(() => this.success = '', 5000);
+        setTimeout(() => (this.success = ''), 5000);
       },
       error: (err: any) => {
         this.error = err.error?.message || 'Failed to unlink student';
-        setTimeout(() => this.error = '', 5000);
+        setTimeout(() => (this.error = ''), 6000);
       }
     });
+  }
+
+  initials(student: any): string {
+    const a = (student?.firstName || '?').charAt(0);
+    const b = (student?.lastName || '').charAt(0);
+    return (a + b).toUpperCase();
+  }
+
+  refresh() {
+    this.loadLinkedStudents();
   }
 
   goToDashboard() {
     this.router.navigate(['/parent/dashboard']);
+  }
+
+  logout() {
+    this.authService.logout();
   }
 }

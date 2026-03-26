@@ -9,7 +9,18 @@ import { AuthRequest } from '../middleware/auth';
 export const updateAccount = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { newUsername, newEmail, currentPassword, newPassword } = req.body;
+    const raw = req.body || {};
+    const newUsername =
+      raw.newUsername !== undefined && raw.newUsername !== null
+        ? String(raw.newUsername).trim()
+        : undefined;
+    const newEmailRaw = raw.newEmail;
+    const newEmail =
+      newEmailRaw !== undefined && newEmailRaw !== null
+        ? String(newEmailRaw).trim()
+        : undefined;
+    const currentPassword = raw.currentPassword != null ? String(raw.currentPassword) : '';
+    const newPassword = raw.newPassword != null ? String(raw.newPassword) : '';
 
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -63,9 +74,13 @@ export const updateAccount = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    const normalizedNewEmail =
+      newEmail && newEmail.length > 0 ? newEmail.toLowerCase() : undefined;
+    const currentEmailNorm = user.email ? user.email.toLowerCase() : null;
+
     // Check if new email already exists (if provided and different from current)
-    if (newEmail && newEmail !== user.email) {
-      const existingUser = await userRepository.findOne({ where: { email: newEmail } });
+    if (normalizedNewEmail && normalizedNewEmail !== currentEmailNorm) {
+      const existingUser = await userRepository.findOne({ where: { email: normalizedNewEmail } });
       if (existingUser) {
         return res.status(400).json({ message: 'Email already exists' });
       }
@@ -76,9 +91,9 @@ export const updateAccount = async (req: AuthRequest, res: Response) => {
       user.username = newUsername;
     }
 
-    // Update email if provided
-    if (newEmail) {
-      user.email = newEmail;
+    // Update email only when a non-empty value is provided (avoid clearing email by mistake)
+    if (normalizedNewEmail) {
+      user.email = normalizedNewEmail;
     }
 
     // Update password

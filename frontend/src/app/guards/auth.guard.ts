@@ -10,7 +10,8 @@ export class AuthGuard implements CanActivate {
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
     if (!this.authService.isAuthenticated()) {
-      this.router.navigate(['/login']);
+      // Send unauthenticated users through the splash screen first.
+      this.router.navigate(['/']);
       return false;
     }
 

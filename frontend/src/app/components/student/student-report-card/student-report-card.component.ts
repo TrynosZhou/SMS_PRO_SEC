@@ -13,6 +13,8 @@ export class StudentReportCardComponent implements OnInit {
   reportCard: any = null;
   loading = false;
   error = '';
+  /** Set when API returns 403 due to outstanding term invoice balance */
+  accessLocked = false;
   studentName = '';
   studentNumber = '';
   activeTerm = '';
@@ -90,7 +92,8 @@ export class StudentReportCardComponent implements OnInit {
 
     this.loading = true;
     this.error = '';
-    
+    this.accessLocked = false;
+
     console.log('[StudentReportCard] Loading report card for student:', user.student?.studentNumber || user.id);
     
     this.studentService.getStudentReportCard().subscribe({
@@ -175,8 +178,17 @@ export class StudentReportCardComponent implements OnInit {
       error: (err: any) => {
         console.error('[StudentReportCard] Error loading report card:', err);
         this.loading = false;
-        
-        if (err.status === 401 || err.status === 403) {
+
+        // Term balance lock: do not log the user out
+        if (err.status === 403) {
+          this.accessLocked = true;
+          this.error =
+            err.error?.message ||
+            'Report card is locked until the current term invoice balance is cleared.';
+          return;
+        }
+
+        if (err.status === 401) {
           this.error = err.error?.message || 'Authentication required. Please log in again.';
           setTimeout(() => {
             this.authService.logout();

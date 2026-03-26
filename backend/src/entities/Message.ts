@@ -38,5 +38,9 @@ export class Message {
 
   @Column({ default: false })
   isRead: boolean;
+
+  /** True when this row is a message sent by the parent to the school (admin). */
+  @Column({ default: false })
+  isFromParent: boolean;
 }
 

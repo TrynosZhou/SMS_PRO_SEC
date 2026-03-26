@@ -6,6 +6,7 @@ import { Student } from '../entities/Student';
 import { Invoice } from '../entities/Invoice';
 import { Settings } from '../entities/Settings';
 import { parseAmount } from '../utils/numberUtils';
+import { getTermBalanceForStudent } from '../utils/termBalance';
 
 // Get parent's linked students
 export const getParentStudents = async (req: AuthRequest, res: Response) => {
@@ -28,18 +29,16 @@ export const getParentStudents = async (req: AuthRequest, res: Response) => {
     const invoiceRepository = AppDataSource.getRepository(Invoice);
     const studentsWithBalances = await Promise.all(
       (parent.students || []).map(async (student) => {
-        // Get the latest invoice for the student
+        // Latest invoice: term balance = invoice.balance only (current term); excludes next-term tuition projections
         const latestInvoice = await invoiceRepository.findOne({
           where: { studentId: student.id },
           order: { createdAt: 'DESC' }
         });
 
-        // Calculate term balance and current invoice balance
-        let termBalance = 0;
+        const termBalance = await getTermBalanceForStudent(student.id);
         let currentBalance = 0;
-        
+
         if (latestInvoice) {
-          termBalance = parseFloat(String(latestInvoice.balance || 0));
           
           // Get settings to determine next term fees
           const settingsRepository = AppDataSource.getRepository(Settings);

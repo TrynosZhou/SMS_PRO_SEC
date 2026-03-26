@@ -19,6 +19,7 @@ import { parseAmount } from '../utils/numberUtils';
 import { calculateAge } from '../utils/ageUtils';
 import { In } from 'typeorm';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
+import { getTermBalanceForStudent } from '../utils/termBalance';
 import { createClassListPDF } from '../utils/classListPdfGenerator';
 
 /** Current logged-in student's profile (for dashboard display name). */
@@ -1300,8 +1301,24 @@ export const getStudentReportCard = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Student not found or not enrolled in a class' });
     }
 
+    // Lock report card when term invoice balance > 0 (same rule as parents; excludes next-term fees)
+    const termBalanceRc = await getTermBalanceForStudent(studentId);
+    if (termBalanceRc > 0) {
+      const settingsRepositoryEarly = AppDataSource.getRepository(Settings);
+      const settingsListEarly = await settingsRepositoryEarly.find({
+        order: { createdAt: 'DESC' },
+        take: 1
+      });
+      const settingsEarly = settingsListEarly.length > 0 ? settingsListEarly[0] : null;
+      const currencySymbolEarly = settingsEarly?.currencySymbol || '$';
+      return res.status(403).json({
+        message: `Report card access is restricted. Please clear the outstanding term balance of ${currencySymbolEarly} ${termBalanceRc.toFixed(2)} to view the report card.`,
+        balance: termBalanceRc,
+        code: 'TERM_BALANCE_LOCKED'
+      });
+    }
+
     // Get settings (for grades, school info, etc.)
-    const { Settings } = await import('../entities/Settings');
     const settingsRepository = AppDataSource.getRepository(Settings);
     const settingsList = await settingsRepository.find({
       order: { createdAt: 'DESC' },
@@ -1836,8 +1853,23 @@ export const downloadStudentReportCardPDF = async (req: AuthRequest, res: Respon
       return res.status(404).json({ message: 'Student not found or not enrolled in a class' });
     }
 
+    const termBalancePdf = await getTermBalanceForStudent(studentId);
+    if (termBalancePdf > 0) {
+      const settingsRepositoryPdf = AppDataSource.getRepository(Settings);
+      const settingsListPdf = await settingsRepositoryPdf.find({
+        order: { createdAt: 'DESC' },
+        take: 1
+      });
+      const settingsPdf = settingsListPdf.length > 0 ? settingsListPdf[0] : null;
+      const currencySymbolPdf = settingsPdf?.currencySymbol || '$';
+      return res.status(403).json({
+        message: `Report card access is restricted. Please clear the outstanding term balance of ${currencySymbolPdf} ${termBalancePdf.toFixed(2)} to view the report card.`,
+        balance: termBalancePdf,
+        code: 'TERM_BALANCE_LOCKED'
+      });
+    }
+
     // Get settings
-    const { Settings } = await import('../entities/Settings');
     const settingsRepository = AppDataSource.getRepository(Settings);
     const settingsList = await settingsRepository.find({
       order: { createdAt: 'DESC' },

@@ -177,11 +177,13 @@ export const getParentMessages = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Parent profile not found' });
     }
 
-    // Get all messages for this parent, ordered by most recent first
-    const messages = await messageRepository.find({
-      where: { parentId: parent.id },
-      order: { createdAt: 'DESC' }
-    });
+    // Inbox: messages from the school to this parent (exclude parent→school outbox rows)
+    const messages = await messageRepository
+      .createQueryBuilder('m')
+      .where('m.parentId = :pid', { pid: parent.id })
+      .andWhere('(m.isFromParent = :f OR m.isFromParent IS NULL)', { f: false })
+      .orderBy('m.createdAt', 'DESC')
+      .getMany();
 
     res.json({
       messages: messages.map(msg => ({
@@ -195,6 +197,155 @@ export const getParentMessages = async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error fetching parent messages:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+/** Mark a single inbox message as read (parent must own the message). */
+export const markParentMessageRead = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user;
+
+    if (!user || user.role !== 'parent') {
+      return res.status(403).json({ message: 'Access denied. Parent role required.' });
+    }
+
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ message: 'Message id is required' });
+    }
+
+    const parentRepository = AppDataSource.getRepository(Parent);
+    const messageRepository = AppDataSource.getRepository(Message);
+
+    const parent = await parentRepository.findOne({
+      where: { userId: user.id }
+    });
+
+    if (!parent) {
+      return res.status(404).json({ message: 'Parent profile not found' });
+    }
+
+    const message = await messageRepository.findOne({
+      where: { id, parentId: parent.id }
+    });
+
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found' });
+    }
+
+    if (message.isFromParent) {
+      return res.status(400).json({ message: 'Not an inbox message' });
+    }
+
+    message.isRead = true;
+    await messageRepository.save(message);
+
+    res.json({
+      success: true,
+      message: { id: message.id, isRead: true }
+    });
+  } catch (error: any) {
+    console.error('Error marking parent message read:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+/** Parent sends a message to the school (administrators). */
+export const sendParentMessageToSchool = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user;
+
+    if (!user || user.role !== 'parent') {
+      return res.status(403).json({ message: 'Access denied. Parent role required.' });
+    }
+
+    const { subject, message: body } = req.body;
+    const sub = typeof subject === 'string' ? subject.trim() : '';
+    const text = typeof body === 'string' ? body.trim() : '';
+    if (!sub || !text) {
+      return res.status(400).json({ message: 'Subject and message are required' });
+    }
+
+    const parentRepository = AppDataSource.getRepository(Parent);
+    const messageRepository = AppDataSource.getRepository(Message);
+
+    const parent = await parentRepository.findOne({
+      where: { userId: user.id }
+    });
+
+    if (!parent) {
+      return res.status(404).json({ message: 'Parent profile not found' });
+    }
+
+    const senderName = `${parent.firstName} ${parent.lastName}`.trim() || user.email || 'Parent';
+
+    const record = messageRepository.create({
+      subject: sub,
+      message: text,
+      recipients: 'school',
+      senderId: user.id,
+      senderName,
+      parentId: parent.id,
+      isRead: true,
+      isFromParent: true
+    });
+    await messageRepository.save(record);
+
+    res.status(201).json({
+      success: true,
+      message: {
+        id: record.id,
+        subject: record.subject,
+        message: record.message,
+        senderName: record.senderName,
+        createdAt: record.createdAt,
+        isRead: true
+      }
+    });
+  } catch (error: any) {
+    console.error('Error sending parent message to school:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+/** Messages sent by the parent to the school (outbox). */
+export const getParentOutboxMessages = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user;
+
+    if (!user || user.role !== 'parent') {
+      return res.status(403).json({ message: 'Access denied. Parent role required.' });
+    }
+
+    const parentRepository = AppDataSource.getRepository(Parent);
+    const messageRepository = AppDataSource.getRepository(Message);
+
+    const parent = await parentRepository.findOne({
+      where: { userId: user.id }
+    });
+
+    if (!parent) {
+      return res.status(404).json({ message: 'Parent profile not found' });
+    }
+
+    const rows = await messageRepository.find({
+      where: { parentId: parent.id, isFromParent: true },
+      order: { createdAt: 'DESC' }
+    });
+
+    res.json({
+      messages: rows.map(msg => ({
+        id: msg.id,
+        subject: msg.subject,
+        message: msg.message,
+        senderName: msg.senderName,
+        createdAt: msg.createdAt,
+        isRead: msg.isRead
+      }))
+    });
+  } catch (error: any) {
+    console.error('Error fetching parent outbox:', error);
     res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
   }
 };

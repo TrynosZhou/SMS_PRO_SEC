@@ -18,5 +18,17 @@ export class MessageService {
   getParentMessages(): Observable<any> {
     return this.http.get(`${this.apiUrl}/messages/parent`);
   }
+
+  markParentMessageRead(messageId: string): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/messages/parent/${messageId}/read`, {});
+  }
+
+  getParentOutbox(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/messages/parent/outbox`);
+  }
+
+  sendParentMessageToSchool(payload: { subject: string; message: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/messages/parent/send`, payload);
+  }
 }
 

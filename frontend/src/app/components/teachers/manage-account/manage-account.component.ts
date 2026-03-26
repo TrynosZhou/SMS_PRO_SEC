@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
 import { AccountService } from '../../../services/account.service';
@@ -23,7 +23,12 @@ export class ManageAccountComponent implements OnInit {
   isTeacher = false;
   mustChangePassword = false;
   canChangeUsername = true;
-  
+
+  /** Parent portal layout + mobile nav */
+  isParentViewer = false;
+  mobileMenuOpen = false;
+  isMobile = false;
+
   showCurrentPassword = false;
   showNewPassword = false;
   showConfirmPassword = false;
@@ -32,10 +37,73 @@ export class ManageAccountComponent implements OnInit {
     private accountService: AccountService,
     private authService: AuthService,
     private router: Router
-  ) { }
+  ) {}
 
   ngOnInit() {
+    this.isParentViewer = this.authService.hasRole('parent');
+    this.checkMobile();
     this.loadAccountInfo();
+  }
+
+  @HostListener('window:resize')
+  onWindowResize() {
+    this.checkMobile();
+  }
+
+  checkMobile() {
+    this.isMobile = window.innerWidth <= 900;
+    if (!this.isMobile) {
+      this.mobileMenuOpen = false;
+    }
+  }
+
+  toggleMobileMenu() {
+    this.mobileMenuOpen = !this.mobileMenuOpen;
+  }
+
+  closeMobileMenu() {
+    this.mobileMenuOpen = false;
+  }
+
+  getParentDisplayName(): string {
+    const user = this.authService.getCurrentUser();
+    const p = user?.parent;
+    if (!p) {
+      return 'Parent';
+    }
+    const name = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    return name || 'Parent';
+  }
+
+  /** Simple password strength 0–4 for UI meter */
+  get passwordStrengthScore(): number {
+    const p = this.newPassword || '';
+    if (!p.length) {
+      return 0;
+    }
+    let score = 1;
+    if (p.length >= 8) {
+      score++;
+    }
+    if (p.length >= 12) {
+      score++;
+    }
+    if (/[a-z]/.test(p) && /[A-Z]/.test(p)) {
+      score++;
+    }
+    if (/\d/.test(p) || /[^a-zA-Z0-9]/.test(p)) {
+      score++;
+    }
+    return Math.min(4, score);
+  }
+
+  get passwordStrengthLabel(): string {
+    const s = this.passwordStrengthScore;
+    if (!this.newPassword?.length) {
+      return '';
+    }
+    const labels = ['Weak', 'Fair', 'Good', 'Strong'];
+    return labels[Math.min(s - 1, 3)] || 'Weak';
   }
 
   loadAccountInfo() {
@@ -49,20 +117,18 @@ export class ManageAccountComponent implements OnInit {
         this.newEmail = this.currentEmail;
         this.isTeacher = data.role === 'teacher';
         this.mustChangePassword = data.mustChangePassword === true;
-        // For teachers, username (TeacherID) cannot be changed, especially on first login
         this.canChangeUsername = !this.isTeacher || !this.mustChangePassword;
         this.loading = false;
       },
       error: (err: any) => {
         this.error = err.error?.message || 'Failed to load account information';
         this.loading = false;
-        setTimeout(() => this.error = '', 5000);
+        setTimeout(() => (this.error = ''), 5000);
       }
     });
   }
 
   updateAccount() {
-    // Validation - password fields are required, username/email are optional
     if (!this.currentPassword || !this.newPassword || !this.confirmPassword) {
       this.error = 'Please fill in all password fields';
       return;
@@ -86,13 +152,11 @@ export class ManageAccountComponent implements OnInit {
       currentPassword: this.currentPassword,
       newPassword: this.newPassword
     };
-    
-    // For teachers, username (TeacherID) cannot be changed
+
     if (this.canChangeUsername && this.newUsername && this.newUsername !== this.currentUsername) {
       updateData.newUsername = this.newUsername;
     }
-    
-    // Email is not used for teachers
+
     if (!this.isTeacher && this.newEmail && this.newEmail !== this.currentEmail) {
       updateData.newEmail = this.newEmail;
     }
@@ -101,30 +165,38 @@ export class ManageAccountComponent implements OnInit {
       next: (response: any) => {
         this.loading = false;
         this.success = 'Account updated successfully! Redirecting to dashboard...';
-        
-        // Update local storage with new user info
+
         const currentUser = this.authService.getCurrentUser();
         if (currentUser && response.user) {
           currentUser.username = response.user.username || response.user.email;
           localStorage.setItem('user', JSON.stringify(currentUser));
         }
-        
+
         setTimeout(() => {
-          // Redirect based on user role
-          const currentUser = this.authService.getCurrentUser();
-          if (currentUser?.role === 'PARENT') {
-            this.router.navigate(['/parent/dashboard']);
-          } else {
-            this.router.navigate(['/dashboard']);
-          }
+          this.navigateToRoleHome();
         }, 2000);
       },
       error: (err: any) => {
         this.loading = false;
-        this.error = err.error?.message || 'Failed to update account';
-        setTimeout(() => this.error = '', 5000);
+        if (err.status === 401) {
+          this.error =
+            'Your session expired before the server could save changes. Your password was not updated—use your previous password after signing in again. If that still fails, ask an administrator to reset your account password.';
+        } else {
+          this.error = err.error?.message || 'Failed to update account';
+        }
+        setTimeout(() => (this.error = ''), 12000);
       }
     });
+  }
+
+  private navigateToRoleHome() {
+    if (this.authService.hasRole('parent')) {
+      this.router.navigate(['/parent/dashboard']);
+    } else if (this.authService.hasRole('teacher')) {
+      this.router.navigate(['/teacher/dashboard']);
+    } else {
+      this.router.navigate(['/dashboard']);
+    }
   }
 
   toggleCurrentPasswordVisibility() {
@@ -140,12 +212,16 @@ export class ManageAccountComponent implements OnInit {
   }
 
   goToDashboard() {
-    // Redirect based on user role
-    const currentUser = this.authService.getCurrentUser();
-    if (currentUser?.role === 'PARENT') {
-      this.router.navigate(['/parent/dashboard']);
-    } else {
-      this.router.navigate(['/dashboard']);
-    }
+    this.navigateToRoleHome();
+  }
+
+  openCompose() {
+    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'compose' } });
+    this.closeMobileMenu();
+  }
+
+  openOutbox() {
+    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'outbox' } });
+    this.closeMobileMenu();
   }
 }

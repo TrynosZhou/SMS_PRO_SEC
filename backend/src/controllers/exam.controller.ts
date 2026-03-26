@@ -10,7 +10,7 @@ import { Teacher } from '../entities/Teacher';
 import { Settings } from '../entities/Settings';
 import { ReportCardRemarks } from '../entities/ReportCardRemarks';
 import { Parent } from '../entities/Parent';
-import { Invoice } from '../entities/Invoice';
+import { getTermBalanceForStudent } from '../utils/termBalance';
 import { Attendance, AttendanceStatus } from '../entities/Attendance';
 import { AuthRequest } from '../middleware/auth';
 import { createReportCardPDF } from '../utils/pdfGenerator';
@@ -1409,14 +1409,12 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
 
     // Subject filter is optional for all roles; teachers will see their assigned class subjects
 
-    // For parents, check balance before allowing access
+    // For parents: lock report card when term invoice balance > 0 (not next-term fees)
     if (isParent && studentId) {
       const parentRepository = AppDataSource.getRepository(Parent);
-      const invoiceRepository = AppDataSource.getRepository(Invoice);
       const settingsRepository = AppDataSource.getRepository(Settings);
       const studentRepository = AppDataSource.getRepository(Student);
 
-      // Get parent
       const parent = await parentRepository.findOne({
         where: { userId: user.id },
         relations: ['students']
@@ -1426,7 +1424,6 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
         return res.status(404).json({ message: 'Parent profile not found' });
       }
 
-      // Verify student is linked to this parent
       const student = await studentRepository.findOne({
         where: { id: studentId as string, parentId: parent.id }
       });
@@ -1435,31 +1432,18 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
         return res.status(403).json({ message: 'Student not found or not linked to your account' });
       }
 
-      // Get settings for next term fees
-      const settingsList = await settingsRepository.find({
-        order: { createdAt: 'DESC' },
-        take: 1
-      });
-      const settings = settingsList.length > 0 ? settingsList[0] : null;
-
-      // Get latest invoice for balance calculation
-      const latestInvoice = await invoiceRepository.findOne({
-        where: { studentId: student.id },
-        order: { createdAt: 'DESC' }
-      });
-
-      // Calculate term balance for access check
-      let termBalance = 0;
-      if (latestInvoice) {
-        termBalance = parseFloat(String(latestInvoice.balance || 0));
-      }
-
-      // Check if term balance allows access (term balance must be zero)
+      const termBalance = await getTermBalanceForStudent(student.id);
       if (termBalance > 0) {
+        const settingsList = await settingsRepository.find({
+          order: { createdAt: 'DESC' },
+          take: 1
+        });
+        const settings = settingsList.length > 0 ? settingsList[0] : null;
         const currencySymbol = settings?.currencySymbol || '$';
-        return res.status(403).json({ 
+        return res.status(403).json({
           message: `Report card access is restricted. Please clear the outstanding term balance of ${currencySymbol} ${termBalance.toFixed(2)} to view the report card.`,
-          balance: termBalance
+          balance: termBalance,
+          code: 'TERM_BALANCE_LOCKED'
         });
       }
     }
@@ -2185,14 +2169,12 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
       return res.status(400).json({ message: 'Class ID, term, and exam type are required when exam ID is not provided' });
     }
 
-    // For parents, check balance before allowing PDF generation
+    // For parents: lock PDF when term invoice balance > 0 (not next-term fees)
     if (isParent && studentId) {
       const parentRepository = AppDataSource.getRepository(Parent);
-      const invoiceRepository = AppDataSource.getRepository(Invoice);
       const settingsRepository = AppDataSource.getRepository(Settings);
       const studentRepository = AppDataSource.getRepository(Student);
 
-      // Get parent
       const parent = await parentRepository.findOne({
         where: { userId: user.id }
       });
@@ -2201,7 +2183,6 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
         return res.status(404).json({ message: 'Parent profile not found' });
       }
 
-      // Verify student is linked to this parent
       const student = await studentRepository.findOne({
         where: { id: studentId as string, parentId: parent.id }
       });
@@ -2210,31 +2191,18 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
         return res.status(403).json({ message: 'Student not found or not linked to your account' });
       }
 
-      // Get settings for next term fees
-      const settingsList = await settingsRepository.find({
-        order: { createdAt: 'DESC' },
-        take: 1
-      });
-      const settings = settingsList.length > 0 ? settingsList[0] : null;
-
-      // Get latest invoice for balance calculation
-      const latestInvoice = await invoiceRepository.findOne({
-        where: { studentId: student.id },
-        order: { createdAt: 'DESC' }
-      });
-
-      // Calculate term balance for access check
-      let termBalance = 0;
-      if (latestInvoice) {
-        termBalance = parseFloat(String(latestInvoice.balance || 0));
-      }
-
-      // Check if term balance allows access (term balance must be zero)
+      const termBalance = await getTermBalanceForStudent(student.id);
       if (termBalance > 0) {
+        const settingsList = await settingsRepository.find({
+          order: { createdAt: 'DESC' },
+          take: 1
+        });
+        const settings = settingsList.length > 0 ? settingsList[0] : null;
         const currencySymbol = settings?.currencySymbol || '$';
-        return res.status(403).json({ 
+        return res.status(403).json({
           message: `Report card access is restricted. Please clear the outstanding term balance of ${currencySymbol} ${termBalance.toFixed(2)} to view the report card.`,
-          balance: termBalance
+          balance: termBalance,
+          code: 'TERM_BALANCE_LOCKED'
         });
       }
     }

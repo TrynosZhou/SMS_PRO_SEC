@@ -43,7 +43,8 @@ export class ModuleAccessGuard implements CanActivate {
             this.router.navigate(['/']);
         }
       } else {
-        this.router.navigate(['/login']);
+        // Send unauthenticated users through the splash screen first.
+        this.router.navigate(['/']);
       }
       return false;
     }
