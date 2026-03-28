@@ -346,6 +346,8 @@ export class LoginComponent implements OnInit {
       password: this.signupPassword,
       email: generatedEmail,
       role: roleLower,
+      // Duplicate for proxies/clients that drop `role`; backend reads userRole too.
+      userRole: roleLower,
       firstName: this.signupFirstName.trim(),
       lastName: this.signupLastName.trim(),
       phoneNumber: this.signupContactNumber.trim() || null,

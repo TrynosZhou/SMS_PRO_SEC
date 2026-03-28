@@ -527,7 +527,6 @@ export const register = async (req: Request, res: Response) => {
       email,
       username,
       password,
-      role,
       firstName,
       lastName,
       phoneNumber,
@@ -535,6 +534,11 @@ export const register = async (req: Request, res: Response) => {
       dateOfBirth,
       gender,
     } = req.body;
+
+    // Some clients/proxies send role under alternate keys; support them all.
+    const body = req.body as Record<string, unknown>;
+    const role =
+      body.role ?? body.userRole ?? body.accountRole ?? body.accountType ?? body.type;
 
     const userRepository = AppDataSource.getRepository(User);
 

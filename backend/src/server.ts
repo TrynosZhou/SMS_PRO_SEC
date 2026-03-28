@@ -140,9 +140,14 @@ app.use('/uploads/etasks', express.static(etaskUploadsPath));
 // =================== ROUTES ===================
 app.use('/api', routes);
 
-// Health check
+// Health check (use publicSignupRoles to confirm production runs a build that allows admin signup)
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'School Management System API' });
+  res.json({
+    status: 'OK',
+    message: 'School Management System API',
+    publicSignupRoles: ['student', 'parent', 'admin'],
+    gitCommit: process.env.RENDER_GIT_COMMIT || undefined,
+  });
 });
 
 // Debug route for exams
