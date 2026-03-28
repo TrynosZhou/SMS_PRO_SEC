@@ -551,6 +551,15 @@ export const register = async (req: Request, res: Response) => {
 
     const userRepository = AppDataSource.getRepository(User);
 
+    const roleLooksProvided = (() => {
+      if (role === undefined || role === null) return false;
+      if (typeof role === 'string') return role.trim().length > 0;
+      if (typeof role === 'number') return true;
+      if (Array.isArray(role)) return role.length > 0;
+      if (typeof role === 'object') return true;
+      return false;
+    })();
+
     // Validate password length (minimum 8 characters)
     if (password && password.length < 8) {
       return res.status(400).json({ message: 'Password must be at least 8 characters long' });
@@ -558,6 +567,13 @@ export const register = async (req: Request, res: Response) => {
 
     if (!username || !String(username).trim()) {
       return res.status(400).json({ message: 'Username is required' });
+    }
+
+    if (!roleLooksProvided) {
+      return res.status(400).json({
+        message:
+          'Missing role. For public sign-up send role (or userRole / signupRole): "student", "parent", or "admin". Administrator example fields: username, password, email, firstName, lastName, role: "admin". Note: sign-in uses POST /auth/login with username/email and password only — not /auth/register.',
+      });
     }
 
     /** Unwrap role from common client/proxy shapes (arrays, { value }, etc.). */
