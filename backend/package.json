@@ -21,7 +21,8 @@
     "reset-password": "npx ts-node scripts/reset-user-password.ts",
     "fix-all-teachers": "npx ts-node src/scripts/fix-all-teachers.ts",
     "ensure:subject-category": "npx ts-node scripts/ensure-subject-category.ts",
-    "delete-payroll-runs-2026-mar-dec": "npx ts-node scripts/delete-payroll-runs-2026-mar-dec.ts"
+    "delete-payroll-runs-2026-mar-dec": "npx ts-node scripts/delete-payroll-runs-2026-mar-dec.ts",
+    "migration:run:prod": "typeorm -d dist/config/database.js migration:run"
   },
   "dependencies": {
     "@types/image-size": "^0.7.0",
