@@ -112,7 +112,7 @@ try {
 
   const baseOptions = {
     type: 'postgres' as const,
-    synchronize: false,
+    synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: false,
     entities: entityPaths,
     migrations: migrationsPath,
