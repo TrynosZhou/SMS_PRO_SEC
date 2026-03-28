@@ -30,12 +30,27 @@ import * as fs from 'fs';
 dotenv.config();
 
 // Validate required environment variables
-const requiredEnvVars = ['JWT_SECRET', 'DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'DB_NAME'];
-const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
+const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim());
+const hasDiscreteDb =
+  Boolean(process.env.DB_HOST?.trim()) &&
+  Boolean(process.env.DB_USERNAME?.trim()) &&
+  process.env.DB_PASSWORD !== undefined &&
+  String(process.env.DB_PASSWORD).trim() !== '' &&
+  Boolean(process.env.DB_NAME?.trim());
 
-if (missingEnvVars.length > 0) {
+const missingJwt = !process.env.JWT_SECRET?.trim();
+const missingDb = !hasDatabaseUrl && !hasDiscreteDb;
+
+if (missingJwt || missingDb) {
   console.error('❌ Missing required environment variables:');
-  missingEnvVars.forEach((envVar) => console.error(`   - ${envVar}`));
+  if (missingJwt) {
+    console.error('   - JWT_SECRET');
+  }
+  if (missingDb) {
+    console.error(
+      '   - DATABASE_URL (recommended for Render), or all of: DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME'
+    );
+  }
   process.exit(1);
 }
 
