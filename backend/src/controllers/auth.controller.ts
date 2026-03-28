@@ -504,7 +504,7 @@ export const login = async (req: Request, res: Response) => {
         // Do not block login if activity logging fails
         if (activityErr?.code === '42P01') {
           // Table missing even after ensure (very unlikely); ignore.
-          return;
+         // return; // patched: do not exit early
         }
         console.error('Login activity logging error:', activityErr?.message || activityErr);
       }
