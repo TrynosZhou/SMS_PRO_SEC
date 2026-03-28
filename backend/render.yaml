@@ -12,31 +12,10 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: DB_HOST
-        fromService:
-          type: postgresql
+      - key: DATABASE_URL
+        fromDatabase:
           name: sms-database
-          property: host
-      - key: DB_PORT
-        fromService:
-          type: postgresql
-          name: sms-database
-          property: port
-      - key: DB_USERNAME
-        fromService:
-          type: postgresql
-          name: sms-database
-          property: user
-      - key: DB_PASSWORD
-        fromService:
-          type: postgresql
-          name: sms-database
-          property: password
-      - key: DB_NAME
-        fromService:
-          type: postgresql
-          name: sms-database
-          property: database
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN

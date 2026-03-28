@@ -50,12 +50,12 @@ entities.forEach((entity, index) => {
   }
 });
 
-/** Render and many hosted Postgres providers require TLS; local postgres usually does not. */
-function getPostgresSsl():
-  | boolean
-  | { rejectUnauthorized: boolean }
-  | undefined {
-  const host = (process.env.DB_HOST || '').trim().toLowerCase();
+/**
+ * Hosted Postgres (Render, etc.) usually requires TLS; local postgres usually does not.
+ * `connectionHint` can be DATABASE_URL or a hostname (DB_HOST).
+ */
+function getPostgresSsl(connectionHint?: string): false | { rejectUnauthorized: boolean } {
+  const hint = (connectionHint || process.env.DB_HOST || '').trim().toLowerCase();
   const flag = (process.env.DB_SSL || '').trim().toLowerCase();
   if (flag === 'false' || flag === '0') {
     return false;
@@ -63,14 +63,24 @@ function getPostgresSsl():
   const useSsl =
     flag === 'true' ||
     flag === '1' ||
-    host.includes('render.com') ||
-    host.includes('amazonaws.com') ||
-    host.includes('neon.tech') ||
-    host.includes('supabase.co');
+    hint.includes('render.com') ||
+    hint.includes('amazonaws.com') ||
+    hint.includes('neon.tech') ||
+    hint.includes('supabase.co');
   if (!useSsl) {
     return false;
   }
   return { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' };
+}
+
+function logDatabaseUrlTarget(databaseUrl: string): void {
+  try {
+    const normalized = databaseUrl.replace(/^postgresql:/i, 'postgres:');
+    const u = new URL(normalized);
+    console.log('[DB Config] DATABASE_URL host:', u.hostname, 'database:', u.pathname?.replace(/^\//, '') || '(default)');
+  } catch {
+    console.log('[DB Config] DATABASE_URL is set (could not parse for logging)');
+  }
 }
 
 console.log('[DB Config] Creating DataSource instance...');
@@ -90,28 +100,44 @@ try {
   console.log('[DB Config] Migrations path:', migrationsPath);
   console.log('[DB Config] Subscribers path:', subscribersPath);
   
+  const databaseUrl = process.env.DATABASE_URL?.trim();
   const dbHost = process.env.DB_HOST?.trim();
   const dbPort = process.env.DB_PORT ? parseInt(process.env.DB_PORT.trim(), 10) : undefined;
   const dbUser = process.env.DB_USERNAME?.trim();
   const dbPassword = process.env.DB_PASSWORD !== undefined ? String(process.env.DB_PASSWORD).trim() : '';
   const dbName = process.env.DB_NAME?.trim();
-  const ssl = getPostgresSsl();
+
+  const ssl = getPostgresSsl(databaseUrl || dbHost);
   console.log('[DB Config] Postgres SSL:', ssl ? 'enabled' : 'disabled');
 
-  AppDataSource = new DataSource({
-    type: 'postgres',
-    host: dbHost || 'localhost',
-    port: dbPort ?? parseInt('5432', 10),
-    username: dbUser || 'postgres',
-    password: dbPassword,
-    database: dbName || 'sms_db',
-    ssl,
+  const baseOptions = {
+    type: 'postgres' as const,
     synchronize: false,
     logging: false,
     entities: entityPaths,
     migrations: migrationsPath,
     subscribers: subscribersPath,
-  });
+    ssl,
+  };
+
+  if (databaseUrl) {
+    logDatabaseUrlTarget(databaseUrl);
+    console.log('[DB Config] Postgres connection: DATABASE_URL');
+    AppDataSource = new DataSource({
+      ...baseOptions,
+      url: databaseUrl,
+    });
+  } else {
+    console.log('[DB Config] Postgres connection: DB_HOST / DB_PORT / DB_USERNAME / DB_PASSWORD / DB_NAME');
+    AppDataSource = new DataSource({
+      ...baseOptions,
+      host: dbHost || 'localhost',
+      port: dbPort ?? parseInt('5432', 10),
+      username: dbUser || 'postgres',
+      password: dbPassword,
+      database: dbName || 'sms_db',
+    });
+  }
   
   console.log('[DB Config] DataSource created successfully');
   console.log('[DB Config] DataSource.isInitialized:', AppDataSource.isInitialized);

@@ -266,13 +266,21 @@ async function bootstrap() {
     console.error('  Code:', error?.code);
     console.error('  Stack:', error?.stack);
 
-    const host = String(process.env.DB_HOST || '').trim();
+    const dbUrl = String(process.env.DATABASE_URL || '').trim();
+    let urlHost = '';
+    if (dbUrl) {
+      try {
+        urlHost = new URL(dbUrl.replace(/^postgresql:/i, 'postgres:')).hostname;
+      } catch {
+        /* ignore */
+      }
+    }
+    const host = String(process.env.DB_HOST || urlHost || '').trim();
     if (error?.code === 'ENOTFOUND' && host && !host.includes('.')) {
       console.error(
-        '[Server] Hint: DB_HOST looks like a short Render DB id (no domain). ' +
-          'In Render Dashboard → your PostgreSQL → Connections, copy the full hostname ' +
-          '(e.g. dpg-xxxxx-a.<region>-postgres.render.com) into DB_HOST, or link the DB to the web service ' +
-          'so Render injects DATABASE_URL / correct host. Short values like "dpg-...-a" do not resolve in DNS.'
+        '[Server] Hint: database host looks like a short Render DB id (no domain). ' +
+          'Use a full hostname in DATABASE_URL or DB_HOST ' +
+          '(e.g. dpg-xxxxx.<region>-postgres.render.com), or link Postgres to the web service so Render sets DATABASE_URL.'
       );
     }
 
