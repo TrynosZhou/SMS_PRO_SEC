@@ -547,24 +547,45 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Username is required' });
     }
 
-    /** Public signup page only — explicit mapping of supported role strings. */
-    const normalizePublicSelfRegistrationRole = (raw: unknown): UserRole | null => {
+    /** Unwrap role from common client/proxy shapes (arrays, { value }, etc.). */
+    const coercePublicSignupRole = (raw: unknown): unknown => {
       if (raw === undefined || raw === null) return null;
-      const n = String(raw).trim().toLowerCase();
-      // Remove separators to accept common variants like "school_admin", "school admin", "school-admin"
+      if (Array.isArray(raw)) {
+        return raw.length ? coercePublicSignupRole(raw[0]) : null;
+      }
+      if (typeof raw === 'object') {
+        const o = raw as Record<string, unknown>;
+        if (typeof o.role === 'string' || typeof o.role === 'number') return o.role;
+        if (typeof o.value === 'string' || typeof o.value === 'number') return o.value;
+        if (typeof o.name === 'string') return o.name;
+        return null;
+      }
+      return raw;
+    };
+
+    /** Public signup — Student, Parent, Administrator only (matches login page). */
+    const normalizePublicSelfRegistrationRole = (raw: unknown): UserRole | null => {
+      const coerced = coercePublicSignupRole(raw);
+      if (coerced === undefined || coerced === null || coerced === '') return null;
+      const n = String(coerced).trim().toLowerCase();
+      if (!n) return null;
+      // Remove separators: "school_admin", "School Administrator", etc.
       const compact = n.replace(/[^a-z0-9]/g, '');
 
-      if (n === 'student') return UserRole.STUDENT;
-      if (n === 'parent') return UserRole.PARENT;
+      if (n === 'student' || compact === 'student') return UserRole.STUDENT;
+      if (n === 'parent' || compact === 'parent') return UserRole.PARENT;
 
-      // ADMIN / Administrator variants
+      // Administrator (enum value is "admin") — include UI/proxy variants
       if (
         compact === 'admin' ||
         compact === 'administrator' ||
         compact === 'administrators' ||
         compact === 'schooladmin' ||
         compact === 'schooladministrator' ||
-        compact === 'schooladministrators'
+        compact === 'schooladministrators' ||
+        compact === 'headmaster' ||
+        compact === 'headteacher' ||
+        compact === 'principal'
       ) {
         return UserRole.ADMIN;
       }
