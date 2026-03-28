@@ -537,8 +537,17 @@ export const register = async (req: Request, res: Response) => {
 
     // Some clients/proxies send role under alternate keys; support them all.
     const body = req.body as Record<string, unknown>;
+    const rolesArr = body.roles;
+    const roleFromRoles =
+      Array.isArray(rolesArr) && rolesArr.length ? rolesArr[0] : undefined;
     const role =
-      body.role ?? body.userRole ?? body.accountRole ?? body.accountType ?? body.type;
+      body.role ??
+      body.userRole ??
+      body.signupRole ??
+      body.accountRole ??
+      body.accountType ??
+      body.type ??
+      roleFromRoles;
 
     const userRepository = AppDataSource.getRepository(User);
 
@@ -600,7 +609,10 @@ export const register = async (req: Request, res: Response) => {
     const requestedRole = normalizePublicSelfRegistrationRole(role);
 
     if (!requestedRole) {
-      // Include the raw role value to speed up debugging in production (clients usually log it anyway).
+      console.warn('[Register] invalid or missing role', {
+        role,
+        bodyKeys: Object.keys(body).filter((k) => k !== 'password'),
+      });
       return res.status(400).json({
         message:
           'Invalid role for self-registration. Only Student, Parent, or Administrator can sign up here. Other roles are created by the Administrator under User Management.',

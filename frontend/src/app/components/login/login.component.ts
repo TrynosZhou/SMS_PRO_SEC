@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -346,8 +347,8 @@ export class LoginComponent implements OnInit {
       password: this.signupPassword,
       email: generatedEmail,
       role: roleLower,
-      // Duplicate for proxies/clients that drop `role`; backend reads userRole too.
       userRole: roleLower,
+      signupRole: roleLower,
       firstName: this.signupFirstName.trim(),
       lastName: this.signupLastName.trim(),
       phoneNumber: this.signupContactNumber.trim() || null,
@@ -384,7 +385,19 @@ export class LoginComponent implements OnInit {
           raw: err?.error ?? err,
         });
 
-        this.error = backendMsg || 'Registration failed';
+        // Legacy API text is not in current backend — production is often an old deploy.
+        const legacyOnlyParentStudent =
+          typeof backendMsg === 'string' &&
+          backendMsg.toLowerCase().includes('only parent and student');
+        if (legacyOnlyParentStudent) {
+          const healthUrl = `${environment.serverBaseUrl}/health`;
+          this.error =
+            'Your server is running an old API build that blocks administrator sign-up. Redeploy the latest backend from this project (Render: clear build cache if needed). Then open ' +
+            healthUrl +
+            ' — the JSON should include publicSignupRoles with "admin". If it does not, the new code is not live yet.';
+        } else {
+          this.error = backendMsg || 'Registration failed';
+        }
         this.loading = false;
       }
     });
