@@ -81,7 +81,7 @@ export class StudentIdCardsComponent implements OnInit {
     try {
       // Photo paths are like /uploads/students/filename.jpg
       // The backend serves static files at /uploads/students (not under /api)
-      // Extract base URL from environment (e.g., http://localhost:3004 from http://localhost:3004/api)
+      // Extract base URL from environment (e.g., http://localhost:3007 from http://localhost:3007/api)
       let baseUrl = environment.apiUrl.replace('/api', '');
       
       // Ensure baseUrl doesn't end with a slash

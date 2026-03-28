@@ -207,6 +207,11 @@
             <span class="action-text">Add Teacher</span>
             <span class="action-arrow">→</span>
           </a>
+          <a routerLink="/admin/create-admin-account" class="action-btn modern-action-btn primary-action" *ngIf="isAdmin()">
+            <span class="action-icon">👤</span>
+            <span class="action-text">Create Admin account</span>
+            <span class="action-arrow">→</span>
+          </a>
           <a (click)="openBulkMessage()" class="action-btn modern-action-btn secondary-action" style="cursor: pointer;" *ngIf="isAdmin()">
             <span class="action-icon">📧</span>
             <span class="action-text">Bulk Message</span>

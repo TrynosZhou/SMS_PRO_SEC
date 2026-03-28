@@ -183,7 +183,7 @@ app.use(
 );
 
 // =================== DATABASE & SERVER ===================
-const PORT = process.env.PORT || 3004;
+const PORT = process.env.PORT || 3007;
 
 console.log('[Server] Starting database initialization...');
 console.log('[Server] Node version:', process.version);

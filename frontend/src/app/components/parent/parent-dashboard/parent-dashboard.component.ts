@@ -297,10 +297,10 @@ export class ParentDashboardComponent implements OnInit {
     const firstName = String(parent.firstName || '').trim();
     const lastName = String(parent.lastName || '').trim();
     const initial = firstName ? firstName.charAt(0).toUpperCase() : '';
-
     const genderNorm = this.normalizeParentGender(parent.gender);
+
     if (!genderNorm) {
-      const fallback = `${firstName} ${lastName}`.trim() || 'Parent';
+      const fallback = firstName || 'Parent';
       return `${greeting}, ${fallback}`;
     }
 
@@ -312,7 +312,21 @@ export class ParentDashboardComponent implements OnInit {
     return `${greeting} ${title} ${namePart}`.trim();
   }
 
-  private normalizeParentGender(g: unknown): 'male' | 'female' | null {
+  isAdmin(): boolean {
+    const user = this.authService.getCurrentUser();
+    return user ? (user.role === 'admin' || user.role === 'superadmin') : false;
+  }
+
+  isSuperAdmin(): boolean {
+    const user = this.authService.getCurrentUser();
+    return user ? (user.role === 'superadmin') : false;
+  }
+
+  isParent(): boolean {
+    return this.authService.hasRole('parent');
+  }
+
+  private normalizeParentGender(g: any): 'male' | 'female' | null {
     if (g === null || g === undefined) return null;
     const s = String(g).trim().toLowerCase();
     if (s === 'male' || s === 'm') return 'male';

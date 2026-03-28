@@ -2,7 +2,7 @@ const fetch = global.fetch || ((...args) => import('node-fetch').then(({ default
 
 async function main() {
   try {
-    const response = await fetch('http://localhost:3004/api/auth/login', {
+    const response = await fetch('http://localhost:3007/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'demo@school.com', password: 'Demo@123' })

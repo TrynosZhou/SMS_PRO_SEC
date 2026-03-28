@@ -1,0 +1,74 @@
+<div class="caa-page">
+  <div class="caa-card">
+    <div class="caa-header">
+      <h1>Create administrator account</h1>
+      <p class="caa-lead">
+        Add another school administrator. They will use the <strong>email</strong>, <strong>username</strong>, and <strong>password</strong> you enter here to sign in (same login page as staff).
+      </p>
+    </div>
+
+    <div class="caa-alert caa-alert-error" *ngIf="error">{{ error }}</div>
+    <div class="caa-alert caa-alert-success" *ngIf="success">{{ success }}</div>
+
+    <form (ngSubmit)="submit()" #f="ngForm">
+      <div class="caa-field">
+        <label for="caa-email">Email address *</label>
+        <input
+          id="caa-email"
+          name="email"
+          type="email"
+          [(ngModel)]="email"
+          required
+          autocomplete="email"
+          placeholder="admin.name@school.com"
+        />
+      </div>
+      <div class="caa-field">
+        <label for="caa-username">Username *</label>
+        <input
+          id="caa-username"
+          name="username"
+          type="text"
+          [(ngModel)]="username"
+          required
+          autocomplete="username"
+          placeholder="Choose a unique username"
+        />
+      </div>
+      <div class="caa-field">
+        <label for="caa-password">Password *</label>
+        <input
+          id="caa-password"
+          name="password"
+          type="password"
+          [(ngModel)]="password"
+          required
+          minlength="8"
+          autocomplete="new-password"
+          placeholder="At least 8 characters"
+        />
+      </div>
+      <div class="caa-field">
+        <label for="caa-confirm">Confirm password *</label>
+        <input
+          id="caa-confirm"
+          name="confirmPassword"
+          type="password"
+          [(ngModel)]="confirmPassword"
+          required
+          autocomplete="new-password"
+          placeholder="Re-enter password"
+        />
+      </div>
+
+      <div class="caa-actions">
+        <button type="button" class="caa-btn caa-btn-ghost" (click)="goDashboard()" [disabled]="loading">
+          Back to dashboard
+        </button>
+        <button type="submit" class="caa-btn caa-btn-primary" [disabled]="loading || !f.valid">
+          {{ loading ? 'Creating…' : 'Create administrator' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

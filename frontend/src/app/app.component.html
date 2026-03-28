@@ -38,6 +38,10 @@
         <span class="sidebar-icon">🏠</span>
         <span class="sidebar-text">Dashboard</span>
       </a>
+      <a routerLink="/admin/create-admin-account" routerLinkActive="active" class="sidebar-item" *ngIf="isAdmin() && !isTeacher() && !isStudent()">
+        <span class="sidebar-icon">👤</span>
+        <span class="sidebar-text">Create Admin account</span>
+      </a>
       <a routerLink="/student/dashboard" routerLinkActive="active" class="sidebar-item" *ngIf="isStudent()">
         <span class="sidebar-icon">🏠</span>
         <span class="sidebar-text">Dashboard</span>
