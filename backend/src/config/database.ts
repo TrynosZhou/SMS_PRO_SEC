@@ -50,6 +50,29 @@ entities.forEach((entity, index) => {
   }
 });
 
+/** Render and many hosted Postgres providers require TLS; local postgres usually does not. */
+function getPostgresSsl():
+  | boolean
+  | { rejectUnauthorized: boolean }
+  | undefined {
+  const host = (process.env.DB_HOST || '').trim().toLowerCase();
+  const flag = (process.env.DB_SSL || '').trim().toLowerCase();
+  if (flag === 'false' || flag === '0') {
+    return false;
+  }
+  const useSsl =
+    flag === 'true' ||
+    flag === '1' ||
+    host.includes('render.com') ||
+    host.includes('amazonaws.com') ||
+    host.includes('neon.tech') ||
+    host.includes('supabase.co');
+  if (!useSsl) {
+    return false;
+  }
+  return { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' };
+}
+
 console.log('[DB Config] Creating DataSource instance...');
 let AppDataSource: DataSource;
 try {
@@ -72,6 +95,8 @@ try {
   const dbUser = process.env.DB_USERNAME?.trim();
   const dbPassword = process.env.DB_PASSWORD !== undefined ? String(process.env.DB_PASSWORD).trim() : '';
   const dbName = process.env.DB_NAME?.trim();
+  const ssl = getPostgresSsl();
+  console.log('[DB Config] Postgres SSL:', ssl ? 'enabled' : 'disabled');
 
   AppDataSource = new DataSource({
     type: 'postgres',
@@ -80,6 +105,7 @@ try {
     username: dbUser || 'postgres',
     password: dbPassword,
     database: dbName || 'sms_db',
+    ssl,
     synchronize: false,
     logging: false,
     entities: entityPaths,
