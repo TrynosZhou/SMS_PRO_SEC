@@ -21,10 +21,10 @@ router.post(
   createUserAccount
 );
 
-// Admin/SuperAdmin/Demo: reset teacher user password (returns temporary password)
+// Admin/SuperAdmin/Demo/Parent: reset teacher user password (returns temporary password)
 router.post(
   '/users/:userId/reset-password',
-  authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.DEMO_USER),
+  authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.DEMO_USER, UserRole.PARENT),
   adminResetTeacherPassword
 );
 

@@ -166,8 +166,16 @@ export const createUserAccount = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    const actingRole = req.user.role;
-    if (actingRole !== UserRole.ADMIN && actingRole !== UserRole.SUPERADMIN && actingRole !== UserRole.PARENT) {
+    const actingRole = String(req.user.role).toLowerCase();
+    const isAdmin = actingRole === 'admin' || actingRole === 'superadmin' || actingRole === 'parent';
+    
+    console.log('[AccountController] Create user attempt:', {
+      actingRole,
+      isAdmin,
+      requestedRole: req.body?.role
+    });
+
+    if (!isAdmin) {
       return res.status(403).json({ message: 'Only Administrators can create user accounts' });
     }
 
@@ -206,7 +214,7 @@ export const createUserAccount = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid role specified' });
     }
 
-    if (actingRole !== UserRole.SUPERADMIN && requestedRole === UserRole.SUPERADMIN) {
+    if (actingRole !== 'superadmin' && requestedRole === UserRole.SUPERADMIN) {
       return res.status(403).json({ message: 'Only Super Admins can create Super Admin accounts' });
     }
 
@@ -376,10 +384,12 @@ export const adminResetTeacherPassword = async (req: AuthRequest, res: Response)
       return res.status(401).json({ message: 'Authentication required' });
     }
 
+    const actingRole = String(req.user.role).toLowerCase();
     if (
-      req.user.role !== UserRole.ADMIN &&
-      req.user.role !== UserRole.SUPERADMIN &&
-      req.user.role !== UserRole.DEMO_USER
+      actingRole !== 'admin' &&
+      actingRole !== 'superadmin' &&
+      actingRole !== 'parent' &&
+      actingRole !== 'demo_user'
     ) {
       return res.status(403).json({ message: 'Only Administrators can reset passwords' });
     }

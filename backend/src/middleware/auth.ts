@@ -57,9 +57,9 @@ export const authorize = (...roles: UserRole[]) => {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!roles.some(role => String(role).toLowerCase() === String(req.user?.role).toLowerCase())) {
       console.log('Authorization failed:', {
-        userRole: req.user.role,
+        userRole: req.user?.role,
         requiredRoles: roles,
         path: req.path,
         method: req.method
