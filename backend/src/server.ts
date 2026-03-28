@@ -104,6 +104,14 @@ const corsOptions: cors.CorsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// Disable caching on auth routes to prevent Cloudflare caching responses
+app.use('/api/auth', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
