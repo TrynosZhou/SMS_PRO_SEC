@@ -547,31 +547,46 @@ export const register = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Username is required' });
     }
 
-    /** Public signup page only — explicit strings (no substring matching). */
+    /** Public signup page only — explicit mapping of supported role strings. */
     const normalizePublicSelfRegistrationRole = (raw: unknown): UserRole | null => {
       if (raw === undefined || raw === null) return null;
       const n = String(raw).trim().toLowerCase();
+      // Remove separators to accept common variants like "school_admin", "school admin", "school-admin"
+      const compact = n.replace(/[^a-z0-9]/g, '');
+
       if (n === 'student') return UserRole.STUDENT;
       if (n === 'parent') return UserRole.PARENT;
+
+      // ADMIN / Administrator variants
       if (
-        n === 'admin' ||
-        n === 'administrator' ||
-        n === 'school_admin' ||
-        n === 'school administrator'
+        compact === 'admin' ||
+        compact === 'administrator' ||
+        compact === 'administrators' ||
+        compact === 'schooladmin' ||
+        compact === 'schooladministrator' ||
+        compact === 'schooladministrators'
       ) {
         return UserRole.ADMIN;
       }
+
       return null;
     };
 
     const requestedRole = normalizePublicSelfRegistrationRole(role);
 
     if (!requestedRole) {
+      // Include the raw role value to speed up debugging in production (clients usually log it anyway).
       return res.status(400).json({
         message:
           'Invalid role for self-registration. Only Student, Parent, or Administrator can sign up here. Other roles are created by the Administrator under User Management.',
+        receivedRole: role,
       });
     }
+
+    console.log('[Register] public self-registration role resolved:', {
+      received: role,
+      requestedRole,
+    });
 
     let userEmail: string | null = null;
     if (requestedRole === UserRole.PARENT || requestedRole === UserRole.ADMIN) {

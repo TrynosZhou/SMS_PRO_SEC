@@ -31,9 +31,6 @@ const entities = [
 ];
 
 async function syncSchema() {
-  const originalDbName = process.env.DB_NAME;
-  process.env.DB_NAME = 'sms_school';
-
   const dataSource = new DataSource({
     type: 'postgres',
     host: process.env.DB_HOST || 'localhost',
@@ -47,7 +44,7 @@ async function syncSchema() {
   });
 
   try {
-    console.log('🔧 Syncing database schema for sms_school...');
+    console.log(`🔧 Syncing database schema for ${process.env.DB_NAME}...`);
     console.log('📋 This will create all missing tables based on your entities\n');
     
     await dataSource.initialize();
@@ -69,8 +66,7 @@ async function syncSchema() {
   } catch (error: any) {
     console.error('\n❌ Error syncing schema:', error.message);
     console.error(error);
-    
-    process.env.DB_NAME = originalDbName;
+
     process.exit(1);
   }
 }

@@ -369,7 +369,20 @@ export class LoginComponent implements OnInit {
         }, 2000);
       },
       error: (err: any) => {
-        this.error = err.error?.message || 'Registration failed';
+        // Prefer backend-provided JSON error messages.
+        const backendMsg =
+          err?.error?.message ||
+          (typeof err?.error === 'string' ? err.error : null) ||
+          (err?.error ? JSON.stringify(err.error) : null);
+
+        // Helpful console log for production issues.
+        console.error('[SignUp] Registration error:', {
+          status: err?.status,
+          backendMsg,
+          raw: err?.error ?? err,
+        });
+
+        this.error = backendMsg || 'Registration failed';
         this.loading = false;
       }
     });

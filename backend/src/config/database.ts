@@ -67,13 +67,19 @@ try {
   console.log('[DB Config] Migrations path:', migrationsPath);
   console.log('[DB Config] Subscribers path:', subscribersPath);
   
+  const dbHost = process.env.DB_HOST?.trim();
+  const dbPort = process.env.DB_PORT ? parseInt(process.env.DB_PORT.trim(), 10) : undefined;
+  const dbUser = process.env.DB_USERNAME?.trim();
+  const dbPassword = process.env.DB_PASSWORD !== undefined ? String(process.env.DB_PASSWORD).trim() : '';
+  const dbName = process.env.DB_NAME?.trim();
+
   AppDataSource = new DataSource({
     type: 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    username: process.env.DB_USERNAME || 'postgres',
-    password: String(process.env.DB_PASSWORD || ''),
-    database: process.env.DB_NAME || 'sms_db',
+    host: dbHost || 'localhost',
+    port: dbPort ?? parseInt('5432', 10),
+    username: dbUser || 'postgres',
+    password: dbPassword,
+    database: dbName || 'sms_db',
     synchronize: false,
     logging: false,
     entities: entityPaths,

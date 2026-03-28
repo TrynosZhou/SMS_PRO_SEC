@@ -30,7 +30,15 @@ async function createAdmin() {
     await AppDataSource.initialize();
     console.log('Database connected successfully');
 
-    const userRepository = AppDataSource.getRepository(User);
+    // Use loaded metadata target to avoid class identity mismatches
+    // when DataSource entities are loaded from dist/*.js in production.
+    const userMetadata = AppDataSource.entityMetadatas.find(
+      (meta) => meta.name === 'User' || meta.tableName === 'users'
+    );
+    if (!userMetadata) {
+      throw new Error('User entity metadata not found in DataSource');
+    }
+    const userRepository = AppDataSource.getRepository(userMetadata.target as typeof User);
 
     // Check if admin already exists
     const existingUser = await userRepository.findOne({
