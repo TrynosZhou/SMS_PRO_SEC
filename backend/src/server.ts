@@ -62,13 +62,34 @@ if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
 // =================== APP SETUP ===================
 const app = express();
 
-// CORS setup
-const allowedOrigins = [
-  'https://sms-apua.vercel.app',
-  'http://localhost:4200',
-  'http://localhost:3000',
-  process.env.FRONTEND_URL,
-].filter(Boolean) as string[];
+// CORS setup — normalize so https://app.com and https://app.com/ both match
+function normalizeOriginUrl(url: string): string {
+  return url.trim().replace(/\/$/, '');
+}
+
+const corsExtraFromEnv = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => normalizeOriginUrl(s))
+  .filter(Boolean);
+
+const allowedOrigins = Array.from(
+  new Set(
+    [
+      'https://sms-apua.vercel.app',
+      'http://localhost:4200',
+      'http://localhost:3000',
+      ...(process.env.FRONTEND_URL ? [normalizeOriginUrl(process.env.FRONTEND_URL)] : []),
+      ...corsExtraFromEnv,
+    ].filter(Boolean)
+  )
+);
+
+if (process.env.NODE_ENV === 'production') {
+  console.log(
+    `[CORS] Allowed origins (${allowedOrigins.length}):`,
+    allowedOrigins.join(', ')
+  );
+}
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
@@ -82,10 +103,11 @@ const corsOptions: cors.CorsOptions = {
       return callback(null, true);
     }
 
-    // In production, restrict to allowed origins (+ vercel subdomains)
+    const normalized = normalizeOriginUrl(origin);
+
+    // In production, restrict to allowed list (+ any *.vercel.app preview/production URL)
     const isAllowed =
-      allowedOrigins.length === 0 ||
-      allowedOrigins.includes(origin) ||
+      allowedOrigins.includes(normalized) ||
       origin.includes('.vercel.app');
 
     if (isAllowed) {
