@@ -10,7 +10,6 @@ export function examsManageNav(router: Router) {
   return {
     marksCapturing: m ? '/exams/manage/marks-capturing' : '/exams',
     markSheet: m ? '/exams/manage/mark-sheet' : '/mark-sheet',
-    moderateMark: m ? '/exams/manage/moderate-mark' : '/exams/moderate-mark',
     markInputProgress: m ? '/exams/manage/mark-input-progress' : '/exams/mark-input-progress',
     rankings: m ? '/exams/manage/rankings' : '/rankings',
     reportCards: m ? '/exams/manage/report-cards' : '/report-cards',

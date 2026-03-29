@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { SubjectService } from '../../../services/subject.service';
 import { SubjectUtilsService, SubjectCategory } from '../../../services/subject-utils.service';
 import { trigger, state, style, transition, animate } from '@angular/animations';
+import { subjectsManageNav } from '../subjects-manage-navigation';
 
 @Component({
   selector: 'app-subject-form',
@@ -194,7 +195,7 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
         next: () => {
           this.success = 'Subject updated successfully';
           this.submitting = false;
-          setTimeout(() => this.router.navigate(['/subjects']), 1500);
+          setTimeout(() => this.goToSubjectsList(), 1500);
         },
         error: (err: any) => {
           this.error = err.error?.message || 'Failed to update subject';
@@ -207,7 +208,7 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
         next: () => {
           this.success = 'Subject created successfully';
           this.submitting = false;
-          setTimeout(() => this.router.navigate(['/subjects']), 1500);
+          setTimeout(() => this.goToSubjectsList(), 1500);
         },
         error: (err: any) => {
           this.error = err.error?.message || 'Failed to create subject';
@@ -216,5 +217,10 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
         }
       });
     }
+  }
+
+  goToSubjectsList() {
+    const nav = subjectsManageNav(this.router.url);
+    this.router.navigate(nav.listSegments);
   }
 }

@@ -1,0 +1,21 @@
+<div class="tm-wrap">
+  <header class="tm-header">
+    <h1 class="tm-title">Timetable Manager</h1>
+    <p class="tm-sub">View schedules and configure timetable settings</p>
+  </header>
+
+  <nav class="tm-tabs" aria-label="Timetable manager sections">
+    <a routerLink="/timetable/manage/config" routerLinkActive="active" class="tm-tab">
+      <span class="tm-tab-ico" aria-hidden="true">⚙️</span>
+      Configuration
+    </a>
+    <a routerLink="/timetable/manage/view" routerLinkActive="active" class="tm-tab">
+      <span class="tm-tab-ico" aria-hidden="true">🗓️</span>
+      View Timetable
+    </a>
+  </nav>
+
+  <div class="tm-outlet">
+    <router-outlet></router-outlet>
+  </div>
+</div>

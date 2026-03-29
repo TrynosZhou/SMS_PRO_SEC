@@ -9,7 +9,7 @@
         </h1>
         <p class="subtitle">{{ isEdit ? 'Update subject information and settings' : 'Add a new subject to the system' }}</p>
       </div>
-      <button class="btn btn-icon" (click)="router.navigate(['/subjects'])" title="Back to Subjects">
+      <button class="btn btn-icon" (click)="goToSubjectsList()" title="Back to Subjects">
         ← Back
       </button>
     </div>
@@ -216,7 +216,7 @@
           <button 
             type="button" 
             class="btn btn-secondary" 
-            (click)="router.navigate(['/subjects'])"
+            (click)="goToSubjectsList()"
             [disabled]="submitting">
             ❌ Cancel
           </button>

@@ -15,13 +15,13 @@ import { MarksEntryComponent } from './components/exams/marks-entry/marks-entry.
 import { ReportCardComponent } from './components/exams/report-card/report-card.component';
 import { RankingsComponent } from './components/exams/rankings/rankings.component';
 import { MarkSheetComponent } from './components/exams/mark-sheet/mark-sheet.component';
-import { ModerateMarkComponent } from './components/exams/moderate-mark/moderate-mark.component';
 import { MarkInputProgressComponent } from './components/exams/mark-input-progress/mark-input-progress.component';
 import { PublishResultsComponent } from './components/exams/publish-results/publish-results.component';
 import { ExamsManageComponent } from './components/exams/exams-manage/exams-manage.component';
 import { InvoiceListComponent } from './components/finance/invoice-list/invoice-list.component';
 import { InvoiceFormComponent } from './components/finance/invoice-form/invoice-form.component';
 import { InvoiceStatementsComponent } from './components/finance/invoice-statements/invoice-statements.component';
+import { FinanceManageComponent } from './components/finance/finance-manage/finance-manage.component';
 import { CreditNoteComponent } from './components/finance/credit-note/credit-note.component';
 import { DebitNoteComponent } from './components/finance/debit-note/debit-note.component';
 import { PrepaidAdjustComponent } from './components/finance/prepaid-adjust/prepaid-adjust.component';
@@ -36,6 +36,9 @@ import { ClassListsComponent } from './components/classes/class-lists/class-list
 import { ClassesManageComponent } from './components/classes/classes-manage/classes-manage.component';
 import { SubjectListComponent } from './components/subjects/subject-list/subject-list.component';
 import { SubjectFormComponent } from './components/subjects/subject-form/subject-form.component';
+import { SubjectsManageComponent } from './components/subjects/subjects-manage/subjects-manage.component';
+import { AssignSubjectComponent } from './components/subjects/assign-subject/assign-subject.component';
+import { SubjectPeriodsComponent } from './components/subjects/subject-periods/subject-periods.component';
 import { SettingsComponent } from './components/settings/settings.component';
 import { ParentDashboardComponent } from './components/parent/parent-dashboard/parent-dashboard.component';
 import { LinkStudentsComponent } from './components/parent/link-students/link-students.component';
@@ -61,17 +64,21 @@ import { UnenrolledStudentsComponent } from './components/enrollments/unenrolled
 import { DHServicesReportComponent } from './components/reports/dh-services-report/dh-services-report.component';
 import { TransportServicesReportComponent } from './components/reports/transport-services-report/transport-services-report.component';
 import { StudentIdCardsComponent } from './components/reports/student-id-cards/student-id-cards.component';
+import { ReportManageComponent } from './components/reports/report-manage/report-manage.component';
 import { AuthGuard } from './guards/auth.guard';
 import { ModuleAccessGuard } from './guards/module-access.guard';
 import { SplashComponent } from './components/splash/splash.component';
 import { TimetableConfigComponent } from './components/timetable/timetable-config/timetable-config.component';
 import { TimetableViewComponent } from './components/timetable/timetable-view/timetable-view.component';
+import { TimetableManageComponent } from './components/timetable/timetable-manage/timetable-manage.component';
 import { StudentDashboardComponent } from './components/student/student-dashboard/student-dashboard.component';
 import { StudentReportCardComponent } from './components/student/student-report-card/student-report-card.component';
 import { StudentInvoiceStatementComponent } from './components/student/student-invoice-statement/student-invoice-statement.component';
 import { UserLogComponent } from './components/settings/user-log/user-log.component';
+import { GeneralManageComponent } from './components/settings/general-manage/general-manage.component';
 import { PayrollManagementComponent } from './components/payroll/payroll-management/payroll-management.component';
 import { SalaryAssignmentsComponent } from './components/payroll/salary-assignments/salary-assignments.component';
+import { PayrollManageComponent } from './components/payroll/payroll-manage/payroll-manage.component';
 
 const routes: Routes = [
   { path: '', component: SplashComponent },
@@ -137,7 +144,6 @@ const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'marks-capturing' },
       { path: 'marks-capturing', component: ExamListComponent, canActivate: [AuthGuard] },
       { path: 'mark-sheet', component: MarkSheetComponent, canActivate: [AuthGuard] },
-      { path: 'moderate-mark', component: ModerateMarkComponent, canActivate: [AuthGuard] },
       { path: 'mark-input-progress', component: MarkInputProgressComponent, canActivate: [AuthGuard] },
       { path: 'rankings', component: RankingsComponent, canActivate: [AuthGuard] },
       { path: 'report-cards', component: ReportCardComponent, canActivate: [AuthGuard] },
@@ -149,13 +155,27 @@ const routes: Routes = [
   { path: 'exam_manage', redirectTo: 'exams/manage', pathMatch: 'full' },
   { path: 'exams', component: ExamListComponent, canActivate: [AuthGuard] },
   { path: 'exams/new', component: ExamFormComponent, canActivate: [AuthGuard] },
-  { path: 'exams/moderate-mark', component: ModerateMarkComponent, canActivate: [AuthGuard] },
   { path: 'exams/mark-input-progress', component: MarkInputProgressComponent, canActivate: [AuthGuard] },
   { path: 'exams/:id/marks', component: MarksEntryComponent, canActivate: [AuthGuard] },
   { path: 'report-cards', component: ReportCardComponent, canActivate: [AuthGuard] },
   { path: 'mark-sheet', component: MarkSheetComponent, canActivate: [AuthGuard] },
   { path: 'rankings', component: RankingsComponent, canActivate: [AuthGuard] },
   { path: 'publish-results', component: PublishResultsComponent, canActivate: [AuthGuard] },
+  {
+    path: 'finance/manage',
+    component: FinanceManageComponent,
+    canActivate: [AuthGuard, ModuleAccessGuard],
+    data: { module: 'finance' },
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'billing' },
+      { path: 'billing', component: InvoiceListComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+      { path: 'record-payment', component: RecordPaymentComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+      { path: 'balance-enquiry', component: BalanceEnquiryComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+      { path: 'unpaid-invoices', component: OutstandingBalanceComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+      { path: 'system-audit', component: TransactionAuditComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+    ],
+  },
+  { path: 'finance_manage', redirectTo: 'finance/manage', pathMatch: 'full' },
   { path: 'invoices', component: InvoiceListComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'invoices/new', component: InvoiceFormComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'invoices/statements', component: InvoiceStatementsComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
@@ -167,6 +187,21 @@ const routes: Routes = [
   { path: 'outstanding-balance', component: OutstandingBalanceComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'balance_enquiry', component: BalanceEnquiryComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'audit_log', component: TransactionAuditComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+  {
+    path: 'payroll/manage',
+    component: PayrollManageComponent,
+    canActivate: [AuthGuard, ModuleAccessGuard],
+    data: { module: 'finance' },
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'overview' },
+      { path: 'overview', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'overview' } },
+      { path: 'employees', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'employees' } },
+      { path: 'structures', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'structures', structurePage: 'list' } },
+      { path: 'assignments', component: SalaryAssignmentsComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
+      { path: 'process', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'process' } },
+    ],
+  },
+  { path: 'payroll_manage', redirectTo: 'payroll/manage', pathMatch: 'full' },
   { path: 'payroll', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'overview' } },
   { path: 'payroll/employees', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'employees' } },
   { path: 'payroll/structures/new', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'structures', structurePage: 'new' } },
@@ -194,6 +229,20 @@ const routes: Routes = [
   { path: 'classes/new', component: ClassFormComponent, canActivate: [AuthGuard] },
   { path: 'classes/:id/edit', component: ClassFormComponent, canActivate: [AuthGuard] },
   { path: 'classes/lists', component: ClassListsComponent, canActivate: [AuthGuard] },
+  {
+    path: 'subjects/manage',
+    component: SubjectsManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'manage-subject' },
+      { path: 'manage-subject', component: SubjectListComponent, canActivate: [AuthGuard] },
+      { path: 'assign-subject', component: AssignSubjectComponent, canActivate: [AuthGuard] },
+      { path: 'subject-periods', component: SubjectPeriodsComponent, canActivate: [AuthGuard] },
+      { path: 'add-new', component: SubjectFormComponent, canActivate: [AuthGuard] },
+      { path: 'edit/:id', component: SubjectFormComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  { path: 'subject_manage', redirectTo: 'subjects/manage', pathMatch: 'full' },
   { path: 'subjects', component: SubjectListComponent, canActivate: [AuthGuard] },
   { path: 'subjects/new', component: SubjectFormComponent, canActivate: [AuthGuard] },
   { path: 'subjects/:id/edit', component: SubjectFormComponent, canActivate: [AuthGuard] },
@@ -208,10 +257,45 @@ const routes: Routes = [
   { path: 'enrollments/unenrolled', component: UnenrolledStudentsComponent, canActivate: [AuthGuard] },
   { path: 'enrollments', redirectTo: '/enrollments/unenrolled', pathMatch: 'full' },
   { path: 'reports/dh-services', component: DHServicesReportComponent, canActivate: [AuthGuard] },
+  {
+    path: 'reports/manage',
+    component: ReportManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'transport-services' },
+      { path: 'transport-services', component: TransportServicesReportComponent, canActivate: [AuthGuard] },
+      { path: 'student-id-cards', component: StudentIdCardsComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  { path: 'report_manage', redirectTo: 'reports/manage', pathMatch: 'full' },
   { path: 'reports/transport-services', component: TransportServicesReportComponent, canActivate: [AuthGuard] },
   { path: 'reports/student-id-cards', component: StudentIdCardsComponent, canActivate: [AuthGuard] },
+  {
+    path: 'timetable/manage',
+    component: TimetableManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'view' },
+      { path: 'view', component: TimetableViewComponent, canActivate: [AuthGuard] },
+      { path: 'config', component: TimetableConfigComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  { path: 'timetable_manage', redirectTo: 'timetable/manage', pathMatch: 'full' },
   { path: 'timetable/config', component: TimetableConfigComponent, canActivate: [AuthGuard] },
   { path: 'timetable', component: TimetableViewComponent, canActivate: [AuthGuard] },
+  {
+    path: 'general/manage',
+    component: GeneralManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'school-settings' },
+      { path: 'school-settings', component: SettingsComponent, canActivate: [AuthGuard] },
+      { path: 'user-management', component: ManageAccountsComponent, canActivate: [AuthGuard] },
+      { path: 'parent-management', component: ParentManagementComponent, canActivate: [AuthGuard] },
+      { path: 'activity-log', component: UserLogComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  { path: 'general_manage', redirectTo: 'general/manage', pathMatch: 'full' },
   { path: 'settings', component: SettingsComponent, canActivate: [AuthGuard] },
   { path: 'user_log', component: UserLogComponent, canActivate: [AuthGuard] },
   { path: 'student/dashboard', component: StudentDashboardComponent, canActivate: [AuthGuard] },

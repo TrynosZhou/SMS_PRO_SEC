@@ -1,0 +1,33 @@
+<div class="pm-wrap">
+  <header class="pm-header">
+    <h1 class="pm-title">Payroll Manager</h1>
+    <p class="pm-sub">Overview, employees, structures, assignments, and process</p>
+  </header>
+
+  <nav class="pm-tabs" aria-label="Payroll manager sections">
+    <a routerLink="/payroll/manage/overview" routerLinkActive="active" class="pm-tab">
+      <span class="pm-tab-ico" aria-hidden="true">🏠</span>
+      Payroll Overview
+    </a>
+    <a routerLink="/payroll/manage/employees" routerLinkActive="active" class="pm-tab">
+      <span class="pm-tab-ico" aria-hidden="true">👥</span>
+      Employees
+    </a>
+    <a routerLink="/payroll/manage/structures" routerLinkActive="active" class="pm-tab">
+      <span class="pm-tab-ico" aria-hidden="true">📊</span>
+      Salary Structures
+    </a>
+    <a routerLink="/payroll/manage/assignments" routerLinkActive="active" class="pm-tab">
+      <span class="pm-tab-ico" aria-hidden="true">🔗</span>
+      Assignments
+    </a>
+    <a routerLink="/payroll/manage/process" routerLinkActive="active" class="pm-tab">
+      <span class="pm-tab-ico" aria-hidden="true">⚙️</span>
+      Process Payroll
+    </a>
+  </nav>
+
+  <div class="pm-outlet">
+    <router-outlet></router-outlet>
+  </div>
+</div>

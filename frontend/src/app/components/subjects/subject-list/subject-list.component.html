@@ -6,7 +6,7 @@
         <h1>📖 Subject Manager</h1>
         <p class="subtitle">Manage and organize all subjects in your school</p>
       </div>
-      <button class="btn btn-primary btn-add" routerLink="/subjects/new">
+      <button class="btn btn-primary btn-add" (click)="goToNewSubject()">
         <span class="btn-icon">➕</span>
         <span>Add New Subject</span>
       </button>
@@ -163,7 +163,7 @@
       <p *ngIf="!searchTerm && statusFilter === 'all'">
         Get started by creating your first subject.
       </p>
-      <button class="btn btn-primary" routerLink="/subjects/new" *ngIf="!searchTerm && statusFilter === 'all'">
+      <button class="btn btn-primary" (click)="goToNewSubject()" *ngIf="!searchTerm && statusFilter === 'all'">
         <span class="btn-icon">➕</span>
         <span>Add Your First Subject</span>
       </button>

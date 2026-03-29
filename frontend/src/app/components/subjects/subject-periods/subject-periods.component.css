@@ -1,0 +1,20 @@
+.sp-wrap {
+  padding: 0.5rem;
+}
+
+.sp-wrap h2 {
+  margin: 0;
+  color: #1f2d7a;
+}
+
+.sp-wrap p {
+  color: #445;
+}
+
+.sp-card {
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #d6dbf5;
+  background: #f7f8ff;
+}

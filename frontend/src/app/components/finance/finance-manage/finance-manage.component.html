@@ -1,0 +1,54 @@
+<div class="fm-wrap">
+  <header class="fm-header">
+    <h1 class="fm-title">Finance Manager</h1>
+    <p class="fm-sub">Billing, payments, balances, unpaid invoices, and audit</p>
+  </header>
+
+  <nav class="fm-tabs" aria-label="Finance manager sections">
+    <a
+      routerLink="/finance/manage/billing"
+      routerLinkActive="active"
+      class="fm-tab"
+    >
+      <span class="fm-tab-ico" aria-hidden="true">🧾</span>
+      Billing &amp; Invoicing
+    </a>
+    <a
+      routerLink="/finance/manage/record-payment"
+      routerLinkActive="active"
+      class="fm-tab"
+    >
+      <span class="fm-tab-ico" aria-hidden="true">💳</span>
+      Record Payment
+    </a>
+    <a
+      routerLink="/finance/manage/balance-enquiry"
+      routerLinkActive="active"
+      class="fm-tab"
+    >
+      <span class="fm-tab-ico" aria-hidden="true">🔎</span>
+      Balance Enquiry
+    </a>
+    <a
+      routerLink="/finance/manage/unpaid-invoices"
+      routerLinkActive="active"
+      class="fm-tab"
+    >
+      <span class="fm-tab-ico" aria-hidden="true">⛔</span>
+      Unpaid Invoices
+    </a>
+    <a
+      *ngIf="showAuditTab()"
+      routerLink="/finance/manage/system-audit"
+      routerLinkActive="active"
+      class="fm-tab"
+    >
+      <span class="fm-tab-ico" aria-hidden="true">🛡️</span>
+      System Audit
+    </a>
+  </nav>
+
+  <div class="fm-outlet">
+    <router-outlet></router-outlet>
+  </div>
+</div>

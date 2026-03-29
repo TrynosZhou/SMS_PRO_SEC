@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { SubjectService } from '../../../services/subject.service';
 import { SubjectUtilsService } from '../../../services/subject-utils.service';
+import { subjectsManageNav } from '../subjects-manage-navigation';
 
 @Component({
   selector: 'app-subject-list',
@@ -190,7 +191,13 @@ export class SubjectListComponent implements OnInit {
   }
 
   editSubject(id: string) {
-    this.router.navigate([`/subjects/${id}/edit`]);
+    const nav = subjectsManageNav(this.router.url);
+    this.router.navigate(nav.editSegments(id));
+  }
+
+  goToNewSubject() {
+    const nav = subjectsManageNav(this.router.url);
+    this.router.navigate(nav.addNewSegments);
   }
 
   deleteSubject(id: string, subjectName: string, subjectCode: string) {

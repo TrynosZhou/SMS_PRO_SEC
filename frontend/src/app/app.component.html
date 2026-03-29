@@ -104,20 +104,18 @@
         <span class="sidebar-text">Class Manager</span>
       </a>
 
-      <!-- Subject Manager -->
-      <div class="sidebar-menu" *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()">
-        <div class="sidebar-menu-header" (click)="toggleMenu('subjectManagement')">
-          <span class="sidebar-icon">📚</span>
-          <span class="sidebar-text">Subject Manager</span>
-          <span class="sidebar-arrow" [class.expanded]="isMenuExpanded('subjectManagement')">▼</span>
-        </div>
-        <div class="sidebar-submenu" [class.expanded]="isMenuExpanded('subjectManagement')">
-          <a routerLink="/subjects" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">📚</span>
-            <span class="sidebar-text">Manage Subject</span>
-          </a>
-        </div>
-      </div>
+      <!-- Subject Manager (tabbed hub: /subjects/manage) -->
+      <a
+        routerLink="/subjects/manage"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        class="sidebar-item"
+        *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">📚</span>
+        <span class="sidebar-text">Subject Manager</span>
+      </a>
 
       <!-- Exam Manager (tabbed hub: /exams/manage) -->
       <a
@@ -132,105 +130,57 @@
         <span class="sidebar-text">Exam Manager</span>
       </a>
 
-      <!-- Finance Manager -->
-      <div class="sidebar-menu" *ngIf="canAccessModule('finance') && !isStudent()">
-        <div class="sidebar-menu-header" (click)="toggleMenu('financeManagement')">
-          <span class="sidebar-icon">💰</span>
-          <span class="sidebar-text">Finance Manager</span>
-          <span class="sidebar-arrow" [class.expanded]="isMenuExpanded('financeManagement')">▼</span>
-        </div>
-        <div class="sidebar-submenu" [class.expanded]="isMenuExpanded('financeManagement')">
-          <a routerLink="/invoices" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">🧾</span>
-            <span class="sidebar-text">Billing & Invoicing</span>
-          </a>
-          <a routerLink="/payments/record" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">💳</span>
-            <span class="sidebar-text">Record Payment</span>
-          </a>
-          <a routerLink="/balance_enquiry" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">🔎</span>
-            <span class="sidebar-text">Balance Enquiry</span>
-          </a>
-          <a routerLink="/outstanding-balance" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">⛔</span>
-            <span class="sidebar-text">Unpaid Invoices</span>
-          </a>
-          <a routerLink="/audit_log" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin() || authService.hasRole('accountant')">
-            <span class="sidebar-subicon">🛡️</span>
-            <span class="sidebar-text">System Audit</span>
-          </a>
-        </div>
-      </div>
+      <!-- Finance Manager (tabbed hub: /finance/manage) -->
+      <a
+        routerLink="/finance/manage"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        class="sidebar-item"
+        *ngIf="canAccessModule('finance') && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">💰</span>
+        <span class="sidebar-text">Finance Manager</span>
+      </a>
 
-      <!-- Payroll Manager -->
-      <div class="sidebar-menu" *ngIf="canAccessModule('finance') && !isStudent()">
-        <div class="sidebar-menu-header" (click)="toggleMenu('payrollManagement')">
-          <span class="sidebar-icon">💵</span>
-          <span class="sidebar-text">Payroll Manager</span>
-          <span class="sidebar-arrow" [class.expanded]="isMenuExpanded('payrollManagement')">▼</span>
-        </div>
-        <div class="sidebar-submenu" [class.expanded]="isMenuExpanded('payrollManagement')">
-          <a routerLink="/payroll" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin() || authService.hasRole('accountant')">
-            <span class="sidebar-subicon">🏠</span>
-            <span class="sidebar-text">Payroll Overview</span>
-          </a>
-          <a routerLink="/payroll/employees" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin() || authService.hasRole('accountant')">
-            <span class="sidebar-subicon">👥</span>
-            <span class="sidebar-text">Employees</span>
-          </a>
-          <a routerLink="/payroll/structures" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin() || authService.hasRole('accountant')">
-            <span class="sidebar-subicon">📊</span>
-            <span class="sidebar-text">Salary Structures</span>
-          </a>
-          <a routerLink="/payroll/assignments" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin() || authService.hasRole('accountant')">
-            <span class="sidebar-subicon">🔗</span>
-            <span class="sidebar-text">Assignments</span>
-          </a>
-          <a routerLink="/payroll/process" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin() || authService.hasRole('accountant')">
-            <span class="sidebar-subicon">⚙️</span>
-            <span class="sidebar-text">Process Payroll</span>
-          </a>
-        </div>
-      </div>
+      <!-- Payroll Manager (tabbed hub: /payroll/manage) -->
+      <a
+        routerLink="/payroll/manage"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        class="sidebar-item"
+        *ngIf="canAccessModule('finance') && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">💵</span>
+        <span class="sidebar-text">Payroll Manager</span>
+      </a>
 
-      <!-- Timetable Manager -->
-      <div class="sidebar-menu" *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()">
-        <div class="sidebar-menu-header" (click)="toggleMenu('timetableManagement')">
-          <span class="sidebar-icon">📅</span>
-          <span class="sidebar-text">Timetable Manager</span>
-          <span class="sidebar-arrow" [class.expanded]="isMenuExpanded('timetableManagement')">▼</span>
-        </div>
-        <div class="sidebar-submenu" [class.expanded]="isMenuExpanded('timetableManagement')">
-          <a routerLink="/timetable" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">🗓️</span>
-            <span class="sidebar-text">View Timetable</span>
-          </a>
-          <a routerLink="/timetable/config" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">⚙️</span>
-            <span class="sidebar-text">Configuration</span>
-          </a>
-        </div>
-      </div>
+      <!-- Timetable Manager (tabbed hub: /timetable/manage) -->
+      <a
+        routerLink="/timetable/manage"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        class="sidebar-item"
+        *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">📅</span>
+        <span class="sidebar-text">Timetable Manager</span>
+      </a>
 
-      <!-- Reports -->
-      <div class="sidebar-menu" *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()">
-        <div class="sidebar-menu-header" (click)="toggleMenu('reports')">
-          <span class="sidebar-icon">📊</span>
-          <span class="sidebar-text">Reports</span>
-          <span class="sidebar-arrow" [class.expanded]="isMenuExpanded('reports')">▼</span>
-        </div>
-        <div class="sidebar-submenu" [class.expanded]="isMenuExpanded('reports')">
-          <a routerLink="/reports/transport-services" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin()">
-            <span class="sidebar-subicon">🚌</span>
-            <span class="sidebar-text">Transport Services</span>
-          </a>
-          <a routerLink="/reports/student-id-cards" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin()">
-            <span class="sidebar-subicon">🪪</span>
-            <span class="sidebar-text">Student ID Cards</span>
-          </a>
-        </div>
-      </div>
+      <!-- Reports Manager (tabbed hub: /reports/manage) -->
+      <a
+        routerLink="/reports/manage"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        class="sidebar-item"
+        *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">📊</span>
+        <span class="sidebar-text">Reports Manager</span>
+      </a>
 
       <!-- E-learning Services (Teachers — record book access) -->
       <div class="sidebar-menu" *ngIf="isTeacher() && canAccessModule('recordBook') && !isStudent()">
@@ -260,36 +210,18 @@
       </div>
 
 
-      <!-- General Settings -->
-      <div class="sidebar-menu" *ngIf="(canAccessModule('settings') || isAdmin() || isSuperAdmin() || authService.hasRole('accountant')) && !isStudent()">
-        <div class="sidebar-menu-header" (click)="toggleMenu('settings')">
-          <span class="sidebar-icon">⚙️</span>
-          <span class="sidebar-text">General Settings</span>
-          <span class="sidebar-arrow" [class.expanded]="isMenuExpanded('settings')">▼</span>
-        </div>
-        <div class="sidebar-submenu" [class.expanded]="isMenuExpanded('settings')">
-          <a routerLink="/settings" routerLinkActive="active" class="sidebar-subitem" *ngIf="canAccessModule('settings') || isAdmin() || isSuperAdmin() || authService.hasRole('accountant')">
-            <span class="sidebar-subicon">🏫</span>
-            <span class="sidebar-text">School Settings</span>
-          </a>
-          <a routerLink="/admin/manage-accounts" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin()">
-            <span class="sidebar-subicon">👤</span>
-            <span class="sidebar-text">User Management</span>
-          </a>
-          <a routerLink="/admin/parent-management" routerLinkActive="active" class="sidebar-subitem" *ngIf="isAdmin() || isSuperAdmin()">
-            <span class="sidebar-subicon">👨‍👩‍👧‍👦</span>
-            <span class="sidebar-text">Parent Management</span>
-          </a>
-          <a routerLink="/user_log" routerLinkActive="active" class="sidebar-subitem" *ngIf="authService.hasRole('accountant') || isAdmin()">
-            <span class="sidebar-subicon">🕒</span>
-            <span class="sidebar-text">Activity Log</span>
-          </a>
-          <a routerLink="/teacher/manage-account" routerLinkActive="active" class="sidebar-subitem" *ngIf="isTeacher()">
-            <span class="sidebar-subicon">🪪</span>
-            <span class="sidebar-text">My Account</span>
-          </a>
-        </div>
-      </div>
+      <!-- General Settings (tabbed hub: /general/manage) -->
+      <a
+        routerLink="/general/manage"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        class="sidebar-item"
+        *ngIf="(canAccessModule('settings') || isAdmin() || isSuperAdmin() || authService.hasRole('accountant')) && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">⚙️</span>
+        <span class="sidebar-text">General Settings</span>
+      </a>
     </nav>
   </div>
 </aside>
