@@ -241,9 +241,11 @@ export class LoginComponent implements OnInit {
         }
       },
       error: (err: any) => {
-        console.error('Login error:', err);
+        const msg = err.error?.message || err.message;
+        console.error('Login failed:', msg || err.status);
+        console.error('Login error detail:', err);
         console.error('Error status:', err.status);
-        console.error('Error message:', err.error?.message || err.message);
+        console.error('Error message:', msg);
         
         if (err.status === 0) {
           // Connection error - server not reachable
@@ -378,8 +380,9 @@ export class LoginComponent implements OnInit {
           (typeof err?.error === 'string' ? err.error : null) ||
           (err?.error ? JSON.stringify(err.error) : null);
 
-        // Helpful console log for production issues.
-        console.error('[SignUp] Registration error:', {
+        // Helpful console log for production issues (message first so it is visible without expanding).
+        console.error('[SignUp] Registration failed:', backendMsg || err?.status || 'unknown');
+        console.error('[SignUp] Registration error detail:', {
           status: err?.status,
           backendMsg,
           raw: err?.error ?? err,
