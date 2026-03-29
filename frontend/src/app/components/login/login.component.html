@@ -86,19 +86,18 @@
       <div class="signup-landscape-layout">
         <aside class="signup-side-panel">
           <h3>Create your account</h3>
-          <p><strong>Students</strong>, <strong>parents</strong>, and <strong>administrators</strong> can register here.</p>
+          <p><strong>Students</strong> and <strong>parents</strong> can register here.</p>
           <ul>
             <li>Students: choose a username and password, then use <strong>Sign In</strong> (or Student Login with your Student ID once issued)</li>
             <li>Parents: register with your email, then sign in with that email</li>
-            <li>Administrators: register with your email, then sign in from the same login page</li>
-            <li>Accountants &amp; teachers: an administrator creates accounts under <strong>Admin → Manage Accounts</strong></li>
+            <li>Administrators, accountants &amp; teachers: an administrator creates accounts under <strong>Admin → Manage Accounts</strong></li>
           </ul>
         </aside>
 
         <div class="signup-form-panel">
           <div class="info-box" style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 8px 10px; margin-bottom: 11px; border-radius: 4px;">
             <p style="margin: 0; font-size: 10px; color: #1565c0; line-height: 1.35;">
-              <strong>Staff accounts:</strong> Administrators can sign up here. Accountant and Teacher logins are created by an admin under <strong>Manage Accounts</strong>.
+              <strong>Staff accounts:</strong> Administrator, accountant, and teacher logins are created by an administrator under <strong>Manage Accounts</strong> — not on this page.
             </p>
           </div>
           <form (ngSubmit)="onSignUp()">
@@ -112,9 +111,8 @@
                 <option value="">Select a role...</option>
                 <option value="STUDENT">Student</option>
                 <option value="PARENT">Parent</option>
-                <option value="ADMIN">Administrator</option>
               </select>
-              <small class="form-text">Student, parent, and administrator self-registration is available on this page.</small>
+              <small class="form-text">Only students and parents can self-register here.</small>
             </div>
             <div class="form-group" *ngIf="signupRole === 'STUDENT'">
               <label>Date of birth *</label>
@@ -135,7 +133,7 @@
                 <option value="Female">Female</option>
               </select>
             </div>
-            <div class="form-group" *ngIf="signupRole === 'PARENT' || signupRole === 'ADMIN'">
+            <div class="form-group" *ngIf="signupRole === 'PARENT'">
               <label>Email *</label>
               <input 
                 type="email" 
@@ -185,13 +183,13 @@
               </div>
             </div>
             <div class="form-group">
-              <label>Contact Number {{ signupRole === 'ADMIN' ? '(Optional)' : '*' }}</label>
+              <label>Contact Number *</label>
               <input 
                 type="tel" 
                 [(ngModel)]="signupContactNumber" 
                 name="signupContactNumber" 
                 placeholder="Phone number" 
-                [required]="signupRole !== 'ADMIN'">
+                required>
             </div>
             <div class="form-group">
               <label>Password *</label>

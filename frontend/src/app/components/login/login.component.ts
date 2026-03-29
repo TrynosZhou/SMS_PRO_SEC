@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -268,14 +267,14 @@ export class LoginComponent implements OnInit {
 
   onSignUp() {
     // Validation
-    const contactRequired = this.signupRole !== 'ADMIN';
+    const contactRequired = true;
     if (!this.signupRole || !this.signupUsername || !this.signupPassword || !this.signupConfirmPassword || 
         !this.signupFirstName || !this.signupLastName || (contactRequired && !this.signupContactNumber)) {
       this.error = 'Please fill in all fields';
       return;
     }
 
-    if (this.signupRole === 'PARENT' || this.signupRole === 'ADMIN') {
+    if (this.signupRole === 'PARENT') {
       if (!this.signupEmail) {
         this.error = 'Please provide an email address';
         return;
@@ -315,7 +314,7 @@ export class LoginComponent implements OnInit {
       return;
     }
 
-    const validRoles = ['STUDENT', 'PARENT', 'ADMIN'];
+    const validRoles = ['STUDENT', 'PARENT'];
     if (!validRoles.includes(this.signupRole)) {
       this.error = 'Please select a valid role';
       return;
@@ -331,9 +330,6 @@ export class LoginComponent implements OnInit {
     let generatedEmail = '';
     switch (this.signupRole) {
       case 'PARENT':
-        generatedEmail = this.signupEmail.trim();
-        break;
-      case 'ADMIN':
         generatedEmail = this.signupEmail.trim();
         break;
       case 'STUDENT':
@@ -388,19 +384,7 @@ export class LoginComponent implements OnInit {
           raw: err?.error ?? err,
         });
 
-        // Legacy API text is not in current backend — production is often an old deploy.
-        const legacyOnlyParentStudent =
-          typeof backendMsg === 'string' &&
-          backendMsg.toLowerCase().includes('only parent and student');
-        if (legacyOnlyParentStudent) {
-          const healthUrl = `${environment.serverBaseUrl}/health`;
-          this.error =
-            'Your server is running an old API build that blocks administrator sign-up. Redeploy the latest backend from this project (Render: clear build cache if needed). Then open ' +
-            healthUrl +
-            ' — the JSON should include publicSignupRoles with "admin". If it does not, the new code is not live yet.';
-        } else {
-          this.error = backendMsg || 'Registration failed';
-        }
+        this.error = backendMsg || 'Registration failed';
         this.loading = false;
       }
     });

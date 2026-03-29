@@ -14,10 +14,10 @@ router.get('/', getAccountInfo);
 // Update account (all authenticated users - teachers, parents, students)
 router.put('/', updateAccount);
 
-// Admin/SuperAdmin/Parent can create user accounts
+// Admin/SuperAdmin only — parents cannot create staff/administrator accounts
 router.post(
   '/users',
-  authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.PARENT),
+  authorize(UserRole.ADMIN, UserRole.SUPERADMIN),
   createUserAccount
 );
 

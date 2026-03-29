@@ -38,7 +38,6 @@ import { LinkStudentsComponent } from './components/parent/link-students/link-st
 import { ParentInboxComponent } from './components/parent/parent-inbox/parent-inbox.component';
 import { ManageAccountComponent } from './components/teachers/manage-account/manage-account.component';
 import { ManageAccountsComponent } from './components/admin/manage-accounts/manage-accounts.component';
-import { CreateAdminAccountComponent } from './components/admin/create-admin-account/create-admin-account.component';
 import { ClassPromotionComponent } from './components/admin/class-promotion/class-promotion.component';
 import { ElearningComponent } from './components/elearning/elearning.component';
 import { ParentManagementComponent } from './components/admin/parent-management/parent-management.component';
@@ -86,7 +85,6 @@ const routes: Routes = [
   { path: 'etask', component: EtaskComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'recordBook' } },
   { path: 'admin/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },
   { path: 'admin/manage-accounts', component: ManageAccountsComponent, canActivate: [AuthGuard] },
-  { path: 'admin/create-admin-account', component: CreateAdminAccountComponent, canActivate: [AuthGuard] },
   { path: 'admin/class-promotion', component: ClassPromotionComponent, canActivate: [AuthGuard] },
   { path: 'elearning', component: ElearningComponent, canActivate: [AuthGuard] },
   { path: 'admin/parent-management', component: ParentManagementComponent, canActivate: [AuthGuard] },

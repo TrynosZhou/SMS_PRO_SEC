@@ -312,20 +312,6 @@ export class ParentDashboardComponent implements OnInit {
     return `${greeting} ${title} ${namePart}`.trim();
   }
 
-  isAdmin(): boolean {
-    const user = this.authService.getCurrentUser();
-    return user ? (user.role === 'admin' || user.role === 'superadmin') : false;
-  }
-
-  isSuperAdmin(): boolean {
-    const user = this.authService.getCurrentUser();
-    return user ? (user.role === 'superadmin') : false;
-  }
-
-  isParent(): boolean {
-    return this.authService.hasRole('parent');
-  }
-
   private normalizeParentGender(g: any): 'male' | 'female' | null {
     if (g === null || g === undefined) return null;
     const s = String(g).trim().toLowerCase();

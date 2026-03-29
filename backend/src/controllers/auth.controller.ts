@@ -572,7 +572,7 @@ export const register = async (req: Request, res: Response) => {
     if (!roleLooksProvided) {
       return res.status(400).json({
         message:
-          'Missing role. For public sign-up send role (or userRole / signupRole): "student", "parent", or "admin". Administrator example fields: username, password, email, firstName, lastName, role: "admin". Note: sign-in uses POST /auth/login with username/email and password only — not /auth/register.',
+          'Missing role. For public sign-up send role (or userRole / signupRole): "student" or "parent". Administrator accounts are created by an existing administrator under Manage Accounts. Sign-in uses POST /auth/login with username/email and password.',
       });
     }
 
@@ -631,7 +631,7 @@ export const register = async (req: Request, res: Response) => {
       });
       return res.status(400).json({
         message:
-          'Invalid role for self-registration. Only Student, Parent, or Administrator can sign up here. Other roles are created by the Administrator under User Management.',
+          'Invalid role for self-registration. Only Student or Parent can sign up here. Administrator and other staff accounts are created under Manage Accounts.',
         receivedRole: role,
       });
     }
@@ -642,7 +642,7 @@ export const register = async (req: Request, res: Response) => {
     });
 
     let userEmail: string | null = null;
-    if (requestedRole === UserRole.PARENT || requestedRole === UserRole.ADMIN) {
+    if (requestedRole === UserRole.PARENT) {
       if (!email || !String(email).trim()) {
         return res.status(400).json({ message: 'Email is required for this registration type' });
       }

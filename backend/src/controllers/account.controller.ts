@@ -167,8 +167,8 @@ export const createUserAccount = async (req: AuthRequest, res: Response) => {
     }
 
     const actingRole = String(req.user.role).toLowerCase();
-    const isAdmin = actingRole === 'admin' || actingRole === 'superadmin' || actingRole === 'parent';
-    
+    const isAdmin = actingRole === 'admin' || actingRole === 'superadmin';
+
     console.log('[AccountController] Create user attempt:', {
       actingRole,
       isAdmin,

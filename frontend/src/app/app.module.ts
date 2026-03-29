@@ -36,7 +36,6 @@ import { ParentDashboardComponent } from './components/parent/parent-dashboard/p
 import { LinkStudentsComponent } from './components/parent/link-students/link-students.component';
 import { ManageAccountComponent } from './components/teachers/manage-account/manage-account.component';
 import { ManageAccountsComponent } from './components/admin/manage-accounts/manage-accounts.component';
-import { CreateAdminAccountComponent } from './components/admin/create-admin-account/create-admin-account.component';
 import { ClassPromotionComponent } from './components/admin/class-promotion/class-promotion.component';
 import { ElearningComponent } from './components/elearning/elearning.component';
 import { ParentManagementComponent } from './components/admin/parent-management/parent-management.component';
@@ -108,7 +107,6 @@ import { SalaryAssignmentsComponent } from './components/payroll/salary-assignme
     LinkStudentsComponent,
     ManageAccountComponent,
     ManageAccountsComponent,
-    CreateAdminAccountComponent,
     ClassPromotionComponent,
     ElearningComponent,
     ParentManagementComponent,
