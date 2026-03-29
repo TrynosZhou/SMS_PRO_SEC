@@ -3,6 +3,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { EnrollmentService } from '../../../services/enrollment.service';
 import { StudentService } from '../../../services/student.service';
 import { ClassService } from '../../../services/class.service';
+import { isInStudentsManageShell } from '../../students/students-manage-navigation';
 
 @Component({
   selector: 'app-enroll-student',
@@ -100,6 +101,14 @@ export class EnrollStudentComponent implements OnInit {
     }
   }
 
+  goToUnenrolled(): void {
+    if (isInStudentsManageShell(this.router)) {
+      this.router.navigate(['/students', 'manage', 'unenrolled']);
+    } else {
+      this.router.navigate(['/enrollments', 'unenrolled']);
+    }
+  }
+
   onSubmit() {
     this.error = '';
     this.success = '';
@@ -122,7 +131,11 @@ export class EnrollStudentComponent implements OnInit {
         this.success = response.message || 'Student enrolled successfully';
         this.submitting = false;
         setTimeout(() => {
-          this.router.navigate(['/enrollments/unenrolled']);
+          if (isInStudentsManageShell(this.router)) {
+            this.router.navigate(['/students', 'manage', 'unenrolled']);
+          } else {
+            this.router.navigate(['/enrollments', 'unenrolled']);
+          }
         }, 2000);
       },
       error: (err: any) => {

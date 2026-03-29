@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { TeacherService } from '../../../services/teacher.service';
 import { SubjectService } from '../../../services/subject.service';
 import { ClassService } from '../../../services/class.service';
+import { teachersManageNav } from '../teachers-manage-navigation';
 
 /** Editable teacher fields from list / grid / modal (Staff / Employee ID is read-only). */
 export type TeacherQuickEditField =
@@ -422,7 +423,11 @@ export class TeacherListComponent implements OnInit {
   }
 
   editTeacher(id: string) {
-    this.router.navigate([`/teachers/${id}/edit`]);
+    this.router.navigate(teachersManageNav(this.router).editSegments(id));
+  }
+
+  goToNewTeacher(): void {
+    this.router.navigateByUrl(teachersManageNav(this.router).addNew);
   }
 
   getTotalSubjects(): number {

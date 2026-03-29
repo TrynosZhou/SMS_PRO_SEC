@@ -1,5 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import {
+  isInStudentsManageShell,
+  studentsManageNav,
+} from '../../students/students-manage-navigation';
 import { EnrollmentService } from '../../../services/enrollment.service';
 import { StudentService } from '../../../services/student.service';
 
@@ -157,7 +161,15 @@ export class UnenrolledStudentsComponent implements OnInit {
   }
 
   enrollStudent(studentId: string) {
-    this.router.navigate(['/enrollments/new'], { queryParams: { studentId } });
+    if (isInStudentsManageShell(this.router)) {
+      this.router.navigate(['/students', 'manage', 'enroll'], { queryParams: { studentId } });
+    } else {
+      this.router.navigate(['/enrollments', 'new'], { queryParams: { studentId } });
+    }
+  }
+
+  goToAddStudent(): void {
+    this.router.navigateByUrl(studentsManageNav(this.router).addNew);
   }
 
   formatDate(dateString: string | Date | null | undefined): string {

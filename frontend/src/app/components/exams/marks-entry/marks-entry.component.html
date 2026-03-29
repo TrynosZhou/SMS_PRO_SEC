@@ -9,7 +9,7 @@
           <strong>Date:</strong> {{ exam.examDate | date:'shortDate' }}
         </div>
       </div>
-      <button type="button" class="btn btn-secondary" (click)="router.navigate(['/exams'])">Back to Exams</button>
+      <button type="button" class="btn btn-secondary" (click)="goToExamsList()">Back to Exams</button>
     </div>
     
     <div class="alert alert-success" *ngIf="success">{{ success }}</div>
@@ -106,7 +106,7 @@
               <button type="submit" class="btn btn-primary" [disabled]="loading" style="min-width: 120px;">
                 {{ loading ? 'Saving...' : '💾 Save All Marks' }}
               </button>
-              <button type="button" class="btn btn-secondary" (click)="router.navigate(['/exams'])">
+              <button type="button" class="btn btn-secondary" (click)="goToExamsList()">
                 Cancel
               </button>
             </div>

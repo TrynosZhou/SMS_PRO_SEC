@@ -12,7 +12,7 @@
         <button type="button" class="ue-btn ue-btn-ghost" (click)="loadUnenrolledStudents()" [disabled]="loading" title="Refresh list">
           ↻ Refresh
         </button>
-        <button type="button" class="ue-btn ue-btn-primary" (click)="router.navigate(['/students/new'])">
+        <button type="button" class="ue-btn ue-btn-primary" (click)="goToAddStudent()">
           + Register student
         </button>
       </div>
@@ -181,7 +181,7 @@
     <p class="ue-empty-text" *ngIf="!searchQuery">All registered students are assigned to a class. Register a new student if needed.</p>
     <div class="ue-empty-actions">
       <button type="button" class="ue-btn ue-btn-secondary" (click)="clearSearch()" *ngIf="searchQuery">Clear search</button>
-      <button type="button" class="ue-btn ue-btn-primary" (click)="router.navigate(['/students/new'])" *ngIf="!searchQuery">
+      <button type="button" class="ue-btn ue-btn-primary" (click)="goToAddStudent()" *ngIf="!searchQuery">
         + Register student
       </button>
     </div>

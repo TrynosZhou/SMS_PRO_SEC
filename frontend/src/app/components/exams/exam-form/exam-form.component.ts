@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { ExamService } from '../../../services/exam.service';
+import { navigateToExamsList } from '../exams-manage-navigation';
 import { ClassService } from '../../../services/class.service';
 import { SubjectService } from '../../../services/subject.service';
 import { SettingsService } from '../../../services/settings.service';
@@ -339,7 +340,7 @@ export class ExamFormComponent implements OnInit {
       next: (response: any) => {
         this.success = response.message || 'Exam created successfully';
         this.submitting = false;
-        setTimeout(() => this.router.navigate(['/exams']), 1500);
+        setTimeout(() => navigateToExamsList(this.router), 1500);
       },
       error: (err: any) => {
         console.error('Exam creation error:', err);
@@ -375,6 +376,10 @@ export class ExamFormComponent implements OnInit {
     } else {
       this.exam.subjectIds.push(subjectId);
     }
+  }
+
+  goToExamsList(): void {
+    navigateToExamsList(this.router);
   }
 }
 

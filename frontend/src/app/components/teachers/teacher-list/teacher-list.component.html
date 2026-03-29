@@ -13,7 +13,7 @@
       <p class="subtitle">Manage and view all teaching staff members</p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-primary" routerLink="/teachers/new">
+      <button type="button" class="btn btn-primary" (click)="goToNewTeacher()">
         <span>➕</span> Add New Teacher
       </button>
     </div>
@@ -273,7 +273,7 @@
     <p *ngIf="!searchQuery && !selectedSubjectFilter && !selectedClassFilter">
       Get started by adding your first teacher to the system.
     </p>
-    <button class="btn btn-primary" routerLink="/teachers/new" *ngIf="!searchQuery && !selectedSubjectFilter && !selectedClassFilter">
+    <button type="button" class="btn btn-primary" (click)="goToNewTeacher()" *ngIf="!searchQuery && !selectedSubjectFilter && !selectedClassFilter">
       ➕ Add First Teacher
     </button>
   </div>

@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ClassService } from '../../../services/class.service';
+import { classesManageNav } from '../classes-manage-navigation';
 
 @Component({
   selector: 'app-class-list',
@@ -185,7 +186,11 @@ export class ClassListComponent implements OnInit {
   }
 
   editClass(id: string) {
-    this.router.navigate([`/classes/${id}/edit`]);
+    this.router.navigate(classesManageNav(this.router).editSegments(id));
+  }
+
+  goToNewClass(): void {
+    this.router.navigateByUrl(classesManageNav(this.router).addNew);
   }
 
   deleteClass(id: string, className: string) {

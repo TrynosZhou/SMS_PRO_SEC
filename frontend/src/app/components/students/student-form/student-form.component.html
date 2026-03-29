@@ -8,7 +8,7 @@
       <p class="subtitle">{{ isEdit ? 'Update student information' : 'Register personal details, contact details, and student type. Class placement is done separately via Student Manager → Enroll Student.' }}</p>
     </div>
     <div class="header-actions">
-      <button type="button" class="btn btn-secondary" (click)="router.navigate(['/students'])">
+      <button type="button" class="btn btn-secondary" (click)="goToStudentsList()">
         <span>←</span> Back to Students
       </button>
     </div>
@@ -316,7 +316,7 @@
       <button 
         type="button" 
         class="btn btn-secondary" 
-        (click)="router.navigate(['/students'])">
+        (click)="goToStudentsList()">
         <span>❌</span> Cancel
       </button>
       <button 

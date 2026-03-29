@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { TeacherService } from '../../../services/teacher.service';
 import { ClassService } from '../../../services/class.service';
 import { Router } from '@angular/router';
+import { teachersManageNav } from '../teachers-manage-navigation';
 
 @Component({
   selector: 'app-assign-classes',
@@ -33,6 +34,10 @@ export class AssignClassesComponent implements OnInit {
   ngOnInit() {
     this.loadTeachers();
     this.loadClasses();
+  }
+
+  goToTeachersList(): void {
+    this.router.navigateByUrl(teachersManageNav(this.router).list);
   }
 
   loadTeachers() {

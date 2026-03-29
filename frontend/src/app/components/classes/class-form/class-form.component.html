@@ -9,7 +9,7 @@
         </h1>
         <p class="subtitle">{{ isEdit ? 'Update class information and settings' : 'Add a new class to the system' }}</p>
       </div>
-      <button class="btn btn-icon" (click)="router.navigate(['/classes'])" title="Back to Classes">
+      <button type="button" class="btn btn-icon" (click)="goToClassesList()" title="Back to Classes">
         ← Back
       </button>
     </div>
@@ -317,7 +317,7 @@
           <button 
             type="button" 
             class="btn btn-secondary" 
-            (click)="router.navigate(['/classes'])"
+            (click)="goToClassesList()"
             [disabled]="submitting">
             ❌ Cancel
           </button>

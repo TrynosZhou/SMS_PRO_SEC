@@ -4,8 +4,10 @@ import { LoginComponent } from './components/login/login.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { StudentListComponent } from './components/students/student-list/student-list.component';
 import { StudentFormComponent } from './components/students/student-form/student-form.component';
+import { StudentsManageComponent } from './components/students/students-manage/students-manage.component';
 import { TeacherListComponent } from './components/teachers/teacher-list/teacher-list.component';
 import { TeacherFormComponent } from './components/teachers/teacher-form/teacher-form.component';
+import { TeachersManageComponent } from './components/teachers/teachers-manage/teachers-manage.component';
 import { AssignClassesComponent } from './components/teachers/assign-classes/assign-classes.component';
 import { ExamListComponent } from './components/exams/exam-list/exam-list.component';
 import { ExamFormComponent } from './components/exams/exam-form/exam-form.component';
@@ -16,6 +18,7 @@ import { MarkSheetComponent } from './components/exams/mark-sheet/mark-sheet.com
 import { ModerateMarkComponent } from './components/exams/moderate-mark/moderate-mark.component';
 import { MarkInputProgressComponent } from './components/exams/mark-input-progress/mark-input-progress.component';
 import { PublishResultsComponent } from './components/exams/publish-results/publish-results.component';
+import { ExamsManageComponent } from './components/exams/exams-manage/exams-manage.component';
 import { InvoiceListComponent } from './components/finance/invoice-list/invoice-list.component';
 import { InvoiceFormComponent } from './components/finance/invoice-form/invoice-form.component';
 import { InvoiceStatementsComponent } from './components/finance/invoice-statements/invoice-statements.component';
@@ -30,6 +33,7 @@ import { TransactionAuditComponent } from './components/finance/transaction-audi
 import { ClassListComponent } from './components/classes/class-list/class-list.component';
 import { ClassFormComponent } from './components/classes/class-form/class-form.component';
 import { ClassListsComponent } from './components/classes/class-lists/class-lists.component';
+import { ClassesManageComponent } from './components/classes/classes-manage/classes-manage.component';
 import { SubjectListComponent } from './components/subjects/subject-list/subject-list.component';
 import { SubjectFormComponent } from './components/subjects/subject-form/subject-form.component';
 import { SettingsComponent } from './components/settings/settings.component';
@@ -89,13 +93,60 @@ const routes: Routes = [
   { path: 'elearning', component: ElearningComponent, canActivate: [AuthGuard] },
   { path: 'admin/parent-management', component: ParentManagementComponent, canActivate: [AuthGuard] },
   { path: 'admin/teacher-record-book', component: TeacherRecordBookComponent, canActivate: [AuthGuard] },
+  {
+    path: 'students/manage',
+    component: StudentsManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'students' },
+      { path: 'add-new', component: StudentFormComponent, canActivate: [AuthGuard] },
+      { path: 'students', component: StudentListComponent, canActivate: [AuthGuard] },
+      { path: 'enroll', component: EnrollStudentComponent, canActivate: [AuthGuard] },
+      { path: 'unenrolled', component: UnenrolledStudentsComponent, canActivate: [AuthGuard] },
+      { path: 'transfer', component: TransferFormComponent, canActivate: [AuthGuard] },
+      { path: 'edit/:id', component: StudentFormComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  { path: 'students_manage', redirectTo: 'students/manage', pathMatch: 'full' },
   { path: 'students', component: StudentListComponent, canActivate: [AuthGuard] },
   { path: 'students/new', component: StudentFormComponent, canActivate: [AuthGuard] },
   { path: 'students/:id/edit', component: StudentFormComponent, canActivate: [AuthGuard] },
+  {
+    path: 'teachers/manage',
+    component: TeachersManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'teachers' },
+      { path: 'add-new', component: TeacherFormComponent, canActivate: [AuthGuard] },
+      { path: 'teachers', component: TeacherListComponent, canActivate: [AuthGuard] },
+      { path: 'assign-classes', component: AssignClassesComponent, canActivate: [AuthGuard] },
+      { path: 'record-book', component: TeacherRecordBookComponent, canActivate: [AuthGuard] },
+      { path: 'edit/:id', component: TeacherFormComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  { path: 'teacher_manage', redirectTo: 'teachers/manage', pathMatch: 'full' },
   { path: 'teachers', component: TeacherListComponent, canActivate: [AuthGuard] },
   { path: 'teachers/new', component: TeacherFormComponent, canActivate: [AuthGuard] },
   { path: 'teachers/:id/edit', component: TeacherFormComponent, canActivate: [AuthGuard] },
   { path: 'teachers/assign-classes', component: AssignClassesComponent, canActivate: [AuthGuard] },
+  {
+    path: 'exams/manage',
+    component: ExamsManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'marks-capturing' },
+      { path: 'marks-capturing', component: ExamListComponent, canActivate: [AuthGuard] },
+      { path: 'mark-sheet', component: MarkSheetComponent, canActivate: [AuthGuard] },
+      { path: 'moderate-mark', component: ModerateMarkComponent, canActivate: [AuthGuard] },
+      { path: 'mark-input-progress', component: MarkInputProgressComponent, canActivate: [AuthGuard] },
+      { path: 'rankings', component: RankingsComponent, canActivate: [AuthGuard] },
+      { path: 'report-cards', component: ReportCardComponent, canActivate: [AuthGuard] },
+      { path: 'publish-results', component: PublishResultsComponent, canActivate: [AuthGuard] },
+      { path: 'new', component: ExamFormComponent, canActivate: [AuthGuard] },
+      { path: ':id/marks', component: MarksEntryComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  { path: 'exam_manage', redirectTo: 'exams/manage', pathMatch: 'full' },
   { path: 'exams', component: ExamListComponent, canActivate: [AuthGuard] },
   { path: 'exams/new', component: ExamFormComponent, canActivate: [AuthGuard] },
   { path: 'exams/moderate-mark', component: ModerateMarkComponent, canActivate: [AuthGuard] },
@@ -124,6 +175,21 @@ const routes: Routes = [
   { path: 'payroll/process', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'process' } },
   { path: 'payroll/payslips', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'payslips' } },
   { path: 'payroll/reports', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'reports' } },
+  {
+    path: 'classes/manage',
+    component: ClassesManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'classes' },
+      { path: 'classes', component: ClassListComponent, canActivate: [AuthGuard] },
+      { path: 'lists', component: ClassListsComponent, canActivate: [AuthGuard] },
+      { path: 'mark-register', component: MarkAttendanceComponent, canActivate: [AuthGuard] },
+      { path: 'attendance-reports', component: AttendanceReportsComponent, canActivate: [AuthGuard] },
+      { path: 'add-new', component: ClassFormComponent, canActivate: [AuthGuard] },
+      { path: 'edit/:id', component: ClassFormComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  { path: 'class_manage', redirectTo: 'classes/manage', pathMatch: 'full' },
   { path: 'classes', component: ClassListComponent, canActivate: [AuthGuard] },
   { path: 'classes/new', component: ClassFormComponent, canActivate: [AuthGuard] },
   { path: 'classes/:id/edit', component: ClassFormComponent, canActivate: [AuthGuard] },

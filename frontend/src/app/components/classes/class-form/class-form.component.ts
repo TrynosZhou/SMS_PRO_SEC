@@ -1,6 +1,7 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ClassService } from '../../../services/class.service';
+import { navigateToClassesList } from '../classes-manage-navigation';
 import { TeacherService } from '../../../services/teacher.service';
 import { SubjectService } from '../../../services/subject.service';
 import { trigger, state, style, transition, animate } from '@angular/animations';
@@ -289,9 +290,7 @@ export class ClassFormComponent implements OnInit {
           this.submitting = false;
           // Show success message for 3 seconds before navigating
           setTimeout(() => {
-            this.router.navigate(['/classes'], { 
-              queryParams: { success: 'Class updated successfully!' } 
-            });
+            navigateToClassesList(this.router, { success: 'Class updated successfully!' });
           }, 3000);
         },
         error: (err: any) => {
@@ -307,9 +306,7 @@ export class ClassFormComponent implements OnInit {
           this.submitting = false;
           // Show success message for 3 seconds before navigating
           setTimeout(() => {
-            this.router.navigate(['/classes'], { 
-              queryParams: { success: 'Class created successfully!' } 
-            });
+            navigateToClassesList(this.router, { success: 'Class created successfully!' });
           }, 3000);
         },
         error: (err: any) => {
@@ -319,5 +316,9 @@ export class ClassFormComponent implements OnInit {
         }
       });
     }
+  }
+
+  goToClassesList(): void {
+    navigateToClassesList(this.router);
   }
 }

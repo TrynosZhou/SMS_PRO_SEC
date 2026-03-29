@@ -8,7 +8,7 @@
       </h1>
       <p class="subtitle">Create and manage user accounts for teachers in the system</p>
     </div>
-    <button class="btn btn-icon" routerLink="/teachers/new" title="Add New Teacher">
+    <button class="btn btn-icon" routerLink="/teachers/manage/add-new" title="Add New Teacher">
       ➕ Add Teacher
     </button>
   </div>
@@ -424,7 +424,7 @@
       <p *ngIf="searchQuery || filterStatus !== 'all'">
         Try adjusting your search or filter criteria.
       </p>
-      <button *ngIf="!searchQuery && filterStatus === 'all'" class="btn btn-primary" routerLink="/teachers/new">
+      <button *ngIf="!searchQuery && filterStatus === 'all'" class="btn btn-primary" routerLink="/teachers/manage/add-new">
         ➕ Add Teacher
       </button>
       <button *ngIf="searchQuery || filterStatus !== 'all'" class="btn btn-secondary" (click)="clearFilters()">

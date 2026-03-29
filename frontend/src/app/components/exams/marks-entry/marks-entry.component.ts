@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ExamService } from '../../../services/exam.service';
+import { navigateToExamsList } from '../exams-manage-navigation';
 import { StudentService } from '../../../services/student.service';
 import { SubjectService } from '../../../services/subject.service';
 
@@ -30,6 +31,10 @@ export class MarksEntryComponent implements OnInit {
   ngOnInit() {
     this.examId = this.route.snapshot.params['id'];
     this.loadExam();
+  }
+
+  goToExamsList(): void {
+    navigateToExamsList(this.router);
   }
 
   loadExam() {

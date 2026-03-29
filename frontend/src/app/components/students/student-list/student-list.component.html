@@ -15,7 +15,7 @@
       <button class="btn btn-secondary" routerLink="/transfers/new">
         <span>📤</span> Transfer Student
       </button>
-      <button class="btn btn-primary" routerLink="/students/new">
+      <button type="button" class="btn btn-primary" (click)="goToNewStudent()">
         <span>➕</span> Register New Student
       </button>
     </div>
@@ -293,7 +293,7 @@
     <p *ngIf="!searchQuery && !selectedClass && !selectedType && !selectedGender">
       Get started by adding your first student to the system.
     </p>
-    <button class="btn btn-primary" routerLink="/students/new" *ngIf="!searchQuery && !selectedClass && !selectedType && !selectedGender">
+    <button type="button" class="btn btn-primary" (click)="goToNewStudent()" *ngIf="!searchQuery && !selectedClass && !selectedType && !selectedGender">
       ➕ Add First Student
     </button>
   </div>

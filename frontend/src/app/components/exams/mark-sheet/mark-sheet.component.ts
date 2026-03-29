@@ -6,6 +6,7 @@ import { SubjectService } from '../../../services/subject.service';
 import { TeacherService } from '../../../services/teacher.service';
 import { SettingsService } from '../../../services/settings.service';
 import { AuthService } from '../../../services/auth.service';
+import { navigateToExamsList } from '../exams-manage-navigation';
 
 @Component({
   selector: 'app-mark-sheet',
@@ -74,6 +75,10 @@ export class MarkSheetComponent implements OnInit {
   ) {
     const user = this.authService.getCurrentUser();
     this.isAdmin = user ? (user.role === 'admin' || user.role === 'superadmin') : false;
+  }
+
+  goToExamsList(): void {
+    navigateToExamsList(this.router);
   }
 
   ngOnInit() {

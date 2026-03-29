@@ -4,6 +4,7 @@ import { TeacherService } from '../../../services/teacher.service';
 import { SubjectService } from '../../../services/subject.service';
 import { SubjectUtilsService } from '../../../services/subject-utils.service';
 import { NgModel } from '@angular/forms';
+import { teachersManageNav } from '../teachers-manage-navigation';
 
 @Component({
   selector: 'app-teacher-form',
@@ -198,7 +199,7 @@ export class TeacherFormComponent implements OnInit {
         next: () => {
           this.success = 'Teacher updated successfully';
           this.submitting = false;
-          setTimeout(() => this.router.navigate(['/teachers']), 1500);
+          setTimeout(() => this.goToTeachersList(), 1500);
         },
         error: (err: any) => {
           this.error = err.error?.message || 'Failed to update teacher';
@@ -225,6 +226,10 @@ export class TeacherFormComponent implements OnInit {
         }
       });
     }
+  }
+
+  goToTeachersList(): void {
+    this.router.navigateByUrl(teachersManageNav(this.router).list);
   }
 
 }

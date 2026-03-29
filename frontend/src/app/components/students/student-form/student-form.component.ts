@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { StudentService } from '../../../services/student.service';
 import { SettingsService } from '../../../services/settings.service';
 import { environment } from '../../../../environments/environment';
+import { studentsManageNav } from '../students-manage-navigation';
 
 @Component({
   selector: 'app-student-form',
@@ -239,7 +240,7 @@ export class StudentFormComponent implements OnInit {
           console.log('Student update response:', response);
           this.success = response.message || 'Student updated successfully';
           this.submitting = false;
-          setTimeout(() => this.router.navigate(['/students']), 1500);
+          setTimeout(() => this.goToStudentsList(), 1500);
         },
         error: (err: any) => {
           console.error('Error updating student:', err);
@@ -261,7 +262,7 @@ export class StudentFormComponent implements OnInit {
             response.message ||
             'Student registered successfully. Use Enroll Student to place them in a class.';
           this.submitting = false;
-          setTimeout(() => this.router.navigate(['/students']), 1800);
+          setTimeout(() => this.goToStudentsList(), 1800);
         },
         error: (err: any) => {
           this.error = err.error?.message || 'Failed to create student';
@@ -278,6 +279,10 @@ export class StudentFormComponent implements OnInit {
     }
     const age = this.calculateAge(this.student.dateOfBirth);
     return age > 0 ? age : null;
+  }
+
+  goToStudentsList(): void {
+    this.router.navigateByUrl(studentsManageNav(this.router).list);
   }
 
   getCompletionPercent(): number {

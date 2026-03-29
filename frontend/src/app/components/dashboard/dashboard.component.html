@@ -187,12 +187,12 @@
           </h2>
         </div>
         <div class="quick-actions modern-actions">
-          <a routerLink="/students/new" class="action-btn modern-action-btn primary-action" *ngIf="isAdmin()">
+          <a routerLink="/students/manage/add-new" class="action-btn modern-action-btn primary-action" *ngIf="isAdmin()">
             <span class="action-icon">👤</span>
             <span class="action-text">Add Student</span>
             <span class="action-arrow">→</span>
           </a>
-          <a routerLink="/classes/new" class="action-btn modern-action-btn info-action" *ngIf="isAdmin()">
+          <a routerLink="/classes/manage/add-new" class="action-btn modern-action-btn info-action" *ngIf="isAdmin()">
             <span class="action-icon">🏫</span>
             <span class="action-text">Add Class</span>
             <span class="action-arrow">→</span>
@@ -202,7 +202,7 @@
             <span class="action-text">Add Subject</span>
             <span class="action-arrow">→</span>
           </a>
-          <a routerLink="/teachers/new" class="action-btn modern-action-btn success-action" *ngIf="isAdmin()">
+          <a routerLink="/teachers/manage/add-new" class="action-btn modern-action-btn success-action" *ngIf="isAdmin()">
             <span class="action-icon">👨‍🏫</span>
             <span class="action-text">Add Teacher</span>
             <span class="action-arrow">→</span>
@@ -212,17 +212,17 @@
             <span class="action-text">Bulk Message</span>
             <span class="action-arrow">→</span>
           </a>
-          <a routerLink="/attendance/mark" class="action-btn modern-action-btn success-action" *ngIf="isAdmin() && canAccessModule('attendance')">
+          <a routerLink="/classes/manage/mark-register" class="action-btn modern-action-btn success-action" *ngIf="isAdmin() && canAccessModule('attendance')">
             <span class="action-icon">✅</span>
             <span class="action-text">Mark Register</span>
             <span class="action-arrow">→</span>
           </a>
-          <a routerLink="/attendance/reports" class="action-btn modern-action-btn info-action" *ngIf="isAdmin() && canAccessModule('attendance')">
+          <a routerLink="/classes/manage/attendance-reports" class="action-btn modern-action-btn info-action" *ngIf="isAdmin() && canAccessModule('attendance')">
             <span class="action-icon">📊</span>
             <span class="action-text">Attendance Reports</span>
             <span class="action-arrow">→</span>
           </a>
-          <a routerLink="/students" class="action-btn modern-action-btn primary-action" *ngIf="isAccountant()">
+          <a routerLink="/students/manage/students" class="action-btn modern-action-btn primary-action" *ngIf="isAccountant()">
             <span class="action-icon">📋</span>
             <span class="action-text">View Students</span>
             <span class="action-arrow">→</span>
@@ -269,7 +269,7 @@
             <span class="card-icon">🕒</span>
             Recent Activity
           </h2>
-          <a routerLink="/students" class="view-all-link modern-link" *ngIf="recentStudents.length > 0">
+          <a routerLink="/students/manage/students" class="view-all-link modern-link" *ngIf="recentStudents.length > 0">
             View All 
             <span class="link-arrow">→</span>
           </a>
@@ -292,7 +292,7 @@
                   </div>
                 </div>
                 <div class="activity-action">
-                  <a [routerLink]="['/students', student.id, 'edit']" class="btn-link modern-btn-link">
+                  <a [routerLink]="['/students/manage/edit', student.id]" class="btn-link modern-btn-link">
                     <span>✏️</span> Edit
                   </a>
                 </div>

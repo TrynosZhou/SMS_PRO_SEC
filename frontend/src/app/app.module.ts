@@ -10,10 +10,13 @@ import { LoginComponent } from './components/login/login.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { StudentListComponent } from './components/students/student-list/student-list.component';
 import { StudentFormComponent } from './components/students/student-form/student-form.component';
+import { StudentsManageComponent } from './components/students/students-manage/students-manage.component';
 import { TeacherListComponent } from './components/teachers/teacher-list/teacher-list.component';
 import { TeacherFormComponent } from './components/teachers/teacher-form/teacher-form.component';
 import { AssignClassesComponent } from './components/teachers/assign-classes/assign-classes.component';
+import { TeachersManageComponent } from './components/teachers/teachers-manage/teachers-manage.component';
 import { ExamListComponent } from './components/exams/exam-list/exam-list.component';
+import { ExamsManageComponent } from './components/exams/exams-manage/exams-manage.component';
 import { ExamFormComponent } from './components/exams/exam-form/exam-form.component';
 import { MarksEntryComponent } from './components/exams/marks-entry/marks-entry.component';
 import { ReportCardComponent } from './components/exams/report-card/report-card.component';
@@ -28,6 +31,7 @@ import { InvoiceStatementsComponent } from './components/finance/invoice-stateme
 import { ClassListComponent } from './components/classes/class-list/class-list.component';
 import { ClassFormComponent } from './components/classes/class-form/class-form.component';
 import { ClassListsComponent } from './components/classes/class-lists/class-lists.component';
+import { ClassesManageComponent } from './components/classes/classes-manage/classes-manage.component';
 import { SubjectListComponent } from './components/subjects/subject-list/subject-list.component';
 import { SubjectFormComponent } from './components/subjects/subject-form/subject-form.component';
 import { SettingsComponent } from './components/settings/settings.component';
@@ -82,10 +86,13 @@ import { SalaryAssignmentsComponent } from './components/payroll/salary-assignme
     DashboardComponent,
     StudentListComponent,
     StudentFormComponent,
+    StudentsManageComponent,
     TeacherListComponent,
     TeacherFormComponent,
     AssignClassesComponent,
+    TeachersManageComponent,
     ExamListComponent,
+    ExamsManageComponent,
     ExamFormComponent,
     MarksEntryComponent,
     ReportCardComponent,
@@ -100,6 +107,7 @@ import { SalaryAssignmentsComponent } from './components/payroll/salary-assignme
     ClassListComponent,
     ClassFormComponent,
     ClassListsComponent,
+    ClassesManageComponent,
     SubjectListComponent,
     SubjectFormComponent,
     SettingsComponent,

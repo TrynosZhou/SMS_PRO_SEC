@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ExamService } from '../../../services/exam.service';
+import { isInExamsManageShell } from '../exams-manage-navigation';
 import { ClassService } from '../../../services/class.service';
 import { SubjectService } from '../../../services/subject.service';
 import { StudentService } from '../../../services/student.service';
@@ -662,14 +663,20 @@ export class ExamListComponent implements OnInit, OnDestroy {
 
   openPublishResults() {
     if (!this.selectedExamType || !this.selectedTerm) return;
-    // Publish page accepts optional query params to pre-fill selection.
-    this.router.navigate(['/publish-results'], {
-      queryParams: { examType: this.selectedExamType, term: this.selectedTerm }
-    });
+    const qp = { examType: this.selectedExamType, term: this.selectedTerm };
+    if (isInExamsManageShell(this.router)) {
+      this.router.navigate(['/exams', 'manage', 'publish-results'], { queryParams: qp });
+    } else {
+      this.router.navigate(['/publish-results'], { queryParams: qp });
+    }
   }
 
   openMarkInputProgress() {
-    this.router.navigate(['/exams/mark-input-progress']);
+    if (isInExamsManageShell(this.router)) {
+      this.router.navigate(['/exams', 'manage', 'mark-input-progress']);
+    } else {
+      this.router.navigate(['/exams', 'mark-input-progress']);
+    }
   }
 
   // Quick actions

@@ -9,7 +9,7 @@
         </h1>
         <p class="subtitle">Enroll a registered student into a class</p>
       </div>
-      <button class="btn btn-icon" type="button" (click)="router.navigate(['/enrollments/unenrolled'])" title="Back to Unenrolled Students">
+      <button class="btn btn-icon" type="button" (click)="goToUnenrolled()" title="Back to Unenrolled Students">
         ← Back
       </button>
     </div>
@@ -155,7 +155,7 @@
           <button 
             type="button" 
             class="btn btn-secondary" 
-            (click)="router.navigate(['/enrollments/unenrolled'])"
+            (click)="goToUnenrolled()"
             [disabled]="submitting">
             ❌ Cancel
           </button>

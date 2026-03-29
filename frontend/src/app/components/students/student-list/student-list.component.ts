@@ -4,6 +4,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { StudentService } from '../../../services/student.service';
 import { ClassService } from '../../../services/class.service';
 import { environment } from '../../../../environments/environment';
+import { studentsManageNav } from '../students-manage-navigation';
 
 /** Editable student fields from list / modal (student ID is preview-only). */
 export type StudentQuickEditField =
@@ -158,7 +159,11 @@ export class StudentListComponent implements OnInit {
   }
 
   editStudent(id: string) {
-    this.router.navigate([`/students/${id}/edit`]);
+    this.router.navigate(studentsManageNav(this.router).editSegments(id));
+  }
+
+  goToNewStudent(): void {
+    this.router.navigateByUrl(studentsManageNav(this.router).addNew);
   }
 
   viewReportCard(studentId: string) {
