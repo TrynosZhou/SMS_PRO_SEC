@@ -1,6 +1,6 @@
 // This file can be replaced during build by using the `fileReplacements` array.
 // For production, use the actual backend API URL
-const apiUrl = 'https://sms-2-xig2.onrender.com/api';
+const apiUrl = 'https://sms-pro-sec.onrender.com/api';
 
 export const environment = {
   production: true,
