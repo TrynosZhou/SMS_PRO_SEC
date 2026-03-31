@@ -42,6 +42,8 @@ export class ClassFormComponent implements OnInit {
   teachers: any[] = [];
   filteredTeachers: any[] = [];
   selectedTeacherIds: string[] = [];
+  /** Home teacher (classTeacherId); may be any registered teacher; submit merges into teacherIds. */
+  selectedClassTeacherId = '';
   teacherSearchQuery = '';
   loadingTeachers = false;
   
@@ -84,6 +86,14 @@ export class ClassFormComponent implements OnInit {
         // Load selected teachers and subjects
         if (data.teachers) {
           this.selectedTeacherIds = data.teachers.map((t: any) => t.id);
+        }
+        this.selectedClassTeacherId =
+          data.classTeacherId || data.classTeacher?.id || '';
+        if (
+          this.selectedClassTeacherId &&
+          !this.selectedTeacherIds.includes(this.selectedClassTeacherId)
+        ) {
+          this.selectedTeacherIds.push(this.selectedClassTeacherId);
         }
         if (data.subjects) {
           this.selectedSubjectIds = data.subjects.map((s: any) => s.id);
@@ -167,7 +177,29 @@ export class ClassFormComponent implements OnInit {
     const index = this.selectedTeacherIds.indexOf(teacherId);
     if (index > -1) {
       this.selectedTeacherIds.splice(index, 1);
+      if (this.selectedClassTeacherId === teacherId) {
+        this.selectedClassTeacherId = '';
+      }
     } else {
+      this.selectedTeacherIds.push(teacherId);
+    }
+  }
+
+  /** All active teachers, sorted by display name, for the Home Teacher dropdown. */
+  get homeTeacherSelectOptions(): { id: string; label: string }[] {
+    return [...this.teachers]
+      .map((t) => ({
+        id: t.id,
+        label: `${t.firstName || ''} ${t.lastName || ''}`.trim() || t.id,
+      }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+      );
+  }
+
+  /** Ensure the chosen home teacher appears in the assigned-teachers list for a consistent UI. */
+  onHomeTeacherChange(teacherId: string): void {
+    if (teacherId && !this.selectedTeacherIds.includes(teacherId)) {
       this.selectedTeacherIds.push(teacherId);
     }
   }
@@ -275,10 +307,16 @@ export class ClassFormComponent implements OnInit {
       isActive: this.classItem.isActive !== false
     };
 
-    // Include teacher and subject IDs if selected
-    if (this.selectedTeacherIds.length > 0) {
-      classData.teacherIds = this.selectedTeacherIds;
+    const mergedTeacherIds = [...this.selectedTeacherIds];
+    if (
+      this.selectedClassTeacherId &&
+      !mergedTeacherIds.includes(this.selectedClassTeacherId)
+    ) {
+      mergedTeacherIds.push(this.selectedClassTeacherId);
     }
+    classData.teacherIds = mergedTeacherIds;
+    classData.classTeacherId = this.selectedClassTeacherId || null;
+
     if (this.selectedSubjectIds.length > 0) {
       classData.subjectIds = this.selectedSubjectIds;
     }

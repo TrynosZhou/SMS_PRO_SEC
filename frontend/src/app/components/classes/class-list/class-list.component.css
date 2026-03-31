@@ -256,7 +256,7 @@
 
 .skeleton-row {
   display: grid;
-  grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr 1.5fr;
+  grid-template-columns: minmax(180px, 2.8fr) 1fr 1fr minmax(280px, 3.2fr) 1.2fr 1.6fr;
   gap: 16px;
   padding: 16px;
   border-bottom: 1px solid #e9ecef;
@@ -280,21 +280,24 @@
 }
 
 .skeleton-name { width: 80%; }
-.skeleton-grade { width: 60%; }
 .skeleton-count { width: 40%; }
+.skeleton-class-tr { width: 90%; min-width: 220px; }
 .skeleton-status { width: 50%; }
 .skeleton-actions { width: 70%; }
 
-/* Table Container */
+/* Table Container — horizontal scroll so Actions stay reachable when columns are wide */
 .table-container {
   background: white;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .modern-table {
   width: 100%;
+  min-width: 880px;
   border-collapse: collapse;
 }
 
@@ -353,20 +356,135 @@
   font-size: 15px;
 }
 
+/* Class column — keep compact so Students→Status block sits further left */
+.modern-table .col-class-name {
+  width: 1%;
+  max-width: 188px;
+  min-width: 0;
+  white-space: nowrap;
+  vertical-align: middle;
+  padding-right: 6px;
+}
+
+.modern-table thead .col-class-name {
+  padding-right: 6px;
+}
+
+/* Students, Teachers, Class TR, Status — minimal horizontal padding to shift group left */
+.modern-table .col-students {
+  padding: 10px 2px 10px 4px;
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.modern-table .col-teachers {
+  padding: 10px 2px;
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Class TR: one-line teacher name (ellipsis if too long); room for typical full names */
+.modern-table .col-class-tr {
+  width: 1%;
+  max-width: 280px;
+  min-width: 0;
+  padding: 10px 2px 10px 4px;
+  box-sizing: border-box;
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.modern-table .col-status {
+  padding: 10px 2px;
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Match tighter header cells for those columns */
+.modern-table thead .col-students {
+  padding: 14px 2px 14px 4px;
+}
+
+.modern-table thead .col-teachers {
+  padding: 14px 2px;
+}
+
+.modern-table thead .col-class-tr {
+  padding: 14px 2px 14px 4px;
+}
+
+.modern-table thead .col-status {
+  padding: 14px 2px;
+}
+
+.modern-table thead .col-status {
+  text-align: center;
+}
+
+/* Actions: slightly tighter so the block sits left while both buttons still fit */
+.modern-table .col-actions {
+  min-width: 184px;
+  width: 1%;
+  box-sizing: border-box;
+  padding: 10px 6px 10px 6px;
+}
+
+.modern-table .col-actions .action-buttons {
+  gap: 6px;
+}
+
+.modern-table thead .col-actions {
+  text-align: center;
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: -6px 0 14px rgba(0, 0, 0, 0.12);
+}
+
+.modern-table .col-actions .btn-action {
+  padding: 8px 10px;
+  font-size: 13px;
+  gap: 4px;
+}
+
+.modern-table .col-actions .action-text {
+  font-size: 13px;
+}
+
+.modern-table tbody td.col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: #fff;
+  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.06);
+}
+
+.modern-table tbody tr:hover td.col-actions {
+  background: #f8f9fa;
+}
+
+.modern-table .col-students .count-badge,
+.modern-table .col-teachers .count-badge {
+  padding: 5px 10px;
+  font-size: 13px;
+  gap: 4px;
+}
+
 .class-name .name-text {
   font-weight: 600;
   color: #2c3e50;
   font-size: 16px;
-}
-
-.class-grade .grade-badge {
   display: inline-block;
-  padding: 6px 12px;
-  background: #e3f2fd;
-  color: #1976d2;
-  border-radius: 8px;
-  font-weight: 500;
-  font-size: 14px;
+  max-width: 188px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 .class-count {
@@ -397,6 +515,22 @@
   font-size: 16px;
 }
 
+.class-teacher-cell {
+  vertical-align: middle;
+}
+
+.class-teacher-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e3a5f;
+  line-height: 1.25;
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .status-cell {
   text-align: center;
 }
@@ -404,13 +538,13 @@
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  gap: 5px;
+  padding: 5px 10px;
   border-radius: 20px;
   font-weight: 500;
-  font-size: 13px;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.04em;
 }
 
 .status-badge.active {
@@ -445,29 +579,12 @@
 
 .action-buttons {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  flex-wrap: nowrap;
   justify-content: center;
   align-items: center;
-  position: relative;
-}
-
-.action-buttons-row {
-  display: flex;
   gap: 8px;
-  justify-content: center;
-  align-items: center;
-}
-
-.actions-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6c757d;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 0;
-  white-space: nowrap;
-  margin-bottom: 2px;
+  position: relative;
 }
 
 .btn-action {
@@ -631,7 +748,7 @@
   }
 
   .modern-table {
-    min-width: 800px;
+    min-width: 720px;
   }
 
   .action-buttons {

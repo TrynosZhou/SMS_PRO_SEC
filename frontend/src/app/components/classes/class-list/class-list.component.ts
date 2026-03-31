@@ -134,10 +134,6 @@ export class ClassListComponent implements OnInit {
           aValue = a.name?.toLowerCase() || '';
           bValue = b.name?.toLowerCase() || '';
           break;
-        case 'form':
-          aValue = a.form?.toLowerCase() || '';
-          bValue = b.form?.toLowerCase() || '';
-          break;
         case 'students':
           aValue = a.students?.length || 0;
           bValue = b.students?.length || 0;
@@ -145,6 +141,10 @@ export class ClassListComponent implements OnInit {
         case 'teachers':
           aValue = a.teachers?.length || 0;
           bValue = b.teachers?.length || 0;
+          break;
+        case 'classTr':
+          aValue = this.getClassTeacherFullName(a).toLowerCase();
+          bValue = this.getClassTeacherFullName(b).toLowerCase();
           break;
         default:
           return 0;
@@ -183,6 +183,16 @@ export class ClassListComponent implements OnInit {
   truncate(text: string, length: number): string {
     if (!text) return 'N/A';
     return text.length > length ? text.substring(0, length) + '...' : text;
+  }
+
+  /** Home / class teacher from API relation `classTeacher`. */
+  getClassTeacherFullName(classItem: any): string {
+    const t = classItem?.classTeacher;
+    if (!t) {
+      return '—';
+    }
+    const name = `${t.firstName || ''} ${t.lastName || ''}`.trim();
+    return name || '—';
   }
 
   editClass(id: string) {

@@ -217,6 +217,7 @@ const PORT = process.env.PORT || 3007;
 
 console.log('[Server] Starting database initialization...');
 console.log('[Server] Node version:', process.version);
+
 console.log('[Server] Platform:', process.platform);
 console.log('[Server] Architecture:', process.arch);
 console.log('[Server] Current working directory:', process.cwd());

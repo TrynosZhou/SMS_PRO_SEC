@@ -32,7 +32,7 @@
       <input 
         type="text" 
         class="search-input" 
-        placeholder="Search classes by name, grade, or description..."
+        placeholder="Search classes by name or description..."
         [(ngModel)]="searchTerm"
         (input)="onSearchInput()">
       <button class="search-clear" *ngIf="searchTerm" (click)="clearSearch()" aria-label="Clear search">×</button>
@@ -45,9 +45,9 @@
       </select>
       <select class="filter-select" [(ngModel)]="sortBy" (change)="sortClasses()">
         <option value="name">Sort by Name</option>
-        <option value="form">Sort by Grade</option>
         <option value="students">Sort by Students</option>
         <option value="teachers">Sort by Teachers</option>
+        <option value="classTr">Sort by Class TR</option>
       </select>
       <button class="btn btn-secondary btn-refresh" (click)="loadClasses()" [disabled]="loading">
         <span class="btn-icon">🔄</span>
@@ -61,9 +61,9 @@
     <div class="skeleton-loader" *ngFor="let i of [1,2,3,4,5]">
       <div class="skeleton-row">
         <div class="skeleton-cell skeleton-name"></div>
-        <div class="skeleton-cell skeleton-grade"></div>
         <div class="skeleton-cell skeleton-count"></div>
         <div class="skeleton-cell skeleton-count"></div>
+        <div class="skeleton-cell skeleton-class-tr"></div>
         <div class="skeleton-cell skeleton-status"></div>
         <div class="skeleton-cell skeleton-actions"></div>
       </div>
@@ -75,56 +75,57 @@
     <table class="modern-table">
       <thead>
         <tr>
-          <th (click)="sortByColumn('name')" class="sortable">
-            <span>Class Name</span>
+          <th (click)="sortByColumn('name')" class="sortable col-class-name">
+            <span>Class</span>
             <span class="sort-icon" *ngIf="sortColumn === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
           </th>
-          <th (click)="sortByColumn('form')" class="sortable">
-            <span>Grade/Form</span>
-            <span class="sort-icon" *ngIf="sortColumn === 'form'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
-          </th>
-          <th (click)="sortByColumn('students')" class="sortable">
+          <th (click)="sortByColumn('students')" class="sortable col-students">
             <span>Students</span>
             <span class="sort-icon" *ngIf="sortColumn === 'students'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
           </th>
-          <th (click)="sortByColumn('teachers')" class="sortable">
+          <th (click)="sortByColumn('teachers')" class="sortable col-teachers">
             <span>Teachers</span>
             <span class="sort-icon" *ngIf="sortColumn === 'teachers'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
           </th>
-          <th>Status</th>
-          <th class="actions-header"></th>
+          <th (click)="sortByColumn('classTr')" class="sortable col-class-tr">
+            <span>Class TR</span>
+            <span class="sort-icon" *ngIf="sortColumn === 'classTr'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+          </th>
+          <th class="col-status">Status</th>
+          <th class="actions-header col-actions">Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngFor="let classItem of filteredClasses" class="table-row">
-          <td class="class-name">
-            <span class="name-text">{{ classItem.name }}</span>
+          <td class="class-name col-class-name">
+            <span class="name-text" [attr.title]="classItem.name">{{ classItem.name }}</span>
           </td>
-          <td class="class-grade">
-            <span class="grade-badge">{{ classItem.form }}</span>
-          </td>
-          <td class="class-count">
+          <td class="class-count col-students">
             <span class="count-badge students">
               <span class="count-icon">👨‍🎓</span>
               {{ classItem.students?.length || 0 }}
             </span>
           </td>
-          <td class="class-count">
+          <td class="class-count col-teachers">
             <span class="count-badge teachers">
               <span class="count-icon">👨‍🏫</span>
               {{ classItem.teachers?.length || 0 }}
             </span>
           </td>
-          <td class="status-cell">
+          <td class="class-teacher-cell col-class-tr">
+            <span
+              class="class-teacher-name"
+              [attr.title]="getClassTeacherFullName(classItem)"
+            >{{ getClassTeacherFullName(classItem) }}</span>
+          </td>
+          <td class="status-cell col-status">
             <span class="status-badge" [class.active]="classItem.isActive" [class.inactive]="!classItem.isActive">
               <span class="status-dot"></span>
               {{ classItem.isActive ? 'Active' : 'Inactive' }}
             </span>
           </td>
-          <td class="actions-cell">
+          <td class="actions-cell col-actions">
             <div class="action-buttons">
-              <span class="actions-label">Actions</span>
-              <div class="action-buttons-row">
                 <button 
                   class="btn-action btn-edit" 
                   (click)="editClass(classItem.id)" 
@@ -140,7 +141,6 @@
                   <span class="action-icon">🗑️</span>
                   <span class="action-text">Delete</span>
                 </button>
-              </div>
             </div>
           </td>
         </tr>

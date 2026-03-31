@@ -47,7 +47,7 @@ export interface TimetableSlot {
   isBreak: boolean;
   isManuallyEdited: boolean;
   teacher?: { id: string; firstName: string; lastName: string; teacherId: string };
-  class?: { id: string; name: string; form: string };
+  class?: { id: string; name: string; form?: string };
   subject?: { id: string; name: string; code: string };
 }
 

@@ -36,7 +36,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     let classes;
     try {
       classes = await classRepository.find({
-        relations: ['students', 'students.user', 'teachers', 'subjects']
+        relations: ['students', 'students.user', 'teachers', 'subjects', 'classTeacher'],
       });
     } catch (relationError: any) {
       console.error('[getClasses] Error loading with relations:', relationError.message);
@@ -131,7 +131,8 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
       ...c,
       teachers: Array.isArray(c.teachers) ? c.teachers : [],
       students: Array.isArray(c.students) ? c.students : [],
-      subjects: Array.isArray(c.subjects) ? c.subjects : []
+      subjects: Array.isArray(c.subjects) ? c.subjects : [],
+      classTeacher: c.classTeacher ?? null,
     }));
     
     const pagination = parsePaginationParams(req.query);
@@ -175,7 +176,7 @@ router.get('/:id', authenticate, async (req, res) => {
     try {
       classEntity = await classRepository.findOne({
         where: { id },
-        relations: ['students', 'teachers', 'subjects']
+        relations: ['students', 'teachers', 'subjects', 'classTeacher'],
       });
     } catch (relationError: any) {
       console.error('[getClassById] Error loading with relations:', relationError.message);
@@ -229,9 +230,10 @@ router.get('/:id', authenticate, async (req, res) => {
 
 router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DEMO_USER), async (req, res) => {
   try {
-    const { name, form, description, teacherIds, subjectIds } = req.body;
+    const { name, form, description, teacherIds, subjectIds, classTeacherId } = req.body;
     const classRepository = AppDataSource.getRepository(Class);
-    
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+
     // Validate required fields
     if (!name || !form) {
       return res.status(400).json({ message: 'Name and form are required' });
@@ -245,40 +247,58 @@ router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, Us
       });
     }
 
-    const classEntity = classRepository.create({ name, form, description });
-    
+    const effectiveTeacherIds: string[] = Array.isArray(teacherIds) ? [...teacherIds] : [];
+    if (classTeacherId && typeof classTeacherId === 'string' && !effectiveTeacherIds.includes(classTeacherId)) {
+      effectiveTeacherIds.push(classTeacherId);
+    }
+
+    const classEntity = classRepository.create({
+      name,
+      form,
+      description,
+      classTeacherId: classTeacherId && typeof classTeacherId === 'string' ? classTeacherId : null,
+    });
+
+    if (classEntity.classTeacherId) {
+      const ct = await teacherRepository.findOne({ where: { id: classEntity.classTeacherId } });
+      if (!ct) {
+        return res.status(400).json({ message: 'Invalid class teacher' });
+      }
+    }
+
     // Assign subjects if provided
     if (subjectIds && Array.isArray(subjectIds) && subjectIds.length > 0) {
       const subjectRepository = AppDataSource.getRepository(Subject);
       const subjects = await subjectRepository.find({ where: { id: In(subjectIds) } });
       classEntity.subjects = subjects;
     }
-    
-    // Assign teachers via ManyToMany for backward compatibility
-    if (teacherIds && Array.isArray(teacherIds) && teacherIds.length > 0) {
-      const teacherRepository = AppDataSource.getRepository(Teacher);
-      const teachers = await teacherRepository.find({ where: { id: In(teacherIds) } });
+
+    // Assign teachers via ManyToMany
+    if (effectiveTeacherIds.length > 0) {
+      const teachers = await teacherRepository.find({ where: { id: In(effectiveTeacherIds) } });
+      if (teachers.length !== effectiveTeacherIds.length) {
+        return res.status(400).json({ message: 'One or more teacher IDs are invalid' });
+      }
       classEntity.teachers = teachers;
     }
-    
+
     // Save class
     await classRepository.save(classEntity);
-    
+
     // Also link class to teachers using the junction table (in addition to ManyToMany)
-    if (teacherIds && Array.isArray(teacherIds) && teacherIds.length > 0) {
+    if (effectiveTeacherIds.length > 0) {
       try {
-        await linkClassToTeachers(classEntity.id, teacherIds);
+        await linkClassToTeachers(classEntity.id, effectiveTeacherIds);
         console.log('[createClass] Linked class to teachers via junction table');
       } catch (linkError: any) {
         console.error('[createClass] Error linking class to teachers via junction table:', linkError);
-        // Continue - the class is saved with ManyToMany relation, junction table is optional
       }
     }
-    
+
     // Load the class with relations
     const savedClass = await classRepository.findOne({
       where: { id: classEntity.id },
-      relations: ['students', 'teachers', 'subjects']
+      relations: ['students', 'teachers', 'subjects', 'classTeacher'],
     });
     
     res.status(201).json({ message: 'Class created successfully', class: savedClass });
@@ -290,12 +310,14 @@ router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, Us
 router.put('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DEMO_USER), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, form, description, isActive, teacherIds, subjectIds } = req.body;
+    const { name, form, description, isActive, teacherIds, subjectIds, classTeacherId } = req.body;
     const classRepository = AppDataSource.getRepository(Class);
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+    const classTeacherInBody = Object.prototype.hasOwnProperty.call(req.body, 'classTeacherId');
 
     const classEntity = await classRepository.findOne({ 
       where: { id },
-      relations: ['teachers', 'subjects']
+      relations: ['teachers', 'subjects'],
     });
     if (!classEntity) {
       return res.status(404).json({ message: 'Class not found' });
@@ -328,45 +350,75 @@ router.put('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, 
       }
     }
 
-    // Update teachers via ManyToMany for backward compatibility
+    let effectiveTeacherIds: string[];
     if (teacherIds !== undefined) {
-      if (Array.isArray(teacherIds) && teacherIds.length > 0) {
-        const teacherRepository = AppDataSource.getRepository(Teacher);
-        const teachers = await teacherRepository.find({ where: { id: In(teacherIds) } });
+      effectiveTeacherIds = Array.isArray(teacherIds) ? [...teacherIds] : [];
+    } else {
+      effectiveTeacherIds = (classEntity.teachers || []).map((t) => t.id);
+    }
+
+    if (classTeacherInBody && classTeacherId && typeof classTeacherId === 'string') {
+      if (!effectiveTeacherIds.includes(classTeacherId)) {
+        effectiveTeacherIds.push(classTeacherId);
+      }
+    }
+
+    const shouldRefreshTeachers =
+      teacherIds !== undefined ||
+      (classTeacherInBody && !!classTeacherId && typeof classTeacherId === 'string');
+
+    if (shouldRefreshTeachers) {
+      if (effectiveTeacherIds.length > 0) {
+        const teachers = await teacherRepository.find({ where: { id: In(effectiveTeacherIds) } });
+        if (teachers.length !== effectiveTeacherIds.length) {
+          return res.status(400).json({ message: 'One or more teacher IDs are invalid' });
+        }
         classEntity.teachers = teachers;
       } else {
         classEntity.teachers = [];
       }
     }
 
+    if (classTeacherInBody) {
+      if (!classTeacherId) {
+        classEntity.classTeacherId = null;
+      } else if (typeof classTeacherId === 'string') {
+        if (!effectiveTeacherIds.includes(classTeacherId)) {
+          return res.status(400).json({
+            message: 'Class teacher must be one of the teachers assigned to this class',
+          });
+        }
+        const ct = await teacherRepository.findOne({ where: { id: classTeacherId } });
+        if (!ct) {
+          return res.status(400).json({ message: 'Invalid class teacher' });
+        }
+        classEntity.classTeacherId = classTeacherId;
+      }
+    } else if (
+      classEntity.classTeacherId &&
+      !effectiveTeacherIds.includes(classEntity.classTeacherId)
+    ) {
+      classEntity.classTeacherId = null;
+    }
+
     // Save class
     await classRepository.save(classEntity);
-    
-    // Also link class to teachers using the junction table (in addition to ManyToMany)
-    if (teacherIds !== undefined) {
-      if (Array.isArray(teacherIds) && teacherIds.length > 0) {
-        try {
-          await linkClassToTeachers(classEntity.id, teacherIds);
-          console.log('[updateClass] Linked class to teachers via junction table');
-        } catch (linkError: any) {
-          console.error('[updateClass] Error linking class to teachers via junction table:', linkError);
-          // Continue - the class is saved with ManyToMany relation, junction table is optional
-        }
-      } else {
-        // Empty array means remove all teacher links
-        try {
-          await linkClassToTeachers(classEntity.id, []);
-          console.log('[updateClass] Removed all teacher links for class');
-        } catch (linkError: any) {
-          console.error('[updateClass] Error removing teacher links:', linkError);
-        }
+
+    // Junction table: refresh when teacher list or class teacher changes
+    const shouldRelinkJunction = teacherIds !== undefined || classTeacherInBody;
+    if (shouldRelinkJunction) {
+      try {
+        await linkClassToTeachers(classEntity.id, effectiveTeacherIds);
+        console.log('[updateClass] Linked class to teachers via junction table');
+      } catch (linkError: any) {
+        console.error('[updateClass] Error linking class to teachers via junction table:', linkError);
       }
     }
-    
+
     // Load the updated class with all relations
     const updatedClass = await classRepository.findOne({
       where: { id },
-      relations: ['students', 'teachers', 'subjects']
+      relations: ['students', 'teachers', 'subjects', 'classTeacher'],
     });
     
     res.json({ message: 'Class updated successfully', class: updatedClass });

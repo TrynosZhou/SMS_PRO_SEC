@@ -271,6 +271,37 @@
               <p>No subjects available. Please add subjects first.</p>
             </div>
           </div>
+
+          <div class="form-group full-width home-teacher-field" *ngIf="loadingTeachers">
+            <div class="loading-state">
+              <span class="spinner"></span>
+              <span>Loading teachers for home teacher…</span>
+            </div>
+          </div>
+
+          <div class="form-group full-width home-teacher-field" *ngIf="!loadingTeachers && teachers.length > 0">
+            <label for="homeTeacherSelect">
+              Home Teacher
+              <span class="field-hint">Optional: choose from all registered teachers. They will be linked to this class if not already assigned.</span>
+            </label>
+            <select
+              id="homeTeacherSelect"
+              name="homeTeacherSelect"
+              class="form-control"
+              [(ngModel)]="selectedClassTeacherId"
+              (ngModelChange)="onHomeTeacherChange($event)"
+            >
+              <option value="">— None —</option>
+              <option *ngFor="let o of homeTeacherSelectOptions" [value]="o.id">{{ o.label }}</option>
+            </select>
+          </div>
+
+          <div class="form-group full-width home-teacher-field" *ngIf="!loadingTeachers && teachers.length === 0">
+            <div class="empty-state-card">
+              <span class="empty-icon">🏠</span>
+              <p>No teachers available. Add teachers first to set a home teacher.</p>
+            </div>
+          </div>
         </div>
 
         <!-- Preview Section -->

@@ -11,6 +11,16 @@ import { AuthRequest } from '../middleware/auth';
 import { In, Not } from 'typeorm';
 import { createTimetablePDF } from '../utils/timetablePdfGenerator';
 
+/** Fisher–Yates shuffle (copy) — used to randomize slot placement order. */
+function shuffleArray<T>(items: T[]): T[] {
+  const arr = items.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // Get or create active timetable configuration
 export const getTimetableConfig = async (req: AuthRequest, res: Response) => {
   try {
@@ -275,7 +285,7 @@ async function generateTimetableSlots(
   versionId: string
 ): Promise<TimetableSlot[]> {
   const slots: TimetableSlot[] = [];
-  const daysOfWeek = config.daysOfWeek || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const daysOfWeek = [...(config.daysOfWeek || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])];
   
   // Build teacher-class-subject assignments using existing database relationships
   const assignments: Array<{
@@ -448,158 +458,39 @@ async function generateTimetableSlots(
 
   for (const assignment of assignments) {
     let lessonsPlaced = 0;
-    const maxAttempts = daysOfWeek.length * config.periodsPerDay * 20; // Increased attempts
+    const maxAttempts = daysOfWeek.length * config.periodsPerDay * 40;
     let attempts = 0;
 
-    // Try to distribute lessons evenly across days
     const lessonsPerDay = Math.ceil(assignment.lessonsPerWeek / daysOfWeek.length);
     const dayDistribution: Map<string, number> = new Map();
-    daysOfWeek.forEach(day => dayDistribution.set(day, 0));
+    daysOfWeek.forEach((day) => dayDistribution.set(day, 0));
 
-    while (lessonsPlaced < assignment.lessonsPerWeek && attempts < maxAttempts) {
-      attempts++;
-      
-      // Try to find an available slot, prioritizing days with fewer lessons
-      const sortedDays = daysOfWeek.sort((a, b) => {
-        const countA = dayDistribution.get(a) || 0;
-        const countB = dayDistribution.get(b) || 0;
-        return countA - countB;
-      });
+    /** Prefer different period indices across the week for this class+subject (stops “same column every day”). */
+    const periodsUsedThisAssignment = new Set<number>();
 
-      // Try each day in order of priority
-      let slotFound = false;
-      for (const day of sortedDays) {
-        if (slotFound) break;
-        
-        const dayLessons = dayDistribution.get(day) || 0;
-        if (dayLessons >= lessonsPerDay) continue; // Skip if day already has enough lessons
-
-        // Try periods in order
+    const tryPlaceOneLesson = (relaxDayCap: boolean): boolean => {
+      const candidates: { day: string; period: number }[] = [];
+      for (const day of daysOfWeek) {
+        if (!relaxDayCap && (dayDistribution.get(day) || 0) >= lessonsPerDay) {
+          continue;
+        }
         for (let period = 1; period <= config.periodsPerDay; period++) {
-          const slotKey = `${day}-${period}`;
-
-          // Check for basic conflicts
-          if (teacherSchedule.get(assignment.teacher.id)?.has(slotKey) ||
-              classSchedule.get(assignment.class.id)?.has(slotKey)) {
-            continue; // Slot already occupied
-          }
-
-          // Check for consecutive slots (max 2 consecutive)
-          const consecutiveKey = `${assignment.teacher.id}-${assignment.class.id}-${day}`;
-          const currentConsecutive = teacherClassConsecutive.get(consecutiveKey) || 0;
-          
-          // Check if previous period has the same teacher-class combination
-          const prevPeriod = period - 1;
-          const prevSlotKey = `${day}-${prevPeriod}`;
-          const hasPrevConsecutive = prevPeriod > 0 && 
-            slots.some(s => s.dayOfWeek === day && 
-                           s.periodNumber === prevPeriod && 
-                           s.teacherId === assignment.teacher.id && 
-                           s.classId === assignment.class.id);
-
-          // Check if next period has the same teacher-class combination
-          const nextPeriod = period + 1;
-          const nextSlotKey = `${day}-${nextPeriod}`;
-          const hasNextConsecutive = nextPeriod <= config.periodsPerDay && 
-            slots.some(s => s.dayOfWeek === day && 
-                           s.periodNumber === nextPeriod && 
-                           s.teacherId === assignment.teacher.id && 
-                           s.classId === assignment.class.id);
-
-          // If we already have 2 consecutive slots, don't add another
-          if (hasPrevConsecutive && currentConsecutive >= 2) {
-            continue; // Skip to avoid more than 2 consecutive
-          }
-
-          // If next slot would create 3 consecutive, skip
-          if (hasNextConsecutive && currentConsecutive >= 1) {
-            continue; // Skip to avoid creating 3 consecutive
-          }
-
-          // Slot is available and doesn't violate consecutive rule
-          teacherSchedule.get(assignment.teacher.id)!.add(slotKey);
-          classSchedule.get(assignment.class.id)!.add(slotKey);
-
-          // Update consecutive count
-          if (hasPrevConsecutive) {
-            teacherClassConsecutive.set(consecutiveKey, currentConsecutive + 1);
-          } else {
-            teacherClassConsecutive.set(consecutiveKey, 1);
-          }
-
-          const timeSlot = timeSlots[period - 1];
-          if (!timeSlot) {
-            console.error(`[generateTimetableSlots] No time slot found for period ${period}`);
-            continue;
-          }
-          const slot = new TimetableSlot();
-          slot.versionId = versionId;
-          slot.teacherId = assignment.teacher.id;
-          slot.classId = assignment.class.id;
-          slot.subjectId = assignment.subject.id;
-          slot.dayOfWeek = day;
-          slot.periodNumber = period;
-          slot.startTime = timeSlot.startTime;
-          slot.endTime = timeSlot.endTime;
-          slot.isBreak = false;
-          slot.isManuallyEdited = false;
-
-          slots.push(slot);
-          lessonsPlaced++;
-          dayDistribution.set(day, (dayDistribution.get(day) || 0) + 1);
-          slotFound = true;
-          break;
+          candidates.push({ day, period });
         }
       }
 
-      // If no slot found with priority system, try random placement
-      if (!slotFound) {
-        const dayIndex = Math.floor(Math.random() * daysOfWeek.length);
-        const period = Math.floor(Math.random() * config.periodsPerDay) + 1;
-        const day = daysOfWeek[dayIndex];
+      const preferred = candidates.filter((c) => !periodsUsedThisAssignment.has(c.period));
+      const fallback = candidates.filter((c) => periodsUsedThisAssignment.has(c.period));
+      const ordered = [...shuffleArray(preferred), ...shuffleArray(fallback)];
+
+      for (const { day, period } of ordered) {
         const slotKey = `${day}-${period}`;
 
-        // Check for basic conflicts
-        if (teacherSchedule.get(assignment.teacher.id)?.has(slotKey) ||
-            classSchedule.get(assignment.class.id)?.has(slotKey)) {
-          continue; // Try next attempt
-        }
-
-        // Check for consecutive slots (max 2 consecutive)
-        const consecutiveKey = `${assignment.teacher.id}-${assignment.class.id}-${day}`;
-        const currentConsecutive = teacherClassConsecutive.get(consecutiveKey) || 0;
-        
-        const prevPeriod = period - 1;
-        const hasPrevConsecutive = prevPeriod > 0 && 
-          slots.some(s => s.dayOfWeek === day && 
-                         s.periodNumber === prevPeriod && 
-                         s.teacherId === assignment.teacher.id && 
-                         s.classId === assignment.class.id);
-
-        const nextPeriod = period + 1;
-        const hasNextConsecutive = nextPeriod <= config.periodsPerDay && 
-          slots.some(s => s.dayOfWeek === day && 
-                         s.periodNumber === nextPeriod && 
-                         s.teacherId === assignment.teacher.id && 
-                         s.classId === assignment.class.id);
-
-        // Skip if would create more than 2 consecutive
-        if (hasPrevConsecutive && currentConsecutive >= 2) {
+        if (
+          teacherSchedule.get(assignment.teacher.id)?.has(slotKey) ||
+          classSchedule.get(assignment.class.id)?.has(slotKey)
+        ) {
           continue;
-        }
-        if (hasNextConsecutive && currentConsecutive >= 1) {
-          continue;
-        }
-
-        // Slot is available
-        teacherSchedule.get(assignment.teacher.id)!.add(slotKey);
-        classSchedule.get(assignment.class.id)!.add(slotKey);
-
-        // Update consecutive count
-        if (hasPrevConsecutive) {
-          teacherClassConsecutive.set(consecutiveKey, currentConsecutive + 1);
-        } else {
-          teacherClassConsecutive.set(consecutiveKey, 1);
         }
 
         const timeSlot = timeSlots[period - 1];
@@ -607,6 +498,48 @@ async function generateTimetableSlots(
           console.error(`[generateTimetableSlots] No time slot found for period ${period}`);
           continue;
         }
+
+        const consecutiveKey = `${assignment.teacher.id}-${assignment.class.id}-${day}`;
+        const currentConsecutive = teacherClassConsecutive.get(consecutiveKey) || 0;
+
+        const prevPeriod = period - 1;
+        const hasPrevConsecutive =
+          prevPeriod > 0 &&
+          slots.some(
+            (s) =>
+              s.dayOfWeek === day &&
+              s.periodNumber === prevPeriod &&
+              s.teacherId === assignment.teacher.id &&
+              s.classId === assignment.class.id
+          );
+
+        const nextPeriod = period + 1;
+        const hasNextConsecutive =
+          nextPeriod <= config.periodsPerDay &&
+          slots.some(
+            (s) =>
+              s.dayOfWeek === day &&
+              s.periodNumber === nextPeriod &&
+              s.teacherId === assignment.teacher.id &&
+              s.classId === assignment.class.id
+          );
+
+        if (hasPrevConsecutive && currentConsecutive >= 2) {
+          continue;
+        }
+        if (hasNextConsecutive && currentConsecutive >= 1) {
+          continue;
+        }
+
+        teacherSchedule.get(assignment.teacher.id)!.add(slotKey);
+        classSchedule.get(assignment.class.id)!.add(slotKey);
+
+        if (hasPrevConsecutive) {
+          teacherClassConsecutive.set(consecutiveKey, currentConsecutive + 1);
+        } else {
+          teacherClassConsecutive.set(consecutiveKey, 1);
+        }
+
         const slot = new TimetableSlot();
         slot.versionId = versionId;
         slot.teacherId = assignment.teacher.id;
@@ -622,7 +555,96 @@ async function generateTimetableSlots(
         slots.push(slot);
         lessonsPlaced++;
         dayDistribution.set(day, (dayDistribution.get(day) || 0) + 1);
+        periodsUsedThisAssignment.add(period);
+        return true;
       }
+      return false;
+    };
+
+    while (lessonsPlaced < assignment.lessonsPerWeek && attempts < maxAttempts) {
+      attempts++;
+
+      if (tryPlaceOneLesson(false)) {
+        continue;
+      }
+      if (tryPlaceOneLesson(true)) {
+        continue;
+      }
+
+      const day = daysOfWeek[Math.floor(Math.random() * daysOfWeek.length)];
+      const period = Math.floor(Math.random() * config.periodsPerDay) + 1;
+      const slotKey = `${day}-${period}`;
+
+      if (
+        teacherSchedule.get(assignment.teacher.id)?.has(slotKey) ||
+        classSchedule.get(assignment.class.id)?.has(slotKey)
+      ) {
+        continue;
+      }
+
+      const timeSlot = timeSlots[period - 1];
+      if (!timeSlot) {
+        console.error(`[generateTimetableSlots] No time slot found for period ${period}`);
+        continue;
+      }
+
+      const consecutiveKey = `${assignment.teacher.id}-${assignment.class.id}-${day}`;
+      const currentConsecutive = teacherClassConsecutive.get(consecutiveKey) || 0;
+
+      const prevPeriod = period - 1;
+      const hasPrevConsecutive =
+        prevPeriod > 0 &&
+        slots.some(
+          (s) =>
+            s.dayOfWeek === day &&
+            s.periodNumber === prevPeriod &&
+            s.teacherId === assignment.teacher.id &&
+            s.classId === assignment.class.id
+        );
+
+      const nextPeriod = period + 1;
+      const hasNextConsecutive =
+        nextPeriod <= config.periodsPerDay &&
+        slots.some(
+          (s) =>
+            s.dayOfWeek === day &&
+            s.periodNumber === nextPeriod &&
+            s.teacherId === assignment.teacher.id &&
+            s.classId === assignment.class.id
+        );
+
+      if (hasPrevConsecutive && currentConsecutive >= 2) {
+        continue;
+      }
+      if (hasNextConsecutive && currentConsecutive >= 1) {
+        continue;
+      }
+
+      teacherSchedule.get(assignment.teacher.id)!.add(slotKey);
+      classSchedule.get(assignment.class.id)!.add(slotKey);
+
+      if (hasPrevConsecutive) {
+        teacherClassConsecutive.set(consecutiveKey, currentConsecutive + 1);
+      } else {
+        teacherClassConsecutive.set(consecutiveKey, 1);
+      }
+
+      const slot = new TimetableSlot();
+      slot.versionId = versionId;
+      slot.teacherId = assignment.teacher.id;
+      slot.classId = assignment.class.id;
+      slot.subjectId = assignment.subject.id;
+      slot.dayOfWeek = day;
+      slot.periodNumber = period;
+      slot.startTime = timeSlot.startTime;
+      slot.endTime = timeSlot.endTime;
+      slot.isBreak = false;
+      slot.isManuallyEdited = false;
+
+      slots.push(slot);
+      lessonsPlaced++;
+      dayDistribution.set(day, (dayDistribution.get(day) || 0) + 1);
+      periodsUsedThisAssignment.add(period);
     }
 
     if (lessonsPlaced < assignment.lessonsPerWeek) {

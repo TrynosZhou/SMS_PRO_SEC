@@ -33,6 +33,7 @@ import { TransactionAuditComponent } from './components/finance/transaction-audi
 import { ClassListComponent } from './components/classes/class-list/class-list.component';
 import { ClassFormComponent } from './components/classes/class-form/class-form.component';
 import { ClassListsComponent } from './components/classes/class-lists/class-lists.component';
+import { ClassTeachersComponent } from './components/classes/class-teachers/class-teachers.component';
 import { ClassesManageComponent } from './components/classes/classes-manage/classes-manage.component';
 import { SubjectListComponent } from './components/subjects/subject-list/subject-list.component';
 import { SubjectFormComponent } from './components/subjects/subject-form/subject-form.component';
@@ -217,6 +218,11 @@ const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'classes' },
       { path: 'classes', component: ClassListComponent, canActivate: [AuthGuard] },
+      {
+        path: 'class-teachers',
+        component: ClassTeachersComponent,
+        canActivate: [AuthGuard],
+      },
       { path: 'lists', component: ClassListsComponent, canActivate: [AuthGuard] },
       { path: 'mark-register', component: MarkAttendanceComponent, canActivate: [AuthGuard] },
       { path: 'attendance-reports', component: AttendanceReportsComponent, canActivate: [AuthGuard] },
@@ -305,8 +311,13 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes)],
-  exports: [RouterModule]
+  imports: [
+    RouterModule.forRoot(routes, {
+      anchorScrolling: 'enabled',
+      scrollPositionRestoration: 'enabled',
+    }),
+  ],
+  exports: [RouterModule],
 })
 export class AppRoutingModule { }
 

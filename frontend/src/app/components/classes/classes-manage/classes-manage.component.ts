@@ -44,4 +44,9 @@ export class ClassesManageComponent {
       this.authService.hasRole('superadmin')
     );
   }
+
+  /** Class ↔ teacher overview — same audience as class lists. */
+  showClassTeachersTab(): boolean {
+    return this.showClassListsTab();
+  }
 }

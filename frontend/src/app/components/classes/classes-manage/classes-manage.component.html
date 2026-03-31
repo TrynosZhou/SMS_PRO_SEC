@@ -15,6 +15,16 @@
       Manage Classes
     </a>
     <a
+      *ngIf="showClassTeachersTab()"
+      routerLink="/classes/manage/class-teachers"
+      fragment="class_teacher"
+      routerLinkActive="active"
+      class="cm-tab"
+    >
+      <span class="cm-tab-ico" aria-hidden="true">👤</span>
+      Class Teachers
+    </a>
+    <a
       *ngIf="showClassListsTab()"
       routerLink="/classes/manage/lists"
       routerLinkActive="active"

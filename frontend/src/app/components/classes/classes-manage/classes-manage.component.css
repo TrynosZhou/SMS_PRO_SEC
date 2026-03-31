@@ -13,13 +13,13 @@
   margin: 0;
   font-size: 1.35rem;
   font-weight: 700;
-  color: #e65100;
+  color: #5e35b1;
 }
 
 .cm-sub {
   margin: 0.35rem 0 0;
   font-size: 0.9rem;
-  color: #fb8c00;
+  color: #7e57c2;
 }
 
 .cm-tabs {
@@ -42,7 +42,7 @@
   text-decoration: none;
   font-size: 0.88rem;
   font-weight: 600;
-  color: #ef6c00;
+  color: #6a1b9a;
   background: transparent;
   border: 1px solid transparent;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -50,12 +50,12 @@
 
 .cm-tab:hover {
   background: rgba(255, 255, 255, 0.75);
-  color: #e65100;
+  color: #5e35b1;
 }
 
 .cm-tab.active {
   background: #fff;
-  color: #e65100;
+  color: #5e35b1;
   border-color: #ffb74d;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }

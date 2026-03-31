@@ -1,43 +1,4 @@
 <div class="ue-page">
-  <header class="ue-hero" aria-labelledby="ue-page-title">
-    <div class="ue-hero-inner">
-      <div class="ue-hero-copy">
-        <p class="ue-eyebrow">Enrollments</p>
-        <h1 id="ue-page-title" class="ue-title">Unenrolled students</h1>
-        <p class="ue-lead">
-          Registered learners who are not yet placed in a class. Search, review details, then enroll them into the right grade.
-        </p>
-      </div>
-      <div class="ue-hero-actions">
-        <button type="button" class="ue-btn ue-btn-ghost" (click)="loadUnenrolledStudents()" [disabled]="loading" title="Refresh list">
-          ↻ Refresh
-        </button>
-        <button type="button" class="ue-btn ue-btn-primary" (click)="goToAddStudent()">
-          + Register student
-        </button>
-      </div>
-    </div>
-
-    <nav class="ue-workflow" aria-label="Workflow">
-      <div class="ue-track">
-        <div class="ue-step" [class.is-active]="workflowStep === 1" [class.is-done]="workflowStep > 1">
-          <span class="ue-dot">1</span>
-          <span class="ue-step-label">Load queue</span>
-        </div>
-        <div class="ue-line" [class.is-done]="workflowStep > 1"></div>
-        <div class="ue-step" [class.is-active]="workflowStep === 2" [class.is-done]="workflowStep > 2">
-          <span class="ue-dot">2</span>
-          <span class="ue-step-label">Search &amp; review</span>
-        </div>
-        <div class="ue-line" [class.is-done]="workflowStep > 2"></div>
-        <div class="ue-step" [class.is-active]="workflowStep === 3">
-          <span class="ue-dot">3</span>
-          <span class="ue-step-label">Enroll in class</span>
-        </div>
-      </div>
-    </nav>
-  </header>
-
   <div class="ue-toast ue-toast-error" *ngIf="error" role="alert">
     <span class="ue-toast-ic">⚠</span>
     <span>{{ error }}</span>
