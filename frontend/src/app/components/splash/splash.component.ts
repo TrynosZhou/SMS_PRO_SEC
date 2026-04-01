@@ -12,6 +12,9 @@ export class SplashComponent implements OnInit, OnDestroy {
   constructor(private router: Router) {}
 
   ngOnInit(): void {
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
     this.navigateTimeoutId = setTimeout(() => {
       this.router.navigate(['/login']);
     }, 3500);

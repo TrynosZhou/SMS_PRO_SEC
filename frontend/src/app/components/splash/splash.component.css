@@ -1,18 +1,25 @@
 :host {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  min-height: 130vh;
-  padding: 31px;
+  justify-content: flex-start;
+  /* Fill viewport from the top — avoid 130vh + vertical center, which pushed content low / scrolled to bottom */
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: max(2.5rem, calc(env(safe-area-inset-top, 0px) + 1.25rem));
+  padding-left: max(31px, env(safe-area-inset-left, 0px));
+  padding-right: max(31px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   background: #ffffff;
   overflow-x: hidden;
-  overflow-y: auto;
 }
 
 .splash-wrapper {
   width: 100%;
   max-width: 728px;
-  transform: translateY(-16px);
+  /* Keep the hero visually anchored in the upper half of the screen */
+  margin-top: min(6vh, 3rem);
 }
 
 .splash-image-frame {
