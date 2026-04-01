@@ -9,10 +9,10 @@
         Create task
       </h1>
       <p class="et-lead">
-        Post an <strong>assignment</strong> or <strong>test</strong>, add instructions and an optional file, and deliver it to every student in the class you choose.
+        Post an <strong>assignment</strong>, <strong>test</strong>, or <strong>notes</strong>, add instructions and an optional file, and deliver it to every student in the class you choose.
       </p>
       <div class="et-hero-actions">
-        <a routerLink="/etask/submissions" class="et-btn et-btn-secondary">
+        <a routerLink="/teacher/elearning-manage/submissions" class="et-btn et-btn-secondary">
           <span aria-hidden="true">📥</span> View submissions
         </a>
         <button type="button" class="et-btn et-btn-ghost" (click)="loadTasks()" [disabled]="loadingList">
@@ -46,6 +46,13 @@
       <div>
         <span class="et-stat-value">{{ testCount }}</span>
         <span class="et-stat-label">Tests</span>
+      </div>
+    </div>
+    <div class="et-stat">
+      <span class="et-stat-icon" aria-hidden="true">📝</span>
+      <div>
+        <span class="et-stat-value">{{ notesCount }}</span>
+        <span class="et-stat-label">Notes</span>
       </div>
     </div>
   </div>
@@ -101,6 +108,15 @@
               (click)="setTaskType('test')"
             >
               <span aria-hidden="true">📄</span> Test
+            </button>
+            <button
+              type="button"
+              class="et-seg-btn"
+              [class.active]="taskType === 'notes'"
+              [attr.aria-pressed]="taskType === 'notes'"
+              (click)="setTaskType('notes')"
+            >
+              <span aria-hidden="true">📝</span> Notes
             </button>
           </div>
         </div>
@@ -194,8 +210,12 @@
         <li *ngFor="let t of filteredTasks; trackBy: trackByTaskId" class="et-task-card">
           <div class="et-task-top">
             <span class="et-task-title">{{ t.title }}</span>
-            <span class="et-badge" [class.et-badge-test]="t.taskType === 'test'">
-              {{ t.taskType === 'test' ? 'Test' : 'Assignment' }}
+            <span
+              class="et-badge"
+              [class.et-badge-test]="t.taskType === 'test'"
+              [class.et-badge-notes]="t.taskType === 'notes'"
+            >
+              {{ t.taskType === 'test' ? 'Test' : t.taskType === 'notes' ? 'Notes' : 'Assignment' }}
             </span>
           </div>
           <div class="et-task-meta">

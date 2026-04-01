@@ -136,9 +136,9 @@ export class EtaskSubmissionsComponent implements OnInit {
     return row.eTask?.title?.trim() || '—';
   }
 
-  taskTypeLabel(row: ETaskSubmissionDto): 'assignment' | 'test' | null {
+  taskTypeLabel(row: ETaskSubmissionDto): 'assignment' | 'test' | 'notes' | null {
     const t = row.eTask?.taskType;
-    if (t === 'assignment' || t === 'test') {
+    if (t === 'assignment' || t === 'test' || t === 'notes') {
       return t;
     }
     return null;

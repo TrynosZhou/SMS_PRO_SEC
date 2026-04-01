@@ -465,6 +465,11 @@
   color: #92400e;
 }
 
+.esub-badge-notes {
+  background: #d1fae5;
+  color: #065f46;
+}
+
 .esub-time {
   font-variant-numeric: tabular-nums;
   color: #475569;

@@ -8,6 +8,7 @@
     "build": "npm run clean && npx tsc",
     "vercel-build": "npm run clean && npx tsc",
     "dev": "nodemon src/server.ts",
+    "dev:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-dev-server.ps1",
     "start": "node dist/server.js",
     "typeorm": "node --no-experimental-require-module ./node_modules/typeorm/cli-ts-node-commonjs.js -d src/data-source.ts",
     "migration:run": "node --no-experimental-require-module ./node_modules/typeorm/cli-ts-node-commonjs.js migration:run -d src/data-source.ts",

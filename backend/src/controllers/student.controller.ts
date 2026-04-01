@@ -10,6 +10,7 @@ import { Invoice, InvoiceStatus } from '../entities/Invoice';
 import { ReportCardRemarks } from '../entities/ReportCardRemarks';
 import { Parent } from '../entities/Parent';
 import { AuthRequest } from '../middleware/auth';
+import { persistStudentUserLink } from './auth.controller';
 import { generateStudentId } from '../utils/studentIdGenerator';
 import { Settings } from '../entities/Settings';
 import QRCode from 'qrcode';
@@ -36,10 +37,51 @@ export const getCurrentStudent = async (req: AuthRequest, res: Response) => {
       await AppDataSource.initialize();
     }
     const studentRepo = AppDataSource.getRepository(Student);
-    const student = await studentRepo.findOne({
-      where: { userId: req.user.id },
-      relations: ['classEntity', 'parent']
-    });
+    const userRepo = AppDataSource.getRepository(User);
+    const user = req.user;
+    const recordId = req.authStudentRecordId;
+
+    let student: Student | null = null;
+
+    if (recordId) {
+      student = await studentRepo.findOne({
+        where: { id: recordId, userId: user.id },
+        relations: ['classEntity', 'parent']
+      });
+    }
+
+    const uname = (user.username || '').trim();
+    if (!student && uname) {
+      student = await studentRepo.findOne({
+        where: { userId: user.id, studentNumber: uname },
+        relations: ['classEntity', 'parent']
+      });
+    }
+
+    if (!student && uname) {
+      const byNum = await studentRepo.findOne({
+        where: { studentNumber: uname },
+        relations: ['classEntity', 'parent']
+      });
+      if (byNum) {
+        if (byNum.userId !== user.id) {
+          await persistStudentUserLink(studentRepo, userRepo, user as User, byNum);
+          student = await studentRepo.findOne({
+            where: { id: byNum.id },
+            relations: ['classEntity', 'parent']
+          });
+        } else {
+          student = byNum;
+        }
+      }
+    }
+
+    if (!student) {
+      student = await studentRepo.findOne({
+        where: { userId: user.id },
+        relations: ['classEntity', 'parent']
+      });
+    }
     if (!student) {
       return res.status(404).json({ message: 'Student profile not found' });
     }

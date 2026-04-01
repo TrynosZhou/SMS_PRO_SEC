@@ -10,10 +10,42 @@ import { UserActivityLog } from '../entities/UserActivityLog';
 import { resetDemoDataForLogin } from '../utils/resetDemoData';
 import { ensureDemoDataAvailable } from '../utils/demoDataEnsurer';
 import { AuthRequest } from '../middleware/auth';
-import { IsNull } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { ensureUserActivityLogTable } from '../utils/ensureUserActivityLogTable';
 import { generateStudentId } from '../utils/studentIdGenerator';
 import { calculateAge } from '../utils/ageUtils';
+
+/** Only one student row may use a given login user (prevents wrong profile when IDs were shared). */
+async function unlinkOtherStudentsFromUser(
+  studentRepo: Repository<Student>,
+  userId: string,
+  keepStudentId: string
+): Promise<void> {
+  await studentRepo
+    .createQueryBuilder()
+    .update(Student)
+    .set({ userId: null } as Record<string, unknown>)
+    .where('userId = :uid', { uid: userId })
+    .andWhere('id != :sid', { sid: keepStudentId })
+    .execute();
+}
+
+/** One user ↔ one student; keep `users`→`students` join column aligned with `students.userId`. */
+export async function persistStudentUserLink(
+  studentRepo: Repository<Student>,
+  userRepo: Repository<User>,
+  user: User,
+  student: Student
+): Promise<void> {
+  await unlinkOtherStudentsFromUser(studentRepo, user.id, student.id);
+  student.userId = user.id;
+  await studentRepo.save(student);
+  await userRepo
+    .createQueryBuilder()
+    .relation(User, 'student')
+    .of(user.id)
+    .set(student.id);
+}
 
 export const login = async (req: Request, res: Response) => {
   try {
@@ -148,6 +180,8 @@ export const login = async (req: Request, res: Response) => {
               return res.status(401).json({ message: 'Account is inactive. Please contact the administrator.' });
             }
 
+            await persistStudentUserLink(studentRepository, userRepository, user, student);
+
             // Generate JWT token
             const secret = process.env.JWT_SECRET;
             if (!secret) {
@@ -156,7 +190,7 @@ export const login = async (req: Request, res: Response) => {
             const expiresIn = process.env.JWT_EXPIRES_IN || '30m';
             // @ts-ignore - expiresIn accepts string values like '7d' which is valid
             const token = jwt.sign(
-              { userId: user.id, role: user.role },
+              { userId: user.id, role: user.role, studentRecordId: student.id },
               secret,
               { expiresIn }
             );
@@ -441,12 +475,41 @@ export const login = async (req: Request, res: Response) => {
       return res.status(500).json({ message: 'Server configuration error' });
     }
     const expiresIn = process.env.JWT_EXPIRES_IN || '30m';
+
+    const jwtPayload: { userId: string; role: string; studentRecordId?: string } = {
+      userId: user.id,
+      role: user.role as string
+    };
+
+    let resolvedStudentProfile: Student | null = null;
+    const roleLower = String(user.role || '').toLowerCase();
+    if (roleLower === 'student') {
+      const srepo = AppDataSource.getRepository(Student);
+      const uname = (user.username || '').trim();
+      // Prefer the row whose school Student ID matches the login username (avoids wrong child when userId pointed at another row).
+      let sRow = uname
+        ? await srepo.findOne({ where: { studentNumber: uname } })
+        : null;
+      if (!sRow && uname) {
+        sRow = await srepo.findOne({
+          where: { userId: user.id, studentNumber: uname }
+        });
+      }
+      if (!sRow) {
+        sRow = await srepo.findOne({ where: { userId: user.id } });
+      }
+      if (sRow) {
+        await persistStudentUserLink(srepo, userRepository, user, sRow);
+        jwtPayload.studentRecordId = sRow.id;
+        resolvedStudentProfile = await srepo.findOne({
+          where: { id: sRow.id },
+          relations: ['classEntity']
+        });
+      }
+    }
+
     // @ts-ignore - expiresIn accepts string values like '7d' which is valid
-    const token = jwt.sign(
-      { userId: user.id, role: user.role },
-      secret,
-      { expiresIn }
-    );
+    const token = jwt.sign(jwtPayload, secret, { expiresIn });
 
     // Build response based on user role
     const response: any = {
@@ -468,7 +531,26 @@ export const login = async (req: Request, res: Response) => {
       response.user.classes = (user as any).classes || [];
     } else {
       // For other roles, include their respective profiles
-      if (user.student) response.user.student = user.student;
+      if (resolvedStudentProfile) {
+        const sp = resolvedStudentProfile;
+        response.user.student = {
+          id: sp.id,
+          studentNumber: sp.studentNumber,
+          firstName: sp.firstName,
+          lastName: sp.lastName,
+          dateOfBirth: sp.dateOfBirth,
+          classId: sp.classId,
+          classEntity: sp.classEntity
+            ? {
+                id: sp.classEntity.id,
+                name: sp.classEntity.name,
+                form: sp.classEntity.form
+              }
+            : null
+        };
+      } else if (user.student) {
+        response.user.student = user.student;
+      }
       if (user.parent) response.user.parent = user.parent;
     }
 
@@ -1177,7 +1259,9 @@ export const studentLogin = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Account is inactive. Please contact the administrator.' });
     }
 
-    // Generate JWT token
+    await persistStudentUserLink(studentRepository, userRepository, user, student);
+
+    // Generate JWT token (studentRecordId = who logged in; fixes wrong User.student join)
     const secret = process.env.JWT_SECRET;
     if (!secret) {
       return res.status(500).json({ message: 'Server configuration error' });
@@ -1185,7 +1269,7 @@ export const studentLogin = async (req: Request, res: Response) => {
     const expiresIn = process.env.JWT_EXPIRES_IN || '30m';
     // @ts-ignore - expiresIn accepts string values like '7d' which is valid
     const token = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: user.id, role: user.role, studentRecordId: student.id },
       secret,
       { expiresIn }
     );

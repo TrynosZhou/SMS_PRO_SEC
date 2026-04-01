@@ -42,7 +42,13 @@
         <span class="sidebar-icon">🏠</span>
         <span class="sidebar-text">Dashboard</span>
       </a>
-      <a routerLink="/student/elearning" routerLinkActive="active" class="sidebar-item" *ngIf="isStudent()">
+      <a
+        routerLink="/student/elearning"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: false }"
+        class="sidebar-item"
+        *ngIf="isStudent()"
+      >
         <span class="sidebar-icon">💻</span>
         <span class="sidebar-text">E-learning Services</span>
       </a>
@@ -182,32 +188,18 @@
         <span class="sidebar-text">Reports Manager</span>
       </a>
 
-      <!-- E-learning Services (Teachers — record book access) -->
-      <div class="sidebar-menu" *ngIf="isTeacher() && canAccessModule('recordBook') && !isStudent()">
-        <div class="sidebar-menu-header" (click)="toggleMenu('elearningServices')">
-          <span class="sidebar-icon">💻</span>
-          <span class="sidebar-text">E-learning Services</span>
-          <span class="sidebar-arrow" [class.expanded]="isMenuExpanded('elearningServices')">▼</span>
-        </div>
-        <div class="sidebar-submenu" [class.expanded]="isMenuExpanded('elearningServices')">
-          <a routerLink="/etask" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="sidebar-subitem">
-            <span class="sidebar-subicon">✏️</span>
-            <span class="sidebar-text">Create Task</span>
-          </a>
-          <a routerLink="/etask/submissions" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">📥</span>
-            <span class="sidebar-text">Submissions</span>
-          </a>
-          <a routerLink="/teacher/record-book" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">📘</span>
-            <span class="sidebar-text">Record Book</span>
-          </a>
-          <a routerLink="/teacher/my-classes" routerLinkActive="active" class="sidebar-subitem">
-            <span class="sidebar-subicon">👥</span>
-            <span class="sidebar-text">My Classes</span>
-          </a>
-        </div>
-      </div>
+      <!-- E-learning Manager (teachers — hub with tabs) -->
+      <a
+        routerLink="/teacher/elearning-manage"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        class="sidebar-item"
+        *ngIf="isTeacher() && canAccessModule('recordBook') && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">💻</span>
+        <span class="sidebar-text">E-learning Manager</span>
+      </a>
 
 
       <!-- General Settings (tabbed hub: /general/manage) -->

@@ -42,6 +42,7 @@ import { AssignSubjectComponent } from './components/subjects/assign-subject/ass
 import { SubjectPeriodsComponent } from './components/subjects/subject-periods/subject-periods.component';
 import { SettingsComponent } from './components/settings/settings.component';
 import { ParentDashboardComponent } from './components/parent/parent-dashboard/parent-dashboard.component';
+import { ParentElearningManageComponent } from './components/parent/parent-elearning-manage/parent-elearning-manage.component';
 import { LinkStudentsComponent } from './components/parent/link-students/link-students.component';
 import { ParentInboxComponent } from './components/parent/parent-inbox/parent-inbox.component';
 import { ManageAccountComponent } from './components/teachers/manage-account/manage-account.component';
@@ -56,8 +57,13 @@ import { MyClassesComponent } from './components/teacher/my-classes/my-classes.c
 import { TeacherRecordBookComponent } from './components/admin/teacher-record-book/teacher-record-book.component';
 import { EtaskComponent } from './components/teacher/etask/etask.component';
 import { EtaskSubmissionsComponent } from './components/teacher/etask-submissions/etask-submissions.component';
+import { TeacherElearningManageComponent } from './components/teacher/teacher-elearning-manage/teacher-elearning-manage.component';
+import { TeacherElearningLegacyRedirectComponent } from './components/teacher/teacher-elearning-manage/teacher-elearning-legacy-redirect.component';
 import { TeacherDashboardComponent } from './components/teacher/teacher-dashboard/teacher-dashboard.component';
-import { StudentElearningTasksComponent } from './components/student/student-elearning-tasks/student-elearning-tasks.component';
+import { StudentElearningShellComponent } from './components/student/student-elearning-shell/student-elearning-shell.component';
+import { StudentElearnHubComponent } from './components/student/student-elearn/student-elearn-hub/student-elearn-hub.component';
+import { StudentElearnViewTasksComponent } from './components/student/student-elearn/student-elearn-view-tasks/student-elearn-view-tasks.component';
+import { StudentElearnSubmitTaskComponent } from './components/student/student-elearn/student-elearn-submit-task/student-elearn-submit-task.component';
 import { TransferFormComponent } from './components/transfers/transfer-form/transfer-form.component';
 import { TransferHistoryComponent } from './components/transfers/transfer-history/transfer-history.component';
 import { EnrollStudentComponent } from './components/enrollments/enroll-student/enroll-student.component';
@@ -86,15 +92,58 @@ const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
   { path: 'parent/dashboard', component: ParentDashboardComponent, canActivate: [AuthGuard] },
+  { path: 'parent/elearning-manage', component: ParentElearningManageComponent, canActivate: [AuthGuard] },
   { path: 'teacher/dashboard', component: TeacherDashboardComponent, canActivate: [AuthGuard] },
   { path: 'parent/inbox', component: ParentInboxComponent, canActivate: [AuthGuard] },
   { path: 'parent/link-students', component: LinkStudentsComponent, canActivate: [AuthGuard] },
   { path: 'parent/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },
   { path: 'teacher/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },
-  { path: 'teacher/record-book', component: RecordBookComponent, canActivate: [AuthGuard] },
-  { path: 'teacher/my-classes', component: MyClassesComponent, canActivate: [AuthGuard] },
-  { path: 'etask/submissions', component: EtaskSubmissionsComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'recordBook' } },
-  { path: 'etask', component: EtaskComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'recordBook' } },
+  {
+    path: 'teacher/elearning-manage',
+    component: TeacherElearningManageComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'tasks' },
+      {
+        path: 'tasks',
+        component: EtaskComponent,
+        canActivate: [AuthGuard, ModuleAccessGuard],
+        data: { module: 'recordBook' },
+      },
+      {
+        path: 'submissions',
+        component: EtaskSubmissionsComponent,
+        canActivate: [AuthGuard, ModuleAccessGuard],
+        data: { module: 'recordBook' },
+      },
+      { path: 'record-book', component: RecordBookComponent, canActivate: [AuthGuard] },
+      { path: 'my-classes', component: MyClassesComponent, canActivate: [AuthGuard] },
+    ],
+  },
+  {
+    path: 'teacher/record-book',
+    component: TeacherElearningLegacyRedirectComponent,
+    canActivate: [AuthGuard],
+    data: { elearningSegment: 'record-book' },
+  },
+  {
+    path: 'teacher/my-classes',
+    component: TeacherElearningLegacyRedirectComponent,
+    canActivate: [AuthGuard],
+    data: { elearningSegment: 'my-classes' },
+  },
+  {
+    path: 'etask/submissions',
+    component: TeacherElearningLegacyRedirectComponent,
+    canActivate: [AuthGuard, ModuleAccessGuard],
+    data: { elearningSegment: 'submissions', module: 'recordBook' },
+  },
+  {
+    path: 'etask',
+    component: TeacherElearningLegacyRedirectComponent,
+    canActivate: [AuthGuard, ModuleAccessGuard],
+    data: { elearningSegment: 'tasks', module: 'recordBook' },
+  },
   { path: 'admin/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },
   { path: 'admin/manage-accounts', component: ManageAccountsComponent, canActivate: [AuthGuard] },
   { path: 'admin/class-promotion', component: ClassPromotionComponent, canActivate: [AuthGuard] },
@@ -307,7 +356,24 @@ const routes: Routes = [
   { path: 'student/dashboard', component: StudentDashboardComponent, canActivate: [AuthGuard] },
   { path: 'student/report-card', component: StudentReportCardComponent, canActivate: [AuthGuard] },
   { path: 'student/invoice-statement', component: StudentInvoiceStatementComponent, canActivate: [AuthGuard] },
-  { path: 'student/elearning', component: StudentElearningTasksComponent, canActivate: [AuthGuard] }
+  {
+    path: 'student/elearning',
+    component: StudentElearningShellComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'elearn' },
+      {
+        path: 'elearn',
+        component: StudentElearnHubComponent,
+        canActivate: [AuthGuard],
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'view-task' },
+          { path: 'view-task', component: StudentElearnViewTasksComponent, canActivate: [AuthGuard] },
+          { path: 'submit-task', component: StudentElearnSubmitTaskComponent, canActivate: [AuthGuard] },
+        ],
+      },
+    ],
+  },
 ];
 
 @NgModule({

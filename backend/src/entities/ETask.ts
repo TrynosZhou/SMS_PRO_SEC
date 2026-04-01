@@ -9,7 +9,7 @@ import {
 import { Teacher } from './Teacher';
 import { Class } from './Class';
 
-export type ETaskType = 'assignment' | 'test';
+export type ETaskType = 'assignment' | 'test' | 'notes';
 
 @Entity('e_tasks')
 export class ETask {

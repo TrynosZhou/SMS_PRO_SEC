@@ -7,7 +7,7 @@ export interface ETaskDto {
   id: string;
   title: string;
   description: string | null;
-  taskType: 'assignment' | 'test';
+  taskType: 'assignment' | 'test' | 'notes';
   teacherId: string;
   classId: string;
   attachmentUrl: string | null;

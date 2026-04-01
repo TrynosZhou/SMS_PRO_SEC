@@ -1,0 +1,76 @@
+.ses-shell {
+  min-height: calc(100vh - 48px);
+  background: linear-gradient(180deg, #f0fdf4 0%, #f8fafc 45%);
+}
+
+.ses-top {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 0.75rem;
+  border-bottom: 1px solid rgba(15, 118, 110, 0.15);
+}
+
+.ses-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ses-brand-ico {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.ses-title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.ses-tagline {
+  margin: 0.25rem 0 0;
+  font-size: 0.92rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.ses-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ses-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f766e;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 118, 110, 0.25);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.ses-tab:hover {
+  background: #fff;
+  border-color: #0d9488;
+}
+
+.ses-tab.active {
+  background: #0f766e;
+  color: #f0fdfa;
+  border-color: #0f766e;
+}
+
+.ses-outlet {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1rem 2rem;
+}

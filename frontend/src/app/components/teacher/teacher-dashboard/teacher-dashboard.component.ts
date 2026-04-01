@@ -181,8 +181,8 @@ export class TeacherDashboardComponent implements OnInit, OnDestroy {
       { key: 'exams', name: 'Exams', route: '/exams', icon: '📝', description: 'Marks capturing and exams' },
       { key: 'reportCards', name: 'Report Cards', route: '/report-cards', icon: '📊', description: 'View and generate report cards' },
       { key: 'rankings', name: 'Rankings', route: '/rankings', icon: '🏆', description: 'View rankings' },
-      { key: 'recordBook', name: 'Record Book', route: '/teacher/record-book', icon: '📖', description: 'Enter and view marks' },
-      { key: 'etask', name: 'Create Task', route: '/etask', icon: '✏️', description: 'E-learning tasks for your classes' },
+      { key: 'recordBook', name: 'Record Book', route: '/teacher/elearning-manage/record-book', icon: '📖', description: 'Enter and view marks' },
+      { key: 'etask', name: 'Create Task', route: '/teacher/elearning-manage/tasks', icon: '✏️', description: 'E-learning tasks for your classes' },
       { key: 'attendance', name: 'Attendance', route: '/attendance/mark', icon: '✅', description: 'Mark register & attendance' },
       { key: 'finance', name: 'Finance', route: '/invoices', icon: '💰', description: 'View financial information' },
       { key: 'settings', name: 'Settings', route: '/settings', icon: '⚙️', description: 'School settings (if allowed)' }
@@ -352,7 +352,7 @@ export class TeacherDashboardComponent implements OnInit, OnDestroy {
       return;
     }
     // Navigate to record book with class ID
-    this.router.navigate(['/teacher/record-book'], {
+    this.router.navigate(['/teacher/elearning-manage/record-book'], {
       queryParams: { classId: classId }
     });
   }

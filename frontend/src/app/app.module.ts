@@ -41,6 +41,7 @@ import { SubjectPeriodsComponent } from './components/subjects/subject-periods/s
 import { SettingsComponent } from './components/settings/settings.component';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
 import { ParentDashboardComponent } from './components/parent/parent-dashboard/parent-dashboard.component';
+import { ParentElearningManageComponent } from './components/parent/parent-elearning-manage/parent-elearning-manage.component';
 import { LinkStudentsComponent } from './components/parent/link-students/link-students.component';
 import { ManageAccountComponent } from './components/teachers/manage-account/manage-account.component';
 import { ManageAccountsComponent } from './components/admin/manage-accounts/manage-accounts.component';
@@ -57,7 +58,12 @@ import { TeacherRecordBookComponent } from './components/admin/teacher-record-bo
 import { TeacherDashboardComponent } from './components/teacher/teacher-dashboard/teacher-dashboard.component';
 import { EtaskComponent } from './components/teacher/etask/etask.component';
 import { EtaskSubmissionsComponent } from './components/teacher/etask-submissions/etask-submissions.component';
-import { StudentElearningTasksComponent } from './components/student/student-elearning-tasks/student-elearning-tasks.component';
+import { TeacherElearningManageComponent } from './components/teacher/teacher-elearning-manage/teacher-elearning-manage.component';
+import { TeacherElearningLegacyRedirectComponent } from './components/teacher/teacher-elearning-manage/teacher-elearning-legacy-redirect.component';
+import { StudentElearningShellComponent } from './components/student/student-elearning-shell/student-elearning-shell.component';
+import { StudentElearnHubComponent } from './components/student/student-elearn/student-elearn-hub/student-elearn-hub.component';
+import { StudentElearnViewTasksComponent } from './components/student/student-elearn/student-elearn-view-tasks/student-elearn-view-tasks.component';
+import { StudentElearnSubmitTaskComponent } from './components/student/student-elearn/student-elearn-submit-task/student-elearn-submit-task.component';
 import { RecordPaymentComponent } from './components/finance/record-payment/record-payment.component';
 import { OutstandingBalanceComponent } from './components/finance/outstanding-balance/outstanding-balance.component';
 import { BalanceEnquiryComponent } from './components/finance/balance-enquiry/balance-enquiry.component';
@@ -124,6 +130,7 @@ import { PayrollManageComponent } from './components/payroll/payroll-manage/payr
     SubjectPeriodsComponent,
     SettingsComponent,
     ParentDashboardComponent,
+    ParentElearningManageComponent,
     LinkStudentsComponent,
     ManageAccountComponent,
     ManageAccountsComponent,
@@ -140,7 +147,12 @@ import { PayrollManageComponent } from './components/payroll/payroll-manage/payr
     TeacherDashboardComponent,
     EtaskComponent,
     EtaskSubmissionsComponent,
-    StudentElearningTasksComponent,
+    TeacherElearningManageComponent,
+    TeacherElearningLegacyRedirectComponent,
+    StudentElearningShellComponent,
+    StudentElearnHubComponent,
+    StudentElearnViewTasksComponent,
+    StudentElearnSubmitTaskComponent,
     RecordPaymentComponent,
     OutstandingBalanceComponent,
     BalanceEnquiryComponent,

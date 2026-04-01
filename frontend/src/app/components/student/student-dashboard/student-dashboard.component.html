@@ -14,12 +14,12 @@
             <span class="sd-parent-pill">Parent view</span>
             Showing services for your linked child. Switch below if you have more than one.
           </p>
-          <p class="sd-welcome" *ngIf="!isParentViewer || !profileLoading">
+          <p class="sd-welcome" *ngIf="!profileLoading && (!isParentViewer || contextStudentId)">
             Hi <strong>{{ getDisplayName() }}</strong>
             <span class="sd-dot" aria-hidden="true">·</span>
             <span class="sd-sub">Here’s a quick path to your learning and school services.</span>
           </p>
-          <div class="sd-parent-child-row" *ngIf="isParentViewer && linkedStudents.length > 1 && contextStudentId">
+          <div class="sd-parent-child-row" *ngIf="isParentViewer && linkedStudents.length > 1">
             <label class="sd-parent-label" for="sd-parent-child">Student</label>
             <select
               id="sd-parent-child"
@@ -27,6 +27,7 @@
               [ngModel]="contextStudentId"
               (ngModelChange)="onParentStudentChange($event)"
             >
+              <option [ngValue]="null" disabled *ngIf="!contextStudentId">Choose a student</option>
               <option *ngFor="let s of linkedStudents" [ngValue]="s.id">
                 {{ s.firstName }} {{ s.lastName }}
               </option>

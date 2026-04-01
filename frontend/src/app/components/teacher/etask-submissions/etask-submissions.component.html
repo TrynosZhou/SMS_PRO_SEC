@@ -13,7 +13,7 @@
           Files students uploaded for <strong>your</strong> assignments and tests. Search, filter by task, and open each submission in a new tab.
         </p>
         <div class="esub-hero-actions">
-          <a routerLink="/etask" class="esub-btn esub-btn-primary">
+          <a routerLink="/teacher/elearning-manage/tasks" class="esub-btn esub-btn-primary">
             <span aria-hidden="true">✏️</span> Create task
           </a>
           <button type="button" class="esub-btn esub-btn-ghost" (click)="load()" [disabled]="loading">
@@ -154,6 +154,7 @@
             <td data-label="Type">
               <span class="esub-badge esub-badge-test" *ngIf="taskTypeLabel(row) === 'test'">Test</span>
               <span class="esub-badge esub-badge-asg" *ngIf="taskTypeLabel(row) === 'assignment'">Assignment</span>
+              <span class="esub-badge esub-badge-notes" *ngIf="taskTypeLabel(row) === 'notes'">Notes</span>
               <span class="muted" *ngIf="!taskTypeLabel(row)">—</span>
             </td>
             <td data-label="Submitted">
@@ -193,7 +194,7 @@
       <p class="esub-empty-text">
         When students upload work from <strong>E-learning Services</strong> on their dashboard, it will appear here with their name and a link to the file.
       </p>
-      <a routerLink="/etask" class="esub-btn esub-btn-primary">Create a task</a>
+      <a routerLink="/teacher/elearning-manage/tasks" class="esub-btn esub-btn-primary">Create a task</a>
     </div>
   </ng-container>
 </div>

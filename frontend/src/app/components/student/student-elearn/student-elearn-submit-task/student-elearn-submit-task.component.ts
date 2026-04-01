@@ -1,22 +1,27 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { AuthService } from '../../../services/auth.service';
-import { EtaskService, ETaskDto, ETaskSubmissionDto } from '../../../services/etask.service';
+import { AuthService } from '../../../../services/auth.service';
+import { EtaskService, ETaskDto, ETaskSubmissionDto } from '../../../../services/etask.service';
 
+export type SubmitFilter = 'all' | 'assignment' | 'test';
+
+/** Upload work for assignments and tests only (submit_task). */
 @Component({
-  selector: 'app-student-elearning-tasks',
-  templateUrl: './student-elearning-tasks.component.html',
-  styleUrls: ['./student-elearning-tasks.component.css']
+  selector: 'app-student-elearn-submit-task',
+  templateUrl: './student-elearn-submit-task.component.html',
+  styleUrls: ['../elearn-shared.css'],
 })
-export class StudentElearningTasksComponent implements OnInit {
+export class StudentElearnSubmitTaskComponent implements OnInit {
   tasks: ETaskDto[] = [];
-  /** Latest submission per task id */
   submissionByTaskId: Record<string, ETaskSubmissionDto> = {};
   loading = true;
   error = '';
   uploadingTaskId: string | null = null;
   uploadError: Record<string, string> = {};
+
+  filterKind: SubmitFilter = 'all';
+  searchQuery = '';
 
   constructor(
     private etaskService: EtaskService,
@@ -32,10 +37,11 @@ export class StudentElearningTasksComponent implements OnInit {
     }
     forkJoin({
       tasks: this.etaskService.listStudentTasks(),
-      subs: this.etaskService.listStudentMySubmissions()
+      subs: this.etaskService.listStudentMySubmissions(),
     }).subscribe({
       next: ({ tasks, subs }) => {
-        this.tasks = Array.isArray(tasks) ? tasks : [];
+        const all = Array.isArray(tasks) ? tasks : [];
+        this.tasks = all.filter((t) => t.taskType === 'assignment' || t.taskType === 'test');
         const list = Array.isArray(subs) ? subs : [];
         this.submissionByTaskId = {};
         for (const s of list) {
@@ -48,8 +54,48 @@ export class StudentElearningTasksComponent implements OnInit {
       error: (err) => {
         this.error = err?.error?.message || 'Could not load tasks.';
         this.loading = false;
-      }
+      },
     });
+  }
+
+  setFilter(kind: SubmitFilter): void {
+    this.filterKind = kind;
+  }
+
+  get filteredTasks(): ETaskDto[] {
+    let list = this.tasks;
+    if (this.filterKind !== 'all') {
+      list = list.filter((t) => t.taskType === this.filterKind);
+    }
+    const q = this.searchQuery.trim().toLowerCase();
+    if (!q) {
+      return list;
+    }
+    return list.filter((t) => {
+      const title = (t.title || '').toLowerCase();
+      const cls = (t.classEntity?.name || '').toLowerCase();
+      const teacher = this.teacherDisplay(t).toLowerCase();
+      return title.includes(q) || cls.includes(q) || teacher.includes(q);
+    });
+  }
+
+  typeLabel(t: ETaskDto): string {
+    return t.taskType === 'test' ? 'Test' : 'Assignment';
+  }
+
+  teacherDisplay(t: ETaskDto): string {
+    const tr = t.teacher;
+    if (!tr) {
+      return '—';
+    }
+    const fn = (tr.firstName || '').trim();
+    const ln = (tr.lastName || '').trim();
+    const name = [fn, ln].filter(Boolean).join(' ');
+    return name || '—';
+  }
+
+  classLabel(t: ETaskDto): string {
+    return (t.classEntity?.name || '').trim() || '—';
   }
 
   linkFor(t: ETaskDto): string | null {
@@ -83,7 +129,7 @@ export class StudentElearningTasksComponent implements OnInit {
       error: (err) => {
         this.uploadingTaskId = null;
         this.uploadError[taskId] = err?.error?.message || 'Upload failed.';
-      }
+      },
     });
   }
 }

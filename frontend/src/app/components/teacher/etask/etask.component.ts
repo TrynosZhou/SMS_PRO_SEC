@@ -19,7 +19,7 @@ export class EtaskComponent implements OnInit {
   success = '';
 
   title = '';
-  taskType: 'assignment' | 'test' = 'assignment';
+  taskType: 'assignment' | 'test' | 'notes' = 'assignment';
   classId = '';
   description = '';
   dueDate = '';
@@ -74,6 +74,10 @@ export class EtaskComponent implements OnInit {
 
   get testCount(): number {
     return this.recentTasks.filter((t) => t.taskType === 'test').length;
+  }
+
+  get notesCount(): number {
+    return this.recentTasks.filter((t) => t.taskType === 'notes').length;
   }
 
   get filteredTasks(): ETaskDto[] {
@@ -163,7 +167,7 @@ export class EtaskComponent implements OnInit {
     return EtaskService.resolveUploadUrl(path);
   }
 
-  setTaskType(type: 'assignment' | 'test'): void {
+  setTaskType(type: 'assignment' | 'test' | 'notes'): void {
     this.taskType = type;
   }
 

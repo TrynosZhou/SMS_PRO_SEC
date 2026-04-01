@@ -603,6 +603,11 @@
   color: #92400e;
 }
 
+.et-badge-notes {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
 .et-task-meta {
   display: flex;
   flex-wrap: wrap;

@@ -5,6 +5,8 @@ import { User, UserRole } from '../entities/User';
 
 export interface AuthRequest extends Request {
   user?: User;
+  /** JWT `studentRecordId` — students.id for the account that just logged in (avoids wrong User.student join). */
+  authStudentRecordId?: string;
   file?: Express.Multer.File;
 }
 
@@ -26,7 +28,11 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       console.error('JWT_SECRET is not configured');
       return res.status(500).json({ message: 'Server configuration error' });
     }
-    const decoded = jwt.verify(token, jwtSecret) as { userId: string; role?: string };
+    const decoded = jwt.verify(token, jwtSecret) as {
+      userId: string;
+      role?: string;
+      studentRecordId?: string;
+    };
     const userRepository = AppDataSource.getRepository(User);
     const user = await userRepository.findOne({
       where: { id: decoded.userId },
@@ -38,6 +44,10 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     req.user = user;
+    req.authStudentRecordId =
+      typeof decoded.studentRecordId === 'string' && decoded.studentRecordId.trim()
+        ? decoded.studentRecordId.trim()
+        : undefined;
     next();
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {

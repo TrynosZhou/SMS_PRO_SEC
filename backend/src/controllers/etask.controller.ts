@@ -17,6 +17,30 @@ async function getTeacherForUser(userId: string): Promise<Teacher | null> {
   });
 }
 
+/** Match student row to login (JWT studentRecordId, then username + userId). */
+async function getStudentForLoggedInStudentUser(req: AuthRequest): Promise<Student | null> {
+  if (!req.user) {
+    return null;
+  }
+  const repo = AppDataSource.getRepository(Student);
+  const rid = req.authStudentRecordId;
+  if (rid) {
+    const byJwt = await repo.findOne({
+      where: { id: rid, userId: req.user.id }
+    });
+    if (byJwt) {
+      return byJwt;
+    }
+  }
+  let row = await repo.findOne({
+    where: { userId: req.user.id, studentNumber: req.user.username }
+  });
+  if (!row) {
+    row = await repo.findOne({ where: { userId: req.user.id } });
+  }
+  return row;
+}
+
 function teacherHasClass(teacher: Teacher, classId: string): boolean {
   return !!(teacher.classes && teacher.classes.some((c) => c.id === classId));
 }
@@ -45,8 +69,8 @@ export const createETask = async (req: AuthRequest, res: Response) => {
     if (!title) {
       return res.status(400).json({ message: 'Title is required' });
     }
-    if (taskType !== 'assignment' && taskType !== 'test') {
-      return res.status(400).json({ message: 'Task type must be assignment or test' });
+    if (taskType !== 'assignment' && taskType !== 'test' && taskType !== 'notes') {
+      return res.status(400).json({ message: 'Task type must be assignment, test, or notes' });
     }
     if (!classId) {
       return res.status(400).json({ message: 'Class is required' });
@@ -77,7 +101,7 @@ export const createETask = async (req: AuthRequest, res: Response) => {
     const task = taskRepo.create({
       title,
       description,
-      taskType: taskType as 'assignment' | 'test',
+      taskType: taskType as 'assignment' | 'test' | 'notes',
       teacherId: teacher.id,
       classId,
       attachmentUrl,
@@ -138,9 +162,7 @@ export const listStudentETasks = async (req: AuthRequest, res: Response) => {
       await AppDataSource.initialize();
     }
 
-    const student = await AppDataSource.getRepository(Student).findOne({
-      where: { userId: req.user.id }
-    });
+    const student = await getStudentForLoggedInStudentUser(req);
 
     if (!student?.classId) {
       return res.json([]);
@@ -170,9 +192,7 @@ export const getStudentETaskById = async (req: AuthRequest, res: Response) => {
       await AppDataSource.initialize();
     }
 
-    const student = await AppDataSource.getRepository(Student).findOne({
-      where: { userId: req.user.id }
-    });
+    const student = await getStudentForLoggedInStudentUser(req);
 
     if (!student?.classId) {
       return res.status(404).json({ message: 'Task not found' });
@@ -231,9 +251,7 @@ export const submitStudentETask = async (req: AuthRequest, res: Response) => {
       await AppDataSource.initialize();
     }
 
-    const student = await AppDataSource.getRepository(Student).findOne({
-      where: { userId: req.user.id }
-    });
+    const student = await getStudentForLoggedInStudentUser(req);
     if (!student?.classId) {
       return res.status(403).json({ message: 'Student class not set' });
     }
@@ -243,6 +261,9 @@ export const submitStudentETask = async (req: AuthRequest, res: Response) => {
     });
     if (!task || task.classId !== student.classId) {
       return res.status(404).json({ message: 'Task not found' });
+    }
+    if (task.taskType === 'notes') {
+      return res.status(400).json({ message: 'Notes are view-only; submissions apply to assignments and tests only.' });
     }
 
     const noteRaw = (req.body?.note ?? req.body?.submissionNote ?? '') as string;
@@ -293,9 +314,7 @@ export const listStudentMySubmissions = async (req: AuthRequest, res: Response) 
       await AppDataSource.initialize();
     }
 
-    const student = await AppDataSource.getRepository(Student).findOne({
-      where: { userId: req.user.id }
-    });
+    const student = await getStudentForLoggedInStudentUser(req);
     if (!student?.classId) {
       return res.json([]);
     }
@@ -326,9 +345,7 @@ export const getStudentSubmissionForTask = async (req: AuthRequest, res: Respons
       await AppDataSource.initialize();
     }
 
-    const student = await AppDataSource.getRepository(Student).findOne({
-      where: { userId: req.user.id }
-    });
+    const student = await getStudentForLoggedInStudentUser(req);
     if (!student?.classId) {
       return res.json({ submission: null });
     }

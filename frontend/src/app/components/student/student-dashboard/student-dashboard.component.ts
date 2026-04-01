@@ -62,6 +62,15 @@ export class StudentDashboardComponent implements OnInit, OnDestroy {
     this.loadSchoolSettings();
 
     if (user.role === 'student') {
+      // Drop parent-viewer ?studentId= so we never mix another child's id with a real student session.
+      if (this.route.snapshot.queryParamMap.has('studentId')) {
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: {},
+          queryParamsHandling: '',
+          replaceUrl: true,
+        });
+      }
       this.initStudentViewer();
       return;
     }
@@ -118,6 +127,7 @@ export class StudentDashboardComponent implements OnInit, OnDestroy {
       next: (response: any) => {
         const list = response.students || [];
         this.linkedStudents = list;
+        this.querySub?.unsubscribe();
         this.querySub = this.route.queryParams.subscribe((params) => {
           const sid = params['studentId'];
           this.applyParentStudentSelection(list, sid);
@@ -128,6 +138,23 @@ export class StudentDashboardComponent implements OnInit, OnDestroy {
         this.profileLoading = false;
       }
     });
+  }
+
+  /** Resolve linked child by internal id (UUID) or school Student ID (studentNumber). */
+  private findLinkedStudent(list: any[], raw: string): any | null {
+    const q = String(raw || '').trim();
+    if (!q) {
+      return null;
+    }
+    const lower = q.toLowerCase();
+    return (
+      list.find((s) => String(s.id).toLowerCase() === lower) ||
+      list.find((s) => String(s.studentNumber || '').trim() === q) ||
+      list.find(
+        (s) => String(s.studentNumber || '').trim().toLowerCase() === lower
+      ) ||
+      null
+    );
   }
 
   private applyParentStudentSelection(list: any[], studentIdFromQuery: string | undefined): void {
@@ -141,22 +168,32 @@ export class StudentDashboardComponent implements OnInit, OnDestroy {
       return;
     }
 
-    let chosen = studentIdFromQuery
-      ? list.find((s) => String(s.id) === String(studentIdFromQuery))
-      : null;
-    if (!chosen) {
-      chosen = list[0];
-    }
+    const raw = studentIdFromQuery != null ? String(studentIdFromQuery).trim() : '';
+    let chosen: any | null = null;
 
-    const needsUrlFix =
-      !studentIdFromQuery || String(chosen.id) !== String(studentIdFromQuery);
-    if (needsUrlFix) {
-      this.router.navigate([], {
-        relativeTo: this.route,
-        queryParams: { studentId: chosen.id },
-        replaceUrl: true
-      });
-      return;
+    if (raw) {
+      chosen = this.findLinkedStudent(list, raw);
+      if (!chosen) {
+        if (list.length === 1) {
+          chosen = list[0];
+          this.error =
+            'That student reference was not found. Showing your linked student.';
+        } else {
+          this.error =
+            'That student is not linked to your account. Choose a child from the list below.';
+          this.displayFullName = '';
+          this.studentName = '';
+          this.studentNumber = '';
+          this.contextStudentId = null;
+          this.profileLoading = false;
+          return;
+        }
+      } else {
+        this.error = '';
+      }
+    } else {
+      chosen = list[0];
+      this.error = '';
     }
 
     this.contextStudentId = chosen.id;
@@ -165,11 +202,22 @@ export class StudentDashboardComponent implements OnInit, OnDestroy {
     this.displayFullName = `${fn} ${ln}`.trim() || 'Student';
     this.studentName = this.displayFullName;
     this.studentNumber = chosen.studentNumber || '';
-    this.error = '';
     this.profileLoading = false;
+
+    const canonical = String(chosen.id);
+    if (raw !== canonical) {
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { studentId: chosen.id },
+        replaceUrl: true,
+      });
+    }
   }
 
-  onParentStudentChange(studentId: string): void {
+  onParentStudentChange(studentId: string | null): void {
+    if (studentId == null || studentId === '') {
+      return;
+    }
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { studentId },
