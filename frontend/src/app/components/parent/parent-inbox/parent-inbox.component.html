@@ -1,5 +1,5 @@
-<div class="pi-page">
-  <aside class="pi-sidebar">
+<div class="pi-page" [class.pi-page--hub]="hubMode">
+  <aside class="pi-sidebar" *ngIf="!hubMode">
     <div class="pi-sidebar-brand">
       <span class="pi-logo" aria-hidden="true">✉️</span>
       <div>
@@ -12,9 +12,13 @@
         <span class="pi-nav-ico">📊</span>
         Dashboard
       </a>
-      <a routerLink="/parent/inbox" routerLinkActive="active" class="pi-nav-link">
+      <a
+        routerLink="/parent/communications/view"
+        [class.active]="communicationsNavActive()"
+        class="pi-nav-link"
+      >
         <span class="pi-nav-ico">📧</span>
-        My Inbox
+        Communications
         <span class="pi-badge" *ngIf="unreadCount > 0">{{ unreadCount }}</span>
       </a>
       <a routerLink="/parent/link-students" class="pi-nav-link">
@@ -26,7 +30,14 @@
   </aside>
 
   <main class="pi-main">
-    <header class="pi-toolbar">
+    <div class="pi-hub-bar" *ngIf="hubMode && activeTab === 'inbox'">
+      <button type="button" class="pi-btn pi-btn-ghost" (click)="refresh()" [disabled]="loading" title="Refresh">
+        <span [class.pi-spin]="loading">↻</span>
+        Refresh
+      </button>
+    </div>
+
+    <header class="pi-toolbar" *ngIf="!hubMode">
       <div class="pi-toolbar-text">
         <p class="pi-kicker">School messages</p>
         <h1>{{ toolbarTitle }}</h1>
@@ -40,7 +51,7 @@
       </div>
     </header>
 
-    <nav class="pi-tabs" role="tablist" aria-label="Message views">
+    <nav class="pi-tabs" *ngIf="!hubMode" role="tablist" aria-label="Message views">
       <button
         type="button"
         role="tab"

@@ -18,6 +18,9 @@ export class ParentInboxComponent implements OnInit, OnDestroy {
   error = '';
   parentName = '';
 
+  /** When true, rendered inside /parent/communications (shell provides tabs + title). */
+  hubMode = false;
+
   activeTab: 'inbox' | 'compose' | 'outbox' = 'inbox';
 
   searchQuery = '';
@@ -47,18 +50,56 @@ export class ParentInboxComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.routeSub = this.route.queryParams.subscribe((params) => {
-      const t = params['tab'];
-      if (params['compose'] === '1' || t === 'compose') {
-        this.activeTab = 'compose';
-      } else if (t === 'outbox') {
-        this.activeTab = 'outbox';
-      } else {
-        this.activeTab = 'inbox';
-      }
-    });
+    const snap = this.route.snapshot.data;
+    this.hubMode = !!snap['parentCommHub'];
+    if (this.hubMode) {
+      this.applyCommSegment(String(snap['parentCommSegment'] || 'inbox'));
+    } else {
+      this.applyQueryTabParams(this.route.snapshot.queryParams);
+    }
+
+    this.routeSub = new Subscription();
+    this.routeSub.add(
+      this.route.data.subscribe((data) => {
+        this.hubMode = !!data['parentCommHub'];
+        if (this.hubMode) {
+          this.applyCommSegment(String(data['parentCommSegment'] || 'inbox'));
+        }
+      })
+    );
+    this.routeSub.add(
+      this.route.queryParams.subscribe((params) => {
+        if (this.hubMode) {
+          return;
+        }
+        this.applyQueryTabParams(params);
+      })
+    );
+
     this.loadMessages();
     this.loadOutbox();
+  }
+
+  private applyCommSegment(seg: string): void {
+    if (seg === 'compose') {
+      this.activeTab = 'compose';
+    } else if (seg === 'outbox') {
+      this.activeTab = 'outbox';
+      this.loadOutbox();
+    } else {
+      this.activeTab = 'inbox';
+    }
+  }
+
+  private applyQueryTabParams(params: Record<string, unknown>): void {
+    const t = params['tab'];
+    if (params['compose'] === '1' || t === 'compose') {
+      this.activeTab = 'compose';
+    } else if (t === 'outbox') {
+      this.activeTab = 'outbox';
+    } else {
+      this.activeTab = 'inbox';
+    }
   }
 
   ngOnDestroy() {
@@ -74,6 +115,14 @@ export class ParentInboxComponent implements OnInit, OnDestroy {
 
   setTab(tab: 'inbox' | 'compose' | 'outbox') {
     this.activeTab = tab;
+    if (this.hubMode) {
+      const path = tab === 'inbox' ? 'view' : tab === 'compose' ? 'send' : 'sent';
+      void this.router.navigate(['/parent/communications', path], { replaceUrl: true });
+      if (tab === 'outbox') {
+        this.loadOutbox();
+      }
+      return;
+    }
     if (tab === 'inbox') {
       this.router.navigate(['/parent/inbox'], { replaceUrl: true });
     } else {
@@ -300,5 +349,9 @@ export class ParentInboxComponent implements OnInit, OnDestroy {
       return '#';
     }
     return `${environment.serverBaseUrl}${url}`;
+  }
+
+  communicationsNavActive(): boolean {
+    return this.router.url.startsWith('/parent/communications');
   }
 }

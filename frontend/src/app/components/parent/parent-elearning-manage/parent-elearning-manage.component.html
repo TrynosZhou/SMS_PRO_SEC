@@ -25,13 +25,9 @@
           <span class="pem-nav-text">Messages</span>
           <span class="pem-nav-badge" *ngIf="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
         </button>
-        <button type="button" class="pem-nav-item" [class.active]="isTabActive('learning')" (click)="setTab('learning')">
-          <span class="pem-nav-ico" aria-hidden="true">🎓</span>
-          <span>E-learning</span>
-        </button>
         <button type="button" class="pem-nav-item" [class.active]="isTabActive('records')" (click)="setTab('records')">
           <span class="pem-nav-ico" aria-hidden="true">📋</span>
-          <span>Records</span>
+          <span>Report Card(s)</span>
         </button>
       </nav>
       <div class="pem-sidebar-footer">
@@ -54,18 +50,32 @@
           </svg>
         </button>
         <span class="pem-mobile-title">Family hub</span>
+        <a
+          routerLink="/parent/dashboard"
+          class="pem-topbar-dashboard-link"
+          (click)="closeMobileTabMenu()"
+        >
+          Dashboard
+        </a>
         <span class="pem-mobile-topbar-spacer"></span>
       </header>
 
       <header class="pem-hero">
         <div class="pem-hero-copy">
-          <p class="pem-kicker">E-learning &amp; school records</p>
-          <h1>One place for tasks, messages, and reports</h1>
+          <p class="pem-kicker">Messages, portal &amp; school records</p>
+          <h1>One place for messages, your children’s portal, and reports</h1>
           <p class="pem-date">{{ getTodayDisplayDate() }}</p>
         </div>
         <div class="pem-hero-actions">
-          <button type="button" class="btn btn-primary" (click)="linkStudents()">Link students</button>
-          <button type="button" class="btn btn-light" (click)="manageAccount()">My account</button>
+          <a
+            routerLink="/parent/dashboard"
+            class="btn btn-primary pem-hero-primary-btn"
+            (click)="closeMobileTabMenu()"
+          >
+            ← Back to dashboard
+          </a>
+          <button type="button" class="btn btn-primary pem-hero-primary-btn" (click)="linkStudents()">Link students</button>
+          <button type="button" class="btn btn-primary pem-hero-primary-btn" (click)="manageAccount()">My account</button>
         </div>
       </header>
 
@@ -75,7 +85,7 @@
       <section class="pem-panel" *ngIf="isTabActive('overview')" aria-labelledby="pem-overview-title">
         <h2 id="pem-overview-title" class="pem-panel-title">Overview</h2>
         <p class="pem-panel-lead">
-          Quick access to school e-learning content, your inbox, and each child’s portal and report card (when fees are clear).
+          Quick access to your inbox, each child’s portal, invoice preview, and report cards (when fees are clear).
         </p>
 
         <div class="pem-loading" *ngIf="loading">
@@ -101,10 +111,6 @@
         </div>
 
         <div class="pem-tiles" *ngIf="!loading">
-          <button type="button" class="pem-tile" (click)="browseSchoolElearning()">
-            <span class="pem-tile-ico" aria-hidden="true">🌐</span>
-            <span class="pem-tile-text"><strong>School e-learning</strong><small>Browse shared resources</small></span>
-          </button>
           <button type="button" class="pem-tile" (click)="goInbox()">
             <span class="pem-tile-ico" aria-hidden="true">📥</span>
             <span class="pem-tile-text"><strong>Inbox</strong><small>Messages from school</small></span>
@@ -116,7 +122,7 @@
           </button>
           <button type="button" class="pem-tile" (click)="viewCurrentInvoice()">
             <span class="pem-tile-ico" aria-hidden="true">🧾</span>
-            <span class="pem-tile-text"><strong>Latest invoice PDF</strong><small>First linked student</small></span>
+            <span class="pem-tile-text"><strong>Latest invoice preview</strong><small>First linked student</small></span>
           </button>
         </div>
 
@@ -158,41 +164,10 @@
         </div>
       </section>
 
-      <!-- E-learning -->
-      <section class="pem-panel" *ngIf="isTabActive('learning')" aria-labelledby="pem-learn-title">
-        <h2 id="pem-learn-title" class="pem-panel-title">E-learning</h2>
-        <p class="pem-panel-lead">
-          Browse materials the school publishes for everyone. To work on assigned tasks, your child signs in with their student account, or you can open their
-          <strong>student portal</strong> from here for an overview.
-        </p>
-        <div class="pem-actions-row">
-          <button type="button" class="btn btn-primary" (click)="browseSchoolElearning()">Open school e-learning</button>
-          <button type="button" class="btn btn-outline" (click)="openStudentPortal()">Open student portal</button>
-        </div>
-
-        <div class="pem-loading" *ngIf="loading">
-          <div class="spinner"></div>
-          <p>Loading students…</p>
-        </div>
-
-        <ul class="pem-child-list pem-child-list--boxed" *ngIf="!loading && students.length > 0">
-          <li *ngFor="let s of students" class="pem-child-row">
-            <div class="pem-child-name">
-              <span class="pem-avatar">{{ (s.firstName || '?').charAt(0) }}{{ (s.lastName || '').charAt(0) }}</span>
-              <div>
-                <div>{{ s.firstName }} {{ s.lastName }}</div>
-                <small class="pem-muted">{{ s.class?.name || 'Class not assigned' }}</small>
-              </div>
-            </div>
-            <button type="button" class="btn btn-sm btn-primary" (click)="openStudentPortalFor(s.id)">Open portal</button>
-          </li>
-        </ul>
-      </section>
-
-      <!-- Records -->
+      <!-- Report cards -->
       <section class="pem-panel" *ngIf="isTabActive('records')" aria-labelledby="pem-rec-title">
-        <h2 id="pem-rec-title" class="pem-panel-title">Records</h2>
-        <p class="pem-panel-lead">Report cards unlock when the term balance is cleared. Download your latest invoice from Overview.</p>
+        <h2 id="pem-rec-title" class="pem-panel-title">Report Card(s)</h2>
+        <p class="pem-panel-lead">Report cards unlock when the term balance is cleared. Preview your latest invoice from Overview.</p>
 
         <div class="pem-loading" *ngIf="loading">
           <div class="spinner"></div>
@@ -236,10 +211,13 @@
           <button type="button" class="btn btn-primary" (click)="linkStudents()">Link students</button>
         </section>
       </section>
-
-      <footer class="pem-footer">
-        <button type="button" class="ghost-link" (click)="parentDashboard()">Back to dashboard</button>
-      </footer>
     </main>
   </div>
 </div>
+
+<app-invoice-pdf-preview
+  [open]="invoicePreviewOpen"
+  [blob]="invoicePreviewBlob"
+  [filename]="invoicePreviewFilename"
+  (closed)="closeInvoicePreview()"
+></app-invoice-pdf-preview>

@@ -15,17 +15,13 @@
           <span class="ma-nav-ico" aria-hidden="true">📊</span>
           <span>Dashboard</span>
         </a>
-        <a routerLink="/parent/inbox" routerLinkActive="active" (click)="closeMobileMenu()">
-          <span class="ma-nav-ico" aria-hidden="true">📥</span>
-          <span>My Inbox</span>
-        </a>
-        <a (click)="openCompose()">
-          <span class="ma-nav-ico" aria-hidden="true">✉️</span>
-          <span>Send Message</span>
-        </a>
-        <a (click)="openOutbox()">
-          <span class="ma-nav-ico" aria-hidden="true">📤</span>
-          <span>Outbox</span>
+        <a
+          [routerLink]="['/parent/communications/view']"
+          [class.active]="isCommunicationsActive()"
+          (click)="closeMobileMenu()"
+        >
+          <span class="ma-nav-ico" aria-hidden="true">💬</span>
+          <span>Communications</span>
         </a>
         <a routerLink="/parent/link-students" routerLinkActive="active" (click)="closeMobileMenu()">
           <span class="ma-nav-ico" aria-hidden="true">🔗</span>

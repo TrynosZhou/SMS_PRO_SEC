@@ -69,6 +69,24 @@ export class FinanceService {
     );
   }
 
+  /**
+   * Saves the PDF only when the user explicitly chooses download (e.g. button click).
+   * Does not open a new tab and does not auto-preview.
+   */
+  downloadInvoicePdfFile(blob: Blob, filename = 'invoice.pdf'): void {
+    const pdfBlob =
+      blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'invoice.pdf';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => window.URL.revokeObjectURL(url), 3000);
+  }
+
   getReceiptPDF(invoiceId: string): Observable<Blob> {
     return this.http.get(`${this.apiUrl}/finance/${invoiceId}/receipt`, {
       responseType: 'blob'

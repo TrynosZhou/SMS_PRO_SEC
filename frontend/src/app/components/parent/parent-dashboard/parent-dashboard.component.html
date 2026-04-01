@@ -20,22 +20,18 @@
           <span class="pd-nav-ico" aria-hidden="true">📊</span>
           <span>Dashboard</span>
         </a>
-        <a routerLink="/parent/elearning-manage" routerLinkActive="active" (click)="closeMobileMenu()">
+        <a routerLink="/parent/all_in_one" routerLinkActive="active" (click)="closeMobileMenu()">
           <span class="pd-nav-ico" aria-hidden="true">📚</span>
           <span>Family hub</span>
         </a>
-        <a routerLink="/parent/inbox" routerLinkActive="active" (click)="closeMobileMenu()">
-          <span class="pd-nav-ico" aria-hidden="true">📥</span>
-          <span class="pd-nav-text">My Inbox</span>
+        <a
+          [routerLink]="['/parent/communications/view']"
+          [class.active]="isCommunicationsActive()"
+          (click)="closeMobileMenu()"
+        >
+          <span class="pd-nav-ico" aria-hidden="true">💬</span>
+          <span class="pd-nav-text">Communications</span>
           <span class="pd-nav-badge" *ngIf="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-        </a>
-        <a (click)="openCompose()">
-          <span class="pd-nav-ico" aria-hidden="true">✉️</span>
-          <span>Send Message</span>
-        </a>
-        <a (click)="openOutbox()">
-          <span class="pd-nav-ico" aria-hidden="true">📤</span>
-          <span>Outbox</span>
         </a>
         <a (click)="viewCurrentInvoice(); closeMobileMenu()">
           <span class="pd-nav-ico" aria-hidden="true">🧾</span>
@@ -145,23 +141,16 @@
           <span class="action-tile-ico" aria-hidden="true">🧾</span>
           <span class="action-tile-text">
             <span>Invoice Statement</span>
-            <small>View and download invoice PDF</small>
+            <small>Preview latest invoice for a linked student</small>
           </span>
         </button>
-        <button type="button" class="action-tile" (click)="openInbox()">
-          <span class="action-tile-ico" aria-hidden="true">📥</span>
+        <button type="button" class="action-tile" (click)="openCommunications('view')">
+          <span class="action-tile-ico" aria-hidden="true">💬</span>
           <span class="action-tile-text">
-            <span>Inbox</span>
-            <small>School communication</small>
+            <span>Communications</span>
+            <small>View school messages, send to the school, sent folder</small>
           </span>
           <span class="action-tile-badge" *ngIf="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }} new</span>
-        </button>
-        <button type="button" class="action-tile" (click)="openOutbox()">
-          <span class="action-tile-ico" aria-hidden="true">📤</span>
-          <span class="action-tile-text">
-            <span>Outbox</span>
-            <small>Sent messages</small>
-          </span>
         </button>
       </section>
 
@@ -268,3 +257,10 @@
     </div>
   </div>
 </div>
+
+<app-invoice-pdf-preview
+  [open]="invoicePreviewOpen"
+  [blob]="invoicePreviewBlob"
+  [filename]="invoicePreviewFilename"
+  (closed)="closeInvoicePreview()"
+></app-invoice-pdf-preview>

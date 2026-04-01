@@ -26,7 +26,7 @@ export class AppComponent implements OnInit {
     public authService: AuthService, 
     private settingsService: SettingsService,
     public moduleAccessService: ModuleAccessService,
-    private router: Router,
+    public router: Router,
     private userActivityService: UserActivityService
   ) { }
 

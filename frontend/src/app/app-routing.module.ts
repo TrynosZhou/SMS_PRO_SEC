@@ -90,15 +90,40 @@ import { PayrollManageComponent } from './components/payroll/payroll-manage/payr
 import { CommunicationManageShellComponent } from './components/admin/communication-manage-shell/communication-manage-shell.component';
 import { CommunicationSendComponent } from './components/admin/communication-send/communication-send.component';
 import { CommunicationViewMessagesComponent } from './components/admin/communication-view-messages/communication-view-messages.component';
+import { ParentCommunicationsShellComponent } from './components/parent/parent-communications-shell/parent-communications-shell.component';
 
 const routes: Routes = [
   { path: '', component: SplashComponent },
   { path: 'login', component: LoginComponent },
   { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
   { path: 'parent/dashboard', component: ParentDashboardComponent, canActivate: [AuthGuard] },
-  { path: 'parent/elearning-manage', component: ParentElearningManageComponent, canActivate: [AuthGuard] },
+  { path: 'parent/elearning-manage', redirectTo: '/parent/all_in_one', pathMatch: 'full' },
+  { path: 'parent/all_in_one', component: ParentElearningManageComponent, canActivate: [AuthGuard] },
   { path: 'teacher/dashboard', component: TeacherDashboardComponent, canActivate: [AuthGuard] },
   { path: 'parent/inbox', component: ParentInboxComponent, canActivate: [AuthGuard] },
+  {
+    path: 'parent/communications',
+    component: ParentCommunicationsShellComponent,
+    canActivate: [AuthGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'view' },
+      {
+        path: 'view',
+        component: ParentInboxComponent,
+        data: { parentCommHub: true, parentCommSegment: 'inbox' },
+      },
+      {
+        path: 'send',
+        component: ParentInboxComponent,
+        data: { parentCommHub: true, parentCommSegment: 'compose' },
+      },
+      {
+        path: 'sent',
+        component: ParentInboxComponent,
+        data: { parentCommHub: true, parentCommSegment: 'outbox' },
+      },
+    ],
+  },
   { path: 'parent/link-students', component: LinkStudentsComponent, canActivate: [AuthGuard] },
   { path: 'parent/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },
   { path: 'teacher/manage-account', component: ManageAccountComponent, canActivate: [AuthGuard] },

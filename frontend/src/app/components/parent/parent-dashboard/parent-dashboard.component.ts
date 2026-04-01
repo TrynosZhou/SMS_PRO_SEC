@@ -26,6 +26,10 @@ export class ParentDashboardComponent implements OnInit {
   pendingUnlinkId: string | null = null;
   pendingUnlinkName = '';
 
+  invoicePreviewOpen = false;
+  invoicePreviewBlob: Blob | null = null;
+  invoicePreviewFilename = 'invoice.pdf';
+
   constructor(
     private parentService: ParentService,
     private authService: AuthService,
@@ -399,20 +403,27 @@ export class ParentDashboardComponent implements OnInit {
     this.router.navigate(['/student/dashboard'], { queryParams: { studentId: firstStudent.id } });
   }
 
-  /** Opens the school inbox (received messages). */
-  openInbox() {
-    this.router.navigate(['/parent/inbox']);
+  /** True when any Communications hub tab is open. */
+  isCommunicationsActive(): boolean {
+    return this.router.url.startsWith('/parent/communications');
+  }
+
+  /** Opens Communications (default: messages from school). */
+  openCommunications(segment: 'view' | 'send' | 'sent' = 'view') {
     this.closeMobileMenu();
+    void this.router.navigate(['/parent/communications', segment]);
+  }
+
+  openInbox() {
+    this.openCommunications('view');
   }
 
   openCompose() {
-    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'compose' } });
-    this.closeMobileMenu();
+    this.openCommunications('send');
   }
 
   openOutbox() {
-    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'outbox' } });
-    this.closeMobileMenu();
+    this.openCommunications('sent');
   }
 
   makePayment() {
@@ -450,16 +461,9 @@ export class ParentDashboardComponent implements OnInit {
         // View the invoice PDF
         this.financeService.getInvoicePDF(latestInvoice.id).subscribe({
           next: (result: { blob: Blob; filename: string }) => {
-            const url = window.URL.createObjectURL(result.blob);
-            // Create a download link with the proper filename
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = result.filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            // Clean up the URL after a delay to free memory
-            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+            this.invoicePreviewFilename = result.filename || 'invoice.pdf';
+            this.invoicePreviewBlob = result.blob;
+            this.invoicePreviewOpen = true;
           },
           error: (err: any) => {
             console.error('Error loading invoice PDF:', err);
@@ -474,5 +478,11 @@ export class ParentDashboardComponent implements OnInit {
         setTimeout(() => this.error = '', 5000);
       }
     });
+  }
+
+  closeInvoicePreview(): void {
+    this.invoicePreviewOpen = false;
+    this.invoicePreviewBlob = null;
+    this.invoicePreviewFilename = 'invoice.pdf';
   }
 }

@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-splash',
@@ -9,14 +10,32 @@ import { Router } from '@angular/router';
 export class SplashComponent implements OnInit, OnDestroy {
   private navigateTimeoutId?: ReturnType<typeof setTimeout>;
 
-  constructor(private router: Router) {}
+  constructor(
+    private router: Router,
+    private authService: AuthService
+  ) {}
 
   ngOnInit(): void {
-    if (typeof window !== 'undefined') {
-      window.scrollTo(0, 0);
-    }
     this.navigateTimeoutId = setTimeout(() => {
-      this.router.navigate(['/login']);
+      if (!this.authService.isAuthenticated()) {
+        this.router.navigate(['/login']);
+        return;
+      }
+
+      const user = this.authService.getCurrentUser();
+      const role = (user?.role || '').toLowerCase();
+
+      if (role === 'parent') {
+        this.router.navigate(['/parent/dashboard']);
+        return;
+      }
+
+      if (role === 'teacher') {
+        this.router.navigate(['/teacher/dashboard']);
+        return;
+      }
+
+      this.router.navigate(['/dashboard']);
     }, 3500);
   }
 

@@ -194,6 +194,26 @@
   gap: 0.5rem;
 }
 
+.pem-hero-actions a.btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Match all hero CTAs: blue fill, bold white label (including routerLink anchor). */
+.pem-hero-actions .pem-hero-primary-btn.btn-primary {
+  font-weight: 700;
+  color: #fff;
+}
+
+.pem-hero-actions a.pem-hero-primary-btn.btn-primary:link,
+.pem-hero-actions a.pem-hero-primary-btn.btn-primary:visited,
+.pem-hero-actions a.pem-hero-primary-btn.btn-primary:hover,
+.pem-hero-actions a.pem-hero-primary-btn.btn-primary:active {
+  color: #fff;
+}
+
 .pem-panel {
   background: var(--pem-surface);
   border-radius: var(--pem-radius);
@@ -471,23 +491,6 @@
   display: inline-block;
 }
 
-.pem-footer {
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--pem-border);
-}
-
-.ghost-link {
-  background: none;
-  border: none;
-  color: var(--pem-primary);
-  font-size: 0.9rem;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-  font-family: inherit;
-}
-
 @media (max-width: 900px) {
   .pem-mobile-overlay {
     display: block;
@@ -526,6 +529,23 @@
   .pem-mobile-title {
     font-weight: 700;
     font-size: 1rem;
+  }
+
+  .pem-topbar-dashboard-link {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--pem-primary);
+    text-decoration: none;
+    white-space: nowrap;
+    padding: 0.35rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--pem-border);
+    background: var(--pem-bg);
+  }
+
+  .pem-topbar-dashboard-link:hover {
+    background: var(--pem-surface);
+    border-color: var(--pem-primary);
   }
 
   .pem-mobile-topbar-spacer {

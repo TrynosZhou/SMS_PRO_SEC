@@ -5,7 +5,7 @@ import { AuthService } from '../../../services/auth.service';
 import { MessageService } from '../../../services/message.service';
 import { FinanceService } from '../../../services/finance.service';
 
-export type ParentElTab = 'overview' | 'messages' | 'learning' | 'records';
+export type ParentElTab = 'overview' | 'messages' | 'records';
 
 @Component({
   selector: 'app-parent-elearning-manage',
@@ -21,6 +21,10 @@ export class ParentElearningManageComponent implements OnInit {
   currencySymbol = 'KES';
   mobileMenuOpen = false;
   isMobile = false;
+
+  invoicePreviewOpen = false;
+  invoicePreviewBlob: Blob | null = null;
+  invoicePreviewFilename = 'invoice.pdf';
 
   constructor(
     private parentService: ParentService,
@@ -99,15 +103,15 @@ export class ParentElearningManageComponent implements OnInit {
   }
 
   goInbox(): void {
-    this.router.navigate(['/parent/inbox']);
+    this.router.navigate(['/parent/communications/view']);
   }
 
   goCompose(): void {
-    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'compose' } });
+    this.router.navigate(['/parent/communications/send']);
   }
 
   goOutbox(): void {
-    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'outbox' } });
+    this.router.navigate(['/parent/communications/sent']);
   }
 
   openStudentPortal(): void {
@@ -134,20 +138,12 @@ export class ParentElearningManageComponent implements OnInit {
     this.router.navigate(['/report-cards'], { queryParams: { studentId: student.id } });
   }
 
-  browseSchoolElearning(): void {
-    this.router.navigate(['/elearning']);
-  }
-
   linkStudents(): void {
     this.router.navigate(['/parent/link-students']);
   }
 
   manageAccount(): void {
     this.router.navigate(['/parent/manage-account']);
-  }
-
-  parentDashboard(): void {
-    this.router.navigate(['/parent/dashboard']);
   }
 
   viewCurrentInvoice(): void {
@@ -171,14 +167,9 @@ export class ParentElearningManageComponent implements OnInit {
         })[0];
         this.financeService.getInvoicePDF(latest.id).subscribe({
           next: (result: { blob: Blob; filename: string }) => {
-            const url = window.URL.createObjectURL(result.blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = result.filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+            this.invoicePreviewFilename = result.filename || 'invoice.pdf';
+            this.invoicePreviewBlob = result.blob;
+            this.invoicePreviewOpen = true;
           },
           error: (err: any) => {
             this.error = err.error?.message || 'Failed to load invoice PDF';
@@ -191,6 +182,12 @@ export class ParentElearningManageComponent implements OnInit {
         setTimeout(() => (this.error = ''), 5000);
       },
     });
+  }
+
+  closeInvoicePreview(): void {
+    this.invoicePreviewOpen = false;
+    this.invoicePreviewBlob = null;
+    this.invoicePreviewFilename = 'invoice.pdf';
   }
 
   formatCurrency(amount: number): string {

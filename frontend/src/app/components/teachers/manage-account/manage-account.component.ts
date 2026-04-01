@@ -215,13 +215,7 @@ export class ManageAccountComponent implements OnInit {
     this.navigateToRoleHome();
   }
 
-  openCompose() {
-    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'compose' } });
-    this.closeMobileMenu();
-  }
-
-  openOutbox() {
-    this.router.navigate(['/parent/inbox'], { queryParams: { tab: 'outbox' } });
-    this.closeMobileMenu();
+  isCommunicationsActive(): boolean {
+    return this.router.url.startsWith('/parent/communications');
   }
 }

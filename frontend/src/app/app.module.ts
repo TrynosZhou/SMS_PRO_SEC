@@ -95,6 +95,8 @@ import { PayrollManageComponent } from './components/payroll/payroll-manage/payr
 import { CommunicationManageShellComponent } from './components/admin/communication-manage-shell/communication-manage-shell.component';
 import { CommunicationSendComponent } from './components/admin/communication-send/communication-send.component';
 import { CommunicationViewMessagesComponent } from './components/admin/communication-view-messages/communication-view-messages.component';
+import { ParentCommunicationsShellComponent } from './components/parent/parent-communications-shell/parent-communications-shell.component';
+import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-preview/invoice-pdf-preview.component';
 
 @NgModule({
   declarations: [
@@ -186,7 +188,9 @@ import { CommunicationViewMessagesComponent } from './components/admin/communica
     PayrollManageComponent,
     CommunicationManageShellComponent,
     CommunicationSendComponent,
-    CommunicationViewMessagesComponent
+    CommunicationViewMessagesComponent,
+    ParentCommunicationsShellComponent,
+    InvoicePdfPreviewComponent
   ],
   imports: [
     BrowserModule,

@@ -162,7 +162,7 @@
         <span class="sidebar-text">Finance Manager</span>
       </a>
 
-      <!-- Communications Manager (admin — parent messaging) -->
+      <!-- Communications (admin — parent messaging) -->
       <a
         routerLink="/communication_manage"
         routerLinkActive="active"
@@ -172,7 +172,7 @@
         (click)="closeMobileMenu()"
       >
         <span class="sidebar-icon">💬</span>
-        <span class="sidebar-text">Communications Manager</span>
+        <span class="sidebar-text">Communications</span>
       </a>
 
       <!-- Payroll Manager (tabbed hub: /payroll/manage) -->
@@ -272,11 +272,16 @@
         <span class="nav-icon">🏠</span>
         <span>Dashboard</span>
       </a>
-      <a routerLink="/parent/inbox" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
-        <span class="nav-icon">📧</span>
-        <span>My Inbox</span>
+      <a
+        [routerLink]="['/parent/communications/view']"
+        [class.active]="router.url.startsWith('/parent/communications')"
+        class="mobile-nav-link"
+        (click)="closeMobileMenu()"
+      >
+        <span class="nav-icon">💬</span>
+        <span>Communications</span>
       </a>
-      <a routerLink="/parent/elearning-manage" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+      <a routerLink="/parent/all_in_one" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
         <span class="nav-icon">📚</span>
         <span>Family hub</span>
       </a>
