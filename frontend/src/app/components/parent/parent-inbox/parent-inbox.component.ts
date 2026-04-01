@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MessageService } from '../../../services/message.service';
 import { AuthService } from '../../../services/auth.service';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-parent-inbox',
@@ -292,5 +293,12 @@ export class ParentInboxComponent implements OnInit, OnDestroy {
 
   logout() {
     this.authService.logout();
+  }
+
+  attachmentHref(url: string | null | undefined): string {
+    if (!url || typeof url !== 'string' || !url.startsWith('/')) {
+      return '#';
+    }
+    return `${environment.serverBaseUrl}${url}`;
   }
 }

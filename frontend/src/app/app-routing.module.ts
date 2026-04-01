@@ -73,6 +73,7 @@ import { TransportServicesReportComponent } from './components/reports/transport
 import { StudentIdCardsComponent } from './components/reports/student-id-cards/student-id-cards.component';
 import { ReportManageComponent } from './components/reports/report-manage/report-manage.component';
 import { AuthGuard } from './guards/auth.guard';
+import { AdminOnlyGuard } from './guards/admin-only.guard';
 import { ModuleAccessGuard } from './guards/module-access.guard';
 import { SplashComponent } from './components/splash/splash.component';
 import { TimetableConfigComponent } from './components/timetable/timetable-config/timetable-config.component';
@@ -86,6 +87,9 @@ import { GeneralManageComponent } from './components/settings/general-manage/gen
 import { PayrollManagementComponent } from './components/payroll/payroll-management/payroll-management.component';
 import { SalaryAssignmentsComponent } from './components/payroll/salary-assignments/salary-assignments.component';
 import { PayrollManageComponent } from './components/payroll/payroll-manage/payroll-manage.component';
+import { CommunicationManageShellComponent } from './components/admin/communication-manage-shell/communication-manage-shell.component';
+import { CommunicationSendComponent } from './components/admin/communication-send/communication-send.component';
+import { CommunicationViewMessagesComponent } from './components/admin/communication-view-messages/communication-view-messages.component';
 
 const routes: Routes = [
   { path: '', component: SplashComponent },
@@ -149,6 +153,16 @@ const routes: Routes = [
   { path: 'admin/class-promotion', component: ClassPromotionComponent, canActivate: [AuthGuard] },
   { path: 'elearning', component: ElearningComponent, canActivate: [AuthGuard] },
   { path: 'admin/parent-management', component: ParentManagementComponent, canActivate: [AuthGuard] },
+  {
+    path: 'communication_manage',
+    component: CommunicationManageShellComponent,
+    canActivate: [AuthGuard, AdminOnlyGuard],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'send' },
+      { path: 'send', component: CommunicationSendComponent },
+      { path: 'view', component: CommunicationViewMessagesComponent },
+    ],
+  },
   { path: 'admin/teacher-record-book', component: TeacherRecordBookComponent, canActivate: [AuthGuard] },
   {
     path: 'students/manage',

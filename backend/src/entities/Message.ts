@@ -42,5 +42,9 @@ export class Message {
   /** True when this row is a message sent by the parent to the school (admin). */
   @Column({ default: false })
   isFromParent: boolean;
+
+  /** Optional file from school to parent (same path for bulk sends). */
+  @Column({ type: 'varchar', nullable: true })
+  attachmentUrl: string | null;
 }
 

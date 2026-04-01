@@ -2,20 +2,6 @@
   padding: 0.25rem 0 0;
 }
 
-.el-hub-title {
-  margin: 0 0 0.35rem;
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.el-hub-lead {
-  margin: 0 0 1rem;
-  font-size: 0.92rem;
-  line-height: 1.5;
-  color: #475569;
-}
-
 .el-hub-tabs {
   display: flex;
   flex-wrap: wrap;

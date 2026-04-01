@@ -192,7 +192,8 @@ export const getParentMessages = async (req: AuthRequest, res: Response) => {
         message: msg.message,
         senderName: msg.senderName,
         createdAt: msg.createdAt,
-        isRead: msg.isRead
+        isRead: msg.isRead,
+        attachmentUrl: msg.attachmentUrl || null
       }))
     });
   } catch (error: any) {
@@ -350,3 +351,132 @@ export const getParentOutboxMessages = async (req: AuthRequest, res: Response) =
   }
 };
 
+/** Admin/superadmin: send email-style message to all parents or one parent; optional attachment. */
+export const sendAdminToParents = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const scope = typeof req.body?.scope === 'string' ? req.body.scope.trim() : '';
+    const subject = typeof req.body?.subject === 'string' ? req.body.subject.trim() : '';
+    const messageBody = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+    const parentIdRaw = typeof req.body?.parentId === 'string' ? req.body.parentId.trim() : '';
+
+    if (!['all', 'one'].includes(scope)) {
+      return res.status(400).json({ message: 'scope must be "all" or "one"' });
+    }
+    if (!subject) {
+      return res.status(400).json({ message: 'Subject is required' });
+    }
+    if (!messageBody) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
+    if (scope === 'one' && !parentIdRaw) {
+      return res.status(400).json({ message: 'parentId is required when scope is "one"' });
+    }
+
+    const settingsRepository = AppDataSource.getRepository(Settings);
+    const parentRepository = AppDataSource.getRepository(Parent);
+    const messageRepository = AppDataSource.getRepository(Message);
+
+    const settings = await settingsRepository.findOne({
+      where: {},
+      order: { createdAt: 'DESC' }
+    });
+    const schoolName = settings?.schoolName || 'School';
+    const headmasterName = settings?.headmasterName || 'Headmaster';
+
+    const processedTemplate = messageBody
+      .replace(/\[School Name\]/g, schoolName)
+      .replace(/\[Headmaster Name\]/g, headmasterName);
+
+    const senderName = user.email || 'School Administration';
+    let attachmentUrl: string | null = null;
+    if (req.file?.filename) {
+      attachmentUrl = `/uploads/messages/${req.file.filename}`;
+    }
+
+    let parents: Parent[] = [];
+    if (scope === 'all') {
+      parents = await parentRepository.find({ relations: ['user'] });
+    } else {
+      const one = await parentRepository.findOne({
+        where: { id: parentIdRaw },
+        relations: ['user']
+      });
+      if (!one) {
+        return res.status(404).json({ message: 'Parent not found' });
+      }
+      parents = [one];
+    }
+
+    const recipientsLabel = scope === 'all' ? 'parents' : 'parent';
+
+    const records = parents.map((parent) => {
+      const personalized = processedTemplate.replace(
+        /\[Recipient Name\]|\[Name\]/g,
+        `${parent.firstName} ${parent.lastName}`.trim() || 'Parent'
+      );
+      return messageRepository.create({
+        subject,
+        message: personalized,
+        recipients: recipientsLabel,
+        senderId: user.id,
+        senderName,
+        parentId: parent.id,
+        isRead: false,
+        isFromParent: false,
+        attachmentUrl
+      });
+    });
+
+    await messageRepository.save(records);
+
+    res.status(201).json({
+      message: `Message queued for ${records.length} parent(s). In production, emails would be sent via your mail provider.`,
+      sentCount: records.length,
+      scope,
+      attachmentUrl
+    });
+  } catch (error: any) {
+    console.error('Error sendAdminToParents:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+/** Admin/superadmin: inbox — messages sent by parents to the school. */
+export const getAdminMessagesFromParents = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const messageRepository = AppDataSource.getRepository(Message);
+    const rows = await messageRepository.find({
+      where: { isFromParent: true },
+      relations: ['parent'],
+      order: { createdAt: 'DESC' }
+    });
+
+    res.json({
+      messages: rows.map((m) => ({
+        id: m.id,
+        subject: m.subject,
+        message: m.message,
+        senderName: m.senderName,
+        createdAt: m.createdAt,
+        isRead: m.isRead,
+        parentId: m.parentId,
+        parentFirstName: m.parent?.firstName || null,
+        parentLastName: m.parent?.lastName || null,
+        parentEmail: m.parent?.email || null
+      }))
+    });
+  } catch (error: any) {
+    console.error('Error getAdminMessagesFromParents:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};

@@ -92,6 +92,9 @@ import { TransactionAuditComponent } from './components/finance/transaction-audi
 import { PayrollManagementComponent } from './components/payroll/payroll-management/payroll-management.component';
 import { SalaryAssignmentsComponent } from './components/payroll/salary-assignments/salary-assignments.component';
 import { PayrollManageComponent } from './components/payroll/payroll-manage/payroll-manage.component';
+import { CommunicationManageShellComponent } from './components/admin/communication-manage-shell/communication-manage-shell.component';
+import { CommunicationSendComponent } from './components/admin/communication-send/communication-send.component';
+import { CommunicationViewMessagesComponent } from './components/admin/communication-view-messages/communication-view-messages.component';
 
 @NgModule({
   declarations: [
@@ -180,7 +183,10 @@ import { PayrollManageComponent } from './components/payroll/payroll-manage/payr
     TransactionAuditComponent,
     PayrollManagementComponent,
     SalaryAssignmentsComponent,
-    PayrollManageComponent
+    PayrollManageComponent,
+    CommunicationManageShellComponent,
+    CommunicationSendComponent,
+    CommunicationViewMessagesComponent
   ],
   imports: [
     BrowserModule,

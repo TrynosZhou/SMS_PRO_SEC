@@ -193,6 +193,9 @@
               </header>
               <div class="pi-detail-content">
                 <p>{{ m.message }}</p>
+                <p class="pi-attachment" *ngIf="m.attachmentUrl">
+                  <a [href]="attachmentHref(m.attachmentUrl)" target="_blank" rel="noopener noreferrer">Download attachment</a>
+                </p>
               </div>
             </article>
           </ng-container>

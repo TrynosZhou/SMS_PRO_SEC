@@ -25,8 +25,21 @@
   </div>
 </nav>
 
+<!-- Dim background when staff/student mobile nav is open -->
+<div
+  class="sidebar-backdrop"
+  *ngIf="isAuthenticated() && !isParent() && mobileDrawerOpen"
+  (click)="closeMobileDrawer()"
+  aria-hidden="true"
+></div>
+
 <!-- Collapsible Sidebar -->
-<aside class="sidebar" [class.collapsed]="sidebarCollapsed" *ngIf="isAuthenticated() && !isParent()">
+<aside
+  class="sidebar"
+  [class.collapsed]="sidebarCollapsed"
+  [class.mobile-open]="mobileDrawerOpen"
+  *ngIf="isAuthenticated() && !isParent()"
+>
   <div class="sidebar-content">
     <nav class="sidebar-nav">
       <!-- Dashboard -->
@@ -149,6 +162,19 @@
         <span class="sidebar-text">Finance Manager</span>
       </a>
 
+      <!-- Communications Manager (admin — parent messaging) -->
+      <a
+        routerLink="/communication_manage"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        class="sidebar-item"
+        *ngIf="isAdmin() && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">💬</span>
+        <span class="sidebar-text">Communications Manager</span>
+      </a>
+
       <!-- Payroll Manager (tabbed hub: /payroll/manage) -->
       <a
         routerLink="/payroll/manage"
@@ -242,12 +268,25 @@
     </div>
 
     <nav class="mobile-nav-links">
-      <a routerLink="/parent/dashboard" 
-         routerLinkActive="active" 
-         class="mobile-nav-link"
-         (click)="closeMobileMenu()">
+      <a routerLink="/parent/dashboard" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
         <span class="nav-icon">🏠</span>
-        <span>Parent Dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a routerLink="/parent/inbox" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">📧</span>
+        <span>My Inbox</span>
+      </a>
+      <a routerLink="/parent/elearning-manage" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">📚</span>
+        <span>Family hub</span>
+      </a>
+      <a routerLink="/parent/link-students" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">🔗</span>
+        <span>Link students</span>
+      </a>
+      <a routerLink="/parent/manage-account" routerLinkActive="active" class="mobile-nav-link" (click)="closeMobileMenu()">
+        <span class="nav-icon">👤</span>
+        <span>My account</span>
       </a>
     </nav>
 

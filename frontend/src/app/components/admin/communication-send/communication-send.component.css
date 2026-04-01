@@ -1,0 +1,80 @@
+.cm-send-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  color: #263238;
+}
+
+.cm-send-lead {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  color: #546e7a;
+  line-height: 1.45;
+}
+
+.cm-send-lead code {
+  font-size: 0.82rem;
+  background: #eceff1;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+}
+
+.cm-field {
+  margin-bottom: 1rem;
+}
+
+.cm-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+  color: #37474f;
+}
+
+.cm-input,
+.cm-textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #b0bec5;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.cm-textarea {
+  resize: vertical;
+  min-height: 140px;
+}
+
+.cm-radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.cm-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.cm-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #78909c;
+}
+
+.cm-actions {
+  margin-top: 1.25rem;
+}
+
+.alert-success {
+  background: #e8f5e9;
+  border: 1px solid #a5d6a7;
+  color: #1b5e20;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}

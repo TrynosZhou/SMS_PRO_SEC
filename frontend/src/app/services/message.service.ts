@@ -30,5 +30,14 @@ export class MessageService {
   sendParentMessageToSchool(payload: { subject: string; message: string }): Observable<any> {
     return this.http.post(`${this.apiUrl}/messages/parent/send`, payload);
   }
+
+  /** Multipart: scope all|one, subject, message, optional parentId, optional attachment */
+  sendAdminToParents(formData: FormData): Observable<any> {
+    return this.http.post(`${this.apiUrl}/messages/admin/to-parents`, formData);
+  }
+
+  getAdminMessagesFromParents(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/messages/admin/from-parents`);
+  }
 }
 

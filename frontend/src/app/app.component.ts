@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { AuthService } from './services/auth.service';
 import { SettingsService } from './services/settings.service';
 import { ModuleAccessService } from './services/module-access.service';
@@ -14,7 +14,10 @@ import { UserActivityService } from './services/user-activity.service';
 export class AppComponent implements OnInit {
   schoolName = 'School Management System';
   mobileMenuOpen = false;
+  /** Slide-out nav drawer for staff/student on narrow viewports (separate from sidebarCollapsed). */
+  mobileDrawerOpen = false;
   sidebarCollapsed = false;
+  private readonly mobileDrawerBreakpointPx = 768;
   expandedMenus: { [key: string]: boolean } = {};
   private lastMenuAccessLogged = '';
   private lastMenuAccessLoggedAt = 0;
@@ -47,6 +50,8 @@ export class AppComponent implements OnInit {
     this.router.events
       .pipe(filter((event: any) => event instanceof NavigationEnd))
       .subscribe((event: any) => {
+        this.closeMobileDrawer();
+
         if (!this.authService.isAuthenticated()) return;
 
         const user = this.authService.getCurrentUser();
@@ -132,16 +137,49 @@ export class AppComponent implements OnInit {
     document.body.style.overflow = '';
   }
 
+  private isMobileDrawerLayout(): boolean {
+    return typeof window !== 'undefined' && window.innerWidth <= this.mobileDrawerBreakpointPx;
+  }
+
+  closeMobileDrawer(): void {
+    if (!this.mobileDrawerOpen) {
+      return;
+    }
+    this.mobileDrawerOpen = false;
+    if (!this.mobileMenuOpen) {
+      document.body.style.overflow = '';
+    }
+  }
+
   logout(): void {
     this.closeMobileMenu();
+    this.closeMobileDrawer();
     this.authService.logout();
   }
 
   toggleSidebar(): void {
+    if (this.isMobileDrawerLayout()) {
+      this.mobileDrawerOpen = !this.mobileDrawerOpen;
+      if (this.mobileDrawerOpen) {
+        this.sidebarCollapsed = false;
+        document.body.style.overflow = 'hidden';
+      } else if (!this.mobileMenuOpen) {
+        document.body.style.overflow = '';
+      }
+      return;
+    }
+
+    this.closeMobileDrawer();
     this.sidebarCollapsed = !this.sidebarCollapsed;
-    // Collapse all menus when sidebar is collapsed
     if (this.sidebarCollapsed) {
       this.expandedMenus = {};
+    }
+  }
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (!this.isMobileDrawerLayout()) {
+      this.closeMobileDrawer();
     }
   }
 

@@ -22,6 +22,7 @@ import { syncStoredTeacherIdsWithSettingsPrefix } from './utils/syncStoredTeache
 import { ensureETaskTable } from './utils/ensureETaskTable';
 import { ensureETaskSubmissionTable } from './utils/ensureETaskSubmissionTable';
 import { ensureTeacherGenderColumn } from './utils/ensureTeacherGenderColumn';
+import { ensureMessageAttachmentUrlColumn } from './utils/ensureMessageAttachmentUrlColumn';
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -167,6 +168,18 @@ try {
 }
 app.use('/uploads/etasks', express.static(etaskUploadsPath));
 
+// Admin → parent message attachments
+const messageUploadsPath = path.join(__dirname, '../../uploads/messages');
+console.log('[Server] Serving static files from:', messageUploadsPath);
+try {
+  if (!fs.existsSync(messageUploadsPath)) {
+    fs.mkdirSync(messageUploadsPath, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[Server] Could not ensure messages uploads directory exists:', e);
+}
+app.use('/uploads/messages', express.static(messageUploadsPath));
+
 // =================== ROUTES ===================
 app.use('/api', routes);
 
@@ -257,6 +270,12 @@ async function bootstrap() {
       await ensureTeacherGenderColumn(AppDataSource);
     } catch (tgErr: any) {
       console.warn('[Server] ensureTeacherGenderColumn:', tgErr?.message || tgErr);
+    }
+
+    try {
+      await ensureMessageAttachmentUrlColumn(AppDataSource);
+    } catch (maErr: any) {
+      console.warn('[Server] ensureMessageAttachmentUrlColumn:', maErr?.message || maErr);
     }
 
     // Ensure existing students use the student ID prefix from settings (one-time alignment per boot)

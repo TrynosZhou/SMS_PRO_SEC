@@ -1,0 +1,61 @@
+<div class="cm-send">
+  <h2 class="cm-send-title">Send to parents</h2>
+  <p class="cm-send-lead">
+    Messages appear in each parent’s portal inbox. You can reach <strong>all parents</strong> or choose <strong>one parent</strong>.
+    Optional placeholders: <code>[School Name]</code>, <code>[Headmaster Name]</code>, <code>[Recipient Name]</code> or <code>[Name]</code>.
+  </p>
+
+  <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+  <div class="alert alert-success" *ngIf="success">{{ success }}</div>
+
+  <div class="cm-field">
+    <span class="cm-label">Audience</span>
+    <div class="cm-radio-row">
+      <label class="cm-radio">
+        <input type="radio" name="scope" [(ngModel)]="scope" value="all" />
+        All parents
+      </label>
+      <label class="cm-radio">
+        <input type="radio" name="scope" [(ngModel)]="scope" value="one" />
+        One parent
+      </label>
+    </div>
+  </div>
+
+  <div class="cm-field" *ngIf="scope === 'one'">
+    <label class="cm-label" for="cm-parent">Parent</label>
+    <select
+      id="cm-parent"
+      class="cm-input"
+      [(ngModel)]="parentId"
+      [disabled]="loadingParents || parents.length === 0"
+    >
+      <option value="">— Select —</option>
+      <option *ngFor="let p of parents" [value]="p.id">{{ p.label }}</option>
+    </select>
+    <p class="cm-hint" *ngIf="loadingParents">Loading parents…</p>
+    <p class="cm-hint" *ngIf="!loadingParents && parents.length === 0">No parents in the system yet.</p>
+  </div>
+
+  <div class="cm-field">
+    <label class="cm-label" for="cm-subject">Subject</label>
+    <input id="cm-subject" class="cm-input" type="text" [(ngModel)]="subject" maxlength="500" />
+  </div>
+
+  <div class="cm-field">
+    <label class="cm-label" for="cm-body">Message</label>
+    <textarea id="cm-body" class="cm-textarea" rows="8" [(ngModel)]="message"></textarea>
+  </div>
+
+  <div class="cm-field">
+    <label class="cm-label" for="cm-attach">Attachment (optional)</label>
+    <input id="cm-attach" type="file" (change)="onFileChange($event)" />
+    <p class="cm-hint">PDF, Word, Excel, images, ZIP, or text — max 15 MB.</p>
+  </div>
+
+  <div class="cm-actions">
+    <button type="button" class="btn btn-primary" (click)="submit()" [disabled]="sending">
+      {{ sending ? 'Sending…' : 'Send' }}
+    </button>
+  </div>
+</div>

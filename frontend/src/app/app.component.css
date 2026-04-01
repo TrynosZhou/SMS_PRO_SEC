@@ -41,6 +41,7 @@
   top: 0;
   z-index: 999;
   border-bottom: 1px solid #e5e7eb;
+  padding-top: env(safe-area-inset-top, 0);
 }
 
 .top-navbar-content {
@@ -66,6 +67,7 @@
   color: #374151;
   border-radius: 8px;
   transition: background 0.2s;
+  touch-action: manipulation;
 }
 
 .sidebar-toggle:hover {
@@ -324,6 +326,11 @@
   margin-left: 64px;
 }
 
+/* Staff/student: tap overlay to close mobile drawer (shown only when *ngIf + mobile) */
+.sidebar-backdrop {
+  display: none;
+}
+
 /* ========================================
    MOBILE SIDEBAR (For Parents)
    ======================================== */
@@ -343,6 +350,7 @@
   cursor: pointer;
   color: #374151;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  touch-action: manipulation;
 }
 
 .mobile-sidebar {
@@ -492,8 +500,12 @@
 
 /* Mobile */
 @media (max-width: 768px) {
+  .top-navbar {
+    z-index: 1002;
+  }
+
   .top-navbar-content {
-    padding: 0 1rem;
+    padding: 0 max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left));
     min-height: 56px;
   }
 
@@ -501,17 +513,61 @@
     font-size: 1.125rem;
   }
 
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.42);
+    z-index: 1000;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Slide-in drawer (replaces display:none which removed all navigation) */
   .sidebar {
-    display: none;
+    display: flex;
+    flex-direction: column;
+    width: min(300px, 90vw) !important;
+    top: calc(56px + env(safe-area-inset-top, 0px));
+    bottom: 0;
+    height: auto;
+    transform: translateX(-100%) !important;
+    transition: transform 0.3s ease;
+    z-index: 1001;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .sidebar.collapsed {
+    width: min(300px, 90vw) !important;
+  }
+
+  .sidebar.collapsed .sidebar-text {
+    display: block !important;
   }
 
   .main-content {
-    margin-left: 0;
-    padding: 1rem;
+    margin-left: 0 !important;
+    padding-top: 1rem;
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  /* Parent routes use a floating menu button — leave room at top */
+  .main-content.parent-layout {
+    padding-top: max(3.5rem, env(safe-area-inset-top)) !important;
   }
 
   .mobile-menu-toggle {
     display: flex;
+    top: max(1rem, env(safe-area-inset-top));
+    right: max(1rem, env(safe-area-inset-right));
   }
 
   .mobile-sidebar {
