@@ -371,6 +371,24 @@
   font-size: 16px;
 }
 
+.subject-category .category-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.subject-category .category-badge.o-level {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.subject-category .category-badge.a-level {
+  background: #f3e5f5;
+  color: #6a1b9a;
+}
+
 .subject-count {
   text-align: center;
 }

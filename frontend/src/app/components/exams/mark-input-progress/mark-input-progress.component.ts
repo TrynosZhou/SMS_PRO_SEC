@@ -12,13 +12,11 @@ import { SettingsService } from '../../../services/settings.service';
 export class MarkInputProgressComponent implements OnInit {
   classes: any[] = [];
   subjects: any[] = [];
-  exams: any[] = [];
-  
-  selectedExamId = '';
+
   selectedSubjectId = '';
   selectedSubjectCode = '';
   selectedTerm = '';
-  selectedExamType = '';
+  selectedExamType: 'mid_term' | 'end_term' = 'mid_term';
   
   progressData: any = null;
   loading = false;
@@ -30,9 +28,12 @@ export class MarkInputProgressComponent implements OnInit {
   autoLoadProgress = false;
   lastLoadedAt: number | null = null;
   
+  /** Mark input progress only considers formal term exams (matches backend ExamType). */
+  readonly allowedExamTypeValues = ['mid_term', 'end_term'] as const;
+
   examTypes = [
-    { value: 'mid_term', label: 'Mid Term' },
-    { value: 'end_term', label: 'End Term' }
+    { value: 'mid_term', label: 'MidTerm' },
+    { value: 'end_term', label: 'EndOfTerm' }
   ];
   
   constructor(
@@ -46,7 +47,6 @@ export class MarkInputProgressComponent implements OnInit {
     this.loadSettings();
     this.loadClasses();
     this.loadSubjects();
-    this.loadExams();
   }
 
   loadSettings() {
@@ -113,18 +113,10 @@ export class MarkInputProgressComponent implements OnInit {
     }
   }
 
-  loadExams() {
-    this.examService.getExams().subscribe(
-      (data: any) => {
-        this.exams = data;
-        // Extract unique terms
-        const terms = new Set(data.map((e: any) => e.term).filter((t: any) => t));
-        // You can use this for term selection if needed
-      },
-      (error: any) => {
-        console.error('Error loading exams:', error);
-      }
-    );
+  formatExamTypeLabel(type: string): string {
+    if (type === 'mid_term') return 'MidTerm';
+    if (type === 'end_term') return 'EndOfTerm';
+    return type || '';
   }
 
   loadProgress() {
@@ -133,10 +125,10 @@ export class MarkInputProgressComponent implements OnInit {
     this.progressData = null;
 
     this.examService.getMarkInputProgress(
-      this.selectedExamId || undefined,
+      undefined,
       this.selectedSubjectId || undefined,
       this.selectedTerm || undefined,
-      this.selectedExamType || undefined
+      this.selectedExamType
     ).subscribe(
       (data: any) => {
         this.progressData = data;
@@ -210,10 +202,9 @@ export class MarkInputProgressComponent implements OnInit {
   }
 
   resetFilters() {
-    this.selectedExamId = '';
     this.selectedSubjectId = '';
     this.selectedSubjectCode = '';
-    this.selectedExamType = '';
+    this.selectedExamType = 'mid_term';
     this.classSearch = '';
     this.viewMode = 'cards';
     this.autoLoadProgress = false;

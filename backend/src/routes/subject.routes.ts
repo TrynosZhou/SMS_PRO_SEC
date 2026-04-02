@@ -10,7 +10,32 @@ import { ensureDemoDataAvailable } from '../utils/demoDataEnsurer';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
 
 const router = Router();
-const SUBJECT_CATEGORIES: SubjectCategory[] = ['IGCSE', 'AS_A_LEVEL'];
+
+/** Map stored or legacy API values to canonical O_LEVEL | A_LEVEL for responses. */
+function categoryForResponse(raw: string | null | undefined): SubjectCategory {
+  const c = String(raw || '').toUpperCase();
+  if (c === 'A_LEVEL' || c === 'AS_A_LEVEL') return 'A_LEVEL';
+  return 'O_LEVEL';
+}
+
+/**
+ * Parse category from request body. Accepts O_LEVEL, A_LEVEL, and legacy IGCSE / AS_A_LEVEL.
+ */
+function parseCategoryFromBody(raw: unknown, mode: 'create' | 'update'): SubjectCategory | 'INVALID' {
+  if (mode === 'create' && (raw === undefined || raw === null || raw === '')) {
+    return 'O_LEVEL';
+  }
+  if (mode === 'update' && (raw === undefined || raw === null || raw === '')) {
+    return 'INVALID';
+  }
+  const s = String(raw)
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  if (s === 'O_LEVEL' || s === 'IGCSE') return 'O_LEVEL';
+  if (s === 'A_LEVEL' || s === 'AS_A_LEVEL') return 'A_LEVEL';
+  return 'INVALID';
+}
 
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -50,7 +75,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
           if (!hasColumn) {
             console.log('[getSubjects] Adding category column to subjects table...');
             await queryRunner.query(
-              `ALTER TABLE "subjects" ADD COLUMN "category" character varying NOT NULL DEFAULT 'IGCSE'`
+              `ALTER TABLE "subjects" ADD COLUMN "category" character varying NOT NULL DEFAULT 'O_LEVEL'`
             );
             console.log('[getSubjects] Category column added successfully');
           }
@@ -67,7 +92,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
             subjects = await subjectRepository.find();
             subjects = subjects.map((s: any) => ({
               ...s,
-              category: s.category || 'IGCSE',
+              category: categoryForResponse(s.category),
               teachers: [],
               classes: []
             }));
@@ -99,7 +124,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     // Ensure all subjects have category field
     let normalizedSubjects = (subjects || []).map((s: any) => ({
       ...s,
-      category: s.category || 'IGCSE'
+      category: categoryForResponse(s.category)
     }));
 
     if (searchQuery) {
@@ -162,9 +187,9 @@ router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, Us
       return res.status(400).json({ message: 'Subject code is required and must be unique' });
     }
 
-    const normalizedCategory = (category || 'IGCSE').toUpperCase();
-    if (!SUBJECT_CATEGORIES.includes(normalizedCategory as SubjectCategory)) {
-      return res.status(400).json({ message: 'Invalid subject category. Allowed values: IGCSE, AS & A Level' });
+    const parsedCat = parseCategoryFromBody(category, 'create');
+    if (parsedCat === 'INVALID') {
+      return res.status(400).json({ message: 'Invalid subject category. Allowed values: O Level, A Level' });
     }
 
     const normalizedCode = code.trim().toUpperCase();
@@ -179,7 +204,7 @@ router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, Us
       name: name.trim(), 
       code: normalizedCode, 
       description,
-      category: normalizedCategory as SubjectCategory
+      category: parsedCat as SubjectCategory
     });
     await subjectRepository.save(subject);
     res.status(201).json({ message: 'Subject created successfully', subject });
@@ -223,11 +248,14 @@ router.put('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, 
     if (description !== undefined) subject.description = description;
     if (isActive !== undefined) subject.isActive = isActive;
     if (category !== undefined) {
-      const normalizedCategory = category.toUpperCase();
-      if (!SUBJECT_CATEGORIES.includes(normalizedCategory as SubjectCategory)) {
-        return res.status(400).json({ message: 'Invalid subject category. Allowed values: IGCSE, AS & A Level' });
+      if (category === null || category === '') {
+        return res.status(400).json({ message: 'Invalid subject category. Allowed values: O Level, A Level' });
       }
-      subject.category = normalizedCategory as SubjectCategory;
+      const parsedCat = parseCategoryFromBody(category, 'update');
+      if (parsedCat === 'INVALID') {
+        return res.status(400).json({ message: 'Invalid subject category. Allowed values: O Level, A Level' });
+      }
+      subject.category = parsedCat;
     }
 
     await subjectRepository.save(subject);

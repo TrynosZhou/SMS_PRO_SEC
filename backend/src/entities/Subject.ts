@@ -3,7 +3,7 @@ import { Teacher } from './Teacher';
 import { Class } from './Class';
 import { Exam } from './Exam';
 
-export type SubjectCategory = 'IGCSE' | 'AS_A_LEVEL';
+export type SubjectCategory = 'O_LEVEL' | 'A_LEVEL';
 
 @Entity('subjects')
 @Index(['code'], { unique: true })
@@ -18,7 +18,7 @@ export class Subject {
   @Column()
   code: string;
 
-  @Column({ type: 'varchar', default: 'IGCSE' })
+  @Column({ type: 'varchar', default: 'O_LEVEL' })
   category: SubjectCategory;
 
   @Column({ nullable: true })

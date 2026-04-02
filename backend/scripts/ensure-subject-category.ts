@@ -14,14 +14,14 @@ async function ensureSubjectSeeds() {
     {
         name: 'Computer Science',
         code: '0478',
-        category: 'IGCSE',
-        description: 'IGCSE Computer Science'
+        category: 'O_LEVEL',
+        description: 'O Level Computer Science'
     },
     {
         name: 'Computer Science',
         code: '9618',
-        category: 'AS_A_LEVEL',
-        description: 'AS & A Level Computer Science'
+        category: 'A_LEVEL',
+        description: 'A Level Computer Science'
     }
   ];
 
@@ -71,7 +71,7 @@ async function ensureSubjectCategoryColumn() {
     if (!hasColumn) {
       console.log('Adding "category" column to "subjects" table...');
       await queryRunner.query(
-        `ALTER TABLE "subjects" ADD COLUMN "category" character varying NOT NULL DEFAULT 'IGCSE'`
+        `ALTER TABLE "subjects" ADD COLUMN "category" character varying NOT NULL DEFAULT 'O_LEVEL'`
       );
       console.log('Column "category" added successfully.');
     } else {

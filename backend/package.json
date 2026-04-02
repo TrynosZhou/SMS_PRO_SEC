@@ -18,6 +18,7 @@
     "create-demo": "npx ts-node scripts/create-demo.ts",
     "reset-demo-data": "npx ts-node scripts/reset-demo-data.ts",
     "clear-invoices": "npx ts-node scripts/clear-invoices.ts",
+    "prune-classes-keep-four": "npx ts-node scripts/prune-classes-keep-four.ts",
     "check-login": "npx ts-node scripts/check-user-login.ts",
     "reset-password": "npx ts-node scripts/reset-user-password.ts",
     "fix-all-teachers": "npx ts-node src/scripts/fix-all-teachers.ts",

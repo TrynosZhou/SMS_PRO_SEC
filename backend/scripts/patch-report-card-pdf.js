@@ -1,168 +1,19 @@
-import PDFDocument from 'pdfkit';
-import sizeOf from 'image-size';
-import * as fs from 'fs';
-import * as path from 'path';
-import { Settings } from '../entities/Settings';
-
-type PDFDoc = InstanceType<typeof PDFDocument>;
-
-/** Load School Logo 1 / 2 from settings (data URL, file path, or raw base64). */
-function loadLogoBufferFromSettings(logo: string | null | undefined): Buffer | null {
-  if (!logo || typeof logo !== 'string') return null;
-  const trimmed = logo.trim();
-  if (!trimmed) return null;
-
-  try {
-    if (trimmed.startsWith('data:image')) {
-      const idx = trimmed.indexOf('base64,');
-      const base64Data = idx >= 0 ? trimmed.slice(idx + 7) : trimmed.split(',')[1];
-      return base64Data ? Buffer.from(base64Data, 'base64') : null;
-    }
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return null;
-    }
-    const normalizedPath = trimmed.replace(/^\//, '');
-    const absolutePath = path.join(__dirname, '../../', normalizedPath);
-    if (fs.existsSync(absolutePath)) {
-      return fs.readFileSync(absolutePath);
-    }
-    if (trimmed.length > 80 && /^[A-Za-z0-9+/=\s]+$/.test(trimmed.replace(/\s/g, ''))) {
-      return Buffer.from(trimmed.replace(/\s/g, ''), 'base64');
-    }
-  } catch (e) {
-    console.error('loadLogoBufferFromSettings:', e);
-  }
-  return null;
+const fs = require('fs');
+const path = require('path');
+const filePath = path.join(__dirname, '../src/utils/pdfGenerator.ts');
+let s = fs.readFileSync(filePath, 'utf8');
+const startMarker = "      const doc = new PDFDocument({ margin: 50, size: 'A4' });";
+const endMarker = '      doc.end();';
+const start = s.indexOf(startMarker);
+const end = s.indexOf(endMarker, start);
+if (start < 0 || end < 0) {
+  console.error('markers not found', start, end);
+  process.exit(1);
 }
+const endLine = s.indexOf('\n', end);
+const afterEnd = endLine >= 0 ? endLine + 1 : end + endMarker.length;
 
-/**
- * Draw image inside a box using "contain" scaling (preserve aspect ratio, no stretch).
- * Wide letterhead banners stay sharp; empty margins use the background already drawn.
- */
-function addContainImage(
-  doc: PDFDoc,
-  imageBuffer: Buffer,
-  x: number,
-  y: number,
-  maxW: number,
-  maxH: number
-): void {
-  const dimensions = sizeOf(imageBuffer);
-  const iw = dimensions.width || maxW;
-  const ih = dimensions.height || maxH;
-  const scale = Math.min(maxW / iw, maxH / ih);
-  const finalW = iw * scale;
-  const finalH = ih * scale;
-  const drawX = x + (maxW - finalW) / 2;
-  const drawY = y + (maxH - finalH) / 2;
-  doc.image(imageBuffer, drawX, drawY, { width: finalW, height: finalH });
-}
-
-/** Reference-style palette: dark banner, light blue accents, pink divider */
-const RC = {
-  bar: '#1e40af',
-  banner: '#0f2847',
-  lightLine: '#7dd3fc',
-  frame: '#38bdf8',
-  pink: '#ec4899',
-  valueBlue: '#2563eb',
-  headerGrey: '#e5e7eb',
-  rowAlt: '#eff6ff',
-  border: '#cbd5e1',
-  label: '#111827',
-};
-
-interface ReportCardData {
-  student: {
-    id: string;
-    name: string;
-    studentNumber: string;
-    class: string;
-  };
-  exam?: {
-    name: string;
-    type: string;
-    examDate: Date;
-  };
-  examType?: string;
-  exams?: Array<{
-    id: string;
-    name: string;
-    examDate: Date;
-  }>;
-  subjects: Array<{
-    subject: string;
-    subjectCode?: string;
-    score: number;
-    maxScore: number;
-    percentage: string;
-    classAverage?: number;
-    grade?: string;
-    comments?: string;
-    points?: number;
-    /** e.g. "14/23" — class rank in this subject for the report exams */
-    subjectPosition?: string;
-  }>;
-  overallAverage: string;
-  overallGrade?: string;
-  classPosition: number;
-  formPosition?: number;
-  totalStudents?: number;
-  totalStudentsPerStream?: number;
-  totalAttendance?: number;
-  presentAttendance?: number;
-  totalPoints?: number;
-  isUpperForm?: boolean;
-  remarks?: {
-    classTeacherRemarks?: string | null;
-    headmasterRemarks?: string | null;
-  };
-  generatedAt: Date;
-  /** e.g. Term 1 2026 — used in PDF title */
-  term?: string;
-}
-
-function buildReportCardTitle(reportCard: ReportCardData, settings: Settings | null): string {
-  const term = reportCard.term || settings?.activeTerm || settings?.currentTerm || '';
-  const raw = (reportCard.examType || reportCard.exam?.type || '').toLowerCase();
-  let examLabel = 'Report Card';
-  if (raw.includes('mid')) examLabel = 'Mid Term';
-  else if (raw.includes('end')) examLabel = 'End Of Term';
-  else if (reportCard.examType) {
-    examLabel = String(reportCard.examType).replace(/_/g, ' ');
-    examLabel = examLabel.replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-  if (term) return `${examLabel} ${term} Report Card`.replace(/\s+/g, ' ').trim();
-  const y = settings?.academicYear;
-  if (y) return `${examLabel} ${y} Report Card`;
-  return `${examLabel} Report Card`;
-}
-
-function countSubjectsPassed(
-  subjects: Array<{ percentage?: string; grade?: string }>,
-  minPct: number
-): number {
-  return subjects.filter((s) => {
-    const g = String(s.grade || '').toUpperCase();
-    if (!g || g === 'N/A') return false;
-    const pct = parseFloat(String(s.percentage ?? '0'));
-    return Number.isFinite(pct) && pct >= minPct;
-  }).length;
-}
-
-function truncatePdf(s: string, max: number): string {
-  const t = (s || '').replace(/\s+/g, ' ').trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max - 1)}…`;
-}
-
-export function createReportCardPDF(
-  reportCard: ReportCardData,
-  settings: Settings | null
-): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    try {
-      const doc = new PDFDocument({ size: 'A4', margin: 0 });
+const newBody = `      const doc = new PDFDocument({ size: 'A4', margin: 0 });
       const buffers: Buffer[] = [];
 
       doc.on('data', buffers.push.bind(buffers));
@@ -211,7 +62,7 @@ export function createReportCardPDF(
         ty += doc.heightOfString(schoolAddress, { width: textW }) + 3;
       }
       if (schoolEmail) {
-        doc.text(`Email: ${schoolEmail}`, innerL + bannerPad, ty, { width: textW });
+        doc.text(\`Email: \${schoolEmail}\`, innerL + bannerPad, ty, { width: textW });
         ty += 11;
       }
 
@@ -228,7 +79,7 @@ export function createReportCardPDF(
         const domainHint = schoolEmail.split('@')[1] || '';
         if (domainHint) {
           doc.fontSize(6.5).fillColor('#e2e8f0');
-          doc.text(`www.${domainHint}`, logoX, y + bannerH - 14, {
+          doc.text(\`www.\${domainHint}\`, logoX, y + bannerH - 14, {
             width: rightBand - 12,
             align: 'center',
           });
@@ -256,14 +107,14 @@ export function createReportCardPDF(
       const totalInClass = reportCard.totalStudents || 0;
       const classPos =
         totalInClass > 0 && reportCard.classPosition
-          ? `${reportCard.classPosition} / ${totalInClass}`
+          ? \`\${reportCard.classPosition} / \${totalInClass}\`
           : reportCard.classPosition
             ? String(reportCard.classPosition)
             : '—';
       const streamTotal = reportCard.totalStudentsPerStream || 0;
       const formPos =
         streamTotal > 0 && reportCard.formPosition
-          ? `${reportCard.formPosition} / ${streamTotal}`
+          ? \`\${reportCard.formPosition} / \${streamTotal}\`
           : reportCard.formPosition
             ? String(reportCard.formPosition)
             : '';
@@ -340,7 +191,7 @@ export function createReportCardPDF(
 
       const sanitizeNumber = (value: any): number | null => {
         if (value === null || value === undefined) return null;
-        const cleaned = typeof value === 'string' ? value.replace(/[^\d.-]/g, '') : value;
+        const cleaned = typeof value === 'string' ? value.replace(/[^\\d.-]/g, '') : value;
         const parsed = Number(cleaned);
         return Number.isFinite(parsed) ? parsed : null;
       };
@@ -377,15 +228,12 @@ export function createReportCardPDF(
         const pct = sanitizeNumber(subject?.percentage) ?? 0;
         const gradeVal = subject?.grade || getGradeLocal(pct);
         const hasMarks = scoreVal !== null && gradeVal !== 'N/A';
-        const markStr = hasMarks ? String(Math.round(scoreVal as number)) : '—';
+        const markStr = hasMarks ? String(Math.round(scoreVal)) : '—';
         const avgStr =
           subject?.classAverage !== undefined && subject.classAverage !== null
             ? String(Math.round(Number(subject.classAverage)))
             : '—';
-        const posStr =
-          subject?.subjectPosition && String(subject.subjectPosition).trim()
-            ? String(subject.subjectPosition).trim()
-            : '—';
+        const posStr = '—';
         let gradeStr = String(gradeVal);
         if (reportCard.isUpperForm && subject?.points !== undefined && subject?.points !== null) {
           gradeStr = gradeStr + ' (' + subject.points + ')';
@@ -484,16 +332,14 @@ export function createReportCardPDF(
       y = maxY - 14;
       doc.fontSize(6).font('Helvetica').fillColor('#64748b');
       doc.text(
-        `Generated on: ${new Date(reportCard.generatedAt).toLocaleString()}`,
+        \`Generated on: \${new Date(reportCard.generatedAt).toLocaleString()}\`,
         innerL,
         y,
         { width: innerW, align: 'center' }
       );
 
       doc.end();
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
+`;
 
+fs.writeFileSync(filePath, s.slice(0, start) + newBody + s.slice(afterEnd));
+console.log('patched ok', newBody.length);

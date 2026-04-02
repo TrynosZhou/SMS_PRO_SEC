@@ -7,16 +7,6 @@
   <div class="filters-section">
     <div class="filters-grid">
       <div class="filter-group">
-        <label for="examSelect">Exam</label>
-        <select id="examSelect" [(ngModel)]="selectedExamId" class="form-control" (change)="onAnyFilterChange()">
-          <option value="">All Exams</option>
-          <option *ngFor="let exam of exams" [value]="exam.id">
-            {{ exam.name }} ({{ exam.type }}) - {{ exam.term || 'N/A' }}
-          </option>
-        </select>
-      </div>
-
-      <div class="filter-group">
         <label for="subjectSelect">Subject Name</label>
         <select id="subjectSelect" [(ngModel)]="selectedSubjectId" (change)="onSubjectChange(); onAnyFilterChange()" class="form-control">
           <option value="">All Subjects</option>
@@ -39,7 +29,6 @@
       <div class="filter-group">
         <label for="examTypeSelect">Exam Type</label>
         <select id="examTypeSelect" [(ngModel)]="selectedExamType" class="form-control" (change)="onAnyFilterChange()">
-          <option value="">All Types</option>
           <option *ngFor="let type of examTypes" [value]="type.value">
             {{ type.label }}
           </option>
@@ -101,10 +90,9 @@
         </div>
       </div>
       <div class="filters-info" *ngIf="progressData.filters">
-        <span *ngIf="progressData.filters.examId">Exam: Selected | </span>
         <span *ngIf="progressData.filters.subjectId">Subject: Selected | </span>
         <span *ngIf="progressData.filters.term">Term: {{ progressData.filters.term }} | </span>
-        <span *ngIf="progressData.filters.examType">Type: {{ progressData.filters.examType }}</span>
+        <span *ngIf="progressData.filters.examType">Type: {{ formatExamTypeLabel(progressData.filters.examType) }}</span>
       </div>
 
       <div class="view-toggle">

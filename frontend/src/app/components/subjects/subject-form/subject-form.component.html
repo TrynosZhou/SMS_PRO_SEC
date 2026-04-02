@@ -99,7 +99,7 @@
             <div class="form-group">
               <label for="category">
                 Syllabus Category <span class="required">*</span>
-                <span class="field-hint">Choose IGCSE or AS & A Level</span>
+                <span class="field-hint">Choose O Level or A Level</span>
               </label>
               <div class="input-wrapper">
                 <select 
@@ -194,7 +194,7 @@
             </div>
             <div class="preview-item">
               <span class="preview-label">Category:</span>
-              <span class="preview-value category-badge" [class.igcse]="subject.category === 'IGCSE'" [class.as-level]="subject.category === 'AS_A_LEVEL'">
+              <span class="preview-value category-badge" [class.o-level]="subject.category === 'O_LEVEL'" [class.a-level]="subject.category === 'A_LEVEL'">
                 {{ getCategoryLabel(subject.category) }}
               </span>
             </div>

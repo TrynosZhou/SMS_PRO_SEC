@@ -21,6 +21,10 @@ import { calculateAge } from '../utils/ageUtils';
 import { In } from 'typeorm';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
 import { getTermBalanceForStudent } from '../utils/termBalance';
+import {
+  buildSubjectPositionLookup,
+  subjectPositionLookupKey,
+} from '../utils/reportCardSubjectRankings';
 import { createClassListPDF } from '../utils/classListPdfGenerator';
 
 /** Current logged-in student's profile (for dashboard display name). */
@@ -2032,6 +2036,18 @@ export const downloadStudentReportCardPDF = async (req: AuthRequest, res: Respon
       subjectsToProcess = Array.from(subjectMap.values());
     }
 
+    const classMarksForPositions = await marksRepository.find({
+      where: { examId: In(examIds) },
+      relations: ['subject', 'student'],
+    });
+    const classMarksForSubjectRank = classMarksForPositions.filter(
+      (m) => m.student && m.student.classId === student.classId
+    );
+    const subjectPositionLookup = buildSubjectPositionLookup(
+      classMarksForSubjectRank,
+      subjectsToProcess.map((s) => s.name)
+    );
+
     // Get grade thresholds
     const thresholds = settings?.gradeThresholds || {
       excellent: 90, veryGood: 80, good: 70, satisfactory: 60,
@@ -2069,7 +2085,10 @@ export const downloadStudentReportCardPDF = async (req: AuthRequest, res: Respon
         : 100;
       
       const gradeInfo = getGradeInfo(avgPercentage);
-      
+      const spInfo = subjectPositionLookup.get(
+        subjectPositionLookupKey(studentId, subject.name)
+      );
+
       return {
         subject: subject.name || 'Unknown Subject',
         subjectCode: subject.code || '',
@@ -2077,7 +2096,8 @@ export const downloadStudentReportCardPDF = async (req: AuthRequest, res: Respon
         maxScore: Math.round(avgMaxScore),
         percentage: avgPercentage ? Math.round(avgPercentage).toString() : '0',
         grade: gradeInfo,
-        comments: marks.comments.length > 0 ? marks.comments.join('; ') : undefined
+        comments: marks.comments.length > 0 ? marks.comments.join('; ') : undefined,
+        subjectPosition: spInfo ? `${spInfo.position}/${spInfo.total}` : undefined
       };
     });
 
@@ -2114,7 +2134,8 @@ export const downloadStudentReportCardPDF = async (req: AuthRequest, res: Respon
         classTeacherRemarks: remarks?.classTeacherRemarks || null,
         headmasterRemarks: remarks?.headmasterRemarks || null
       },
-      generatedAt: new Date()
+      generatedAt: new Date(),
+      term: activeTerm || undefined
     };
 
     // Generate PDF

@@ -26,7 +26,7 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
     name: '',
     code: '',
     description: '',
-    category: 'IGCSE',
+    category: 'O_LEVEL',
     isActive: true
   };
   isEdit = false;
@@ -73,7 +73,7 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
       next: (data: any) => {
         this.subject = {
           ...data,
-          category: data.category || 'IGCSE'
+          category: this.subjectUtils.normalizeCategory(data.category)
         };
       },
       error: (err: any) => {
@@ -186,7 +186,7 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
       name: this.subject.name.trim(),
       code: this.subject.code.trim().toUpperCase(),
       description: this.subject.description?.trim() || '',
-      category: this.subject.category || 'IGCSE',
+      category: this.subjectUtils.normalizeCategory(this.subject.category),
       isActive: this.subject.isActive !== false
     };
 

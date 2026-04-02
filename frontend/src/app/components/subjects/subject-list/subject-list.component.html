@@ -83,7 +83,7 @@
             <span>Subject Name</span>
             <span class="sort-icon" *ngIf="sortColumn === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
           </th>
-          <th>Category</th>
+          <th>Syllabus category</th>
           <th (click)="sortByColumn('teachers')" class="sortable">
             <span>Teachers</span>
             <span class="sort-icon" *ngIf="sortColumn === 'teachers'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
@@ -105,7 +105,7 @@
             <span class="name-text">{{ subject.name }}</span>
           </td>
           <td class="subject-category">
-            <span class="category-badge" [class.igcse]="subject.category === 'IGCSE'" [class.as-level]="subject.category === 'AS_A_LEVEL'">
+            <span class="category-badge" [class.o-level]="normalizedCategory(subject.category) === 'O_LEVEL'" [class.a-level]="normalizedCategory(subject.category) === 'A_LEVEL'">
               {{ getCategoryLabel(subject.category) }}
             </span>
           </td>

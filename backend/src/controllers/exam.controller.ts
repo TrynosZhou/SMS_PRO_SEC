@@ -14,6 +14,10 @@ import { getTermBalanceForStudent } from '../utils/termBalance';
 import { Attendance, AttendanceStatus } from '../entities/Attendance';
 import { AuthRequest } from '../middleware/auth';
 import { createReportCardPDF } from '../utils/pdfGenerator';
+import {
+  buildSubjectPositionLookup,
+  subjectPositionLookupKey,
+} from '../utils/reportCardSubjectRankings';
 import { createMarkSheetPDF } from '../utils/markSheetPdfGenerator';
 import { createRankingsPDF } from '../utils/rankingsPdfGenerator';
 import OpenAI from 'openai';
@@ -1921,6 +1925,11 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const subjectPositionLookup = buildSubjectPositionLookup(
+      classMarks,
+      allClassSubjects.map((s) => s.name)
+    );
+
     // Second pass: generate report cards for each student
     for (const student of students) {
       if (isParent && studentId && student.id !== studentId) {
@@ -1989,7 +1998,9 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
         const subjectCode = classSubject.code || '';
         const marksData = subjectMarksMap[subjectName];
         const classAverage = classAverages[subjectName] || 0;
-        
+        const spInfo = subjectPositionLookup.get(subjectPositionLookupKey(student.id, subjectName));
+        const subjectPosition = spInfo ? `${spInfo.position}/${spInfo.total}` : undefined;
+
         if (marksData && (marksData.scores.length > 0 || marksData.percentages.length > 0)) {
           // Student has marks for this subject
           let totalScore = 0;
@@ -2023,7 +2034,8 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
             classAverage: classAverage,
             comments: marksData.comments.join('; ') || undefined,
             grade: gradeInfo.label,
-            points: subjectPoints
+            points: subjectPoints,
+            subjectPosition
           };
         } else {
           // Student has no marks for this subject - show as N/A
@@ -2036,7 +2048,8 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
             classAverage: classAverage,
             comments: 'Not taken',
             grade: 'N/A',
-            points: undefined
+            points: undefined,
+            subjectPosition: undefined
           };
         }
       });
@@ -2438,13 +2451,23 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
         }
       });
 
+      const classMarksForSubjectRank = allClassMarksForAverage.filter(
+        (m) => m.student && m.student.classId === student.classId
+      );
+      const subjectPositionLookupPdf = buildSubjectPositionLookup(
+        classMarksForSubjectRank,
+        allClassSubjects.map((s) => s.name)
+      );
+
       // Calculate subject data - include ALL subjects from the class
       const subjectData = allClassSubjects.map(classSubject => {
         const subjectName = classSubject.name;
         const subjectCode = classSubject.code || '';
         const marksData = subjectMarksMap[subjectName];
         const classAverage = classAverages[subjectName] || 0;
-        
+        const spInfo = subjectPositionLookupPdf.get(subjectPositionLookupKey(student.id, subjectName));
+        const subjectPosition = spInfo ? `${spInfo.position}/${spInfo.total}` : undefined;
+
         if (marksData && marksData.scores.length > 0) {
           // Student has marks for this subject
           const totalScore = marksData.scores.reduce((a, b) => a + b, 0);
@@ -2461,7 +2484,8 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
             classAverage: classAverage,
             comments: marksData.comments.join('; ') || undefined,
             grade: gradeInfo.label,
-            points
+            points,
+            subjectPosition
           };
         } else {
           // Student has no marks for this subject - show as N/A
@@ -2474,7 +2498,8 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
             classAverage: classAverage,
             comments: 'Not taken',
             grade: 'N/A',
-            points: undefined
+            points: undefined,
+            subjectPosition: undefined
           };
         }
       });
@@ -2638,7 +2663,8 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
           classTeacherRemarks: remarks?.classTeacherRemarks || null,
           headmasterRemarks: remarks?.headmasterRemarks || null
         },
-        generatedAt: new Date()
+        generatedAt: new Date(),
+        term: termValue || undefined
       };
     } else if (studentId && examId) {
       // Old format: single exam
@@ -2664,6 +2690,22 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
         return res.status(404).json({ message: 'No marks found for this student and exam' });
       }
 
+      const allClassMarks = await marksRepository.find({
+        where: { examId: examId as string },
+        relations: ['student', 'subject']
+      });
+
+      const classMarks = allClassMarks.filter(
+        (m) => m.student && m.student.classId === student.classId
+      );
+
+      const subjectNamesForRank = [
+        ...new Set(
+          classMarks.map((m) => m.subject?.name).filter((n): n is string => Boolean(n))
+        ),
+      ];
+      const subjectPositionLookupOld = buildSubjectPositionLookup(classMarks, subjectNamesForRank);
+
       // Get settings
       const settingsList = await settingsRepository.find({
         order: { createdAt: 'DESC' },
@@ -2680,6 +2722,9 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
         totalPercentage += percentage;
         const gradeInfo = getGradeInfoPdf(percentage);
         const points = isUpperForm ? (gradePointsPdf[gradeInfo.key] ?? 0) : undefined;
+        const spInfo = subjectPositionLookupOld.get(
+          subjectPositionLookupKey(studentId as string, mark.subject.name)
+        );
         return {
           subject: mark.subject.name,
           subjectCode: mark.subject.code || '',
@@ -2689,7 +2734,8 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
           classAverage: undefined,
           comments: mark.comments,
           grade: gradeInfo.label,
-          points
+          points,
+          subjectPosition: spInfo ? `${spInfo.position}/${spInfo.total}` : undefined
         };
       });
 
@@ -2698,13 +2744,7 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
         ? subjectData.reduce((sum, sub) => sum + (sub.points || 0), 0)
         : undefined;
 
-      // Calculate class position
-      const allClassMarks = await marksRepository.find({
-        where: { examId: examId as string },
-        relations: ['student', 'subject']
-      });
-
-      const classMarks = allClassMarks.filter(m => m.student.classId === student.classId);
+      // Calculate class position (classMarks already loaded above)
       const studentAverages: { [key: string]: { total: number; count: number } } = {};
 
       classMarks.forEach(mark => {
@@ -2838,7 +2878,8 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
           classTeacherRemarks: remarks?.classTeacherRemarks || null,
           headmasterRemarks: remarks?.headmasterRemarks || null
         },
-        generatedAt: new Date()
+        generatedAt: new Date(),
+        term: activeSettings?.activeTerm || activeSettings?.currentTerm || undefined
       };
     } else {
       return res.status(400).json({ message: 'Invalid parameters. Provide either (studentId + examId) or (classId + examType + studentId)' });

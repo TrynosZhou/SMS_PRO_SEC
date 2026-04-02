@@ -377,6 +377,22 @@
   letter-spacing: 1px;
 }
 
+.preview-value.category-badge.o-level {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.preview-value.category-badge.a-level {
+  background: #f3e5f5;
+  color: #6a1b9a;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
 /* Form Actions */
 .form-actions {
   display: flex;

@@ -42,6 +42,11 @@ export class SubjectListComponent implements OnInit {
     return this.subjectUtils.getCategoryLabel(category);
   }
 
+  /** Normalized tier for styling (handles legacy IGCSE / AS_A_LEVEL if present). */
+  normalizedCategory(category: string | null | undefined): 'O_LEVEL' | 'A_LEVEL' {
+    return this.subjectUtils.normalizeCategory(category);
+  }
+
   ngOnInit() {
     // Check for success message from query parameters
     this.route.queryParams.subscribe(params => {
