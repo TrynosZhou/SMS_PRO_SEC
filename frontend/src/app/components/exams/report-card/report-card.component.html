@@ -1,11 +1,15 @@
 <div class="container">
   <div class="report-card-wrapper">
-    <!-- Top banner: School Logo 1 from settings (full width) -->
-    <div class="report-cards-page-banner" *ngIf="schoolLogo">
-      <img [src]="schoolLogo" alt="School banner" class="banner-logo-img" />
-    </div>
-    <div class="report-cards-page-banner banner-fallback" *ngIf="!schoolLogo && schoolName">
-      <span class="banner-school-name">{{ schoolName }}</span>
+    <!-- Top banner: match Report Card PDF (no full-width Logo 1 image) -->
+    <div class="rc-pdf-banner" *ngIf="schoolName || schoolLogo">
+      <div class="rc-pdf-banner__text">
+        <div class="rc-pdf-banner__school">{{ schoolName || 'School' }}</div>
+        <div class="rc-pdf-banner__meta" *ngIf="schoolAddress">{{ schoolAddress }}</div>
+        <div class="rc-pdf-banner__meta" *ngIf="schoolEmail">Email: {{ schoolEmail }}</div>
+      </div>
+      <div class="rc-pdf-banner__logo" *ngIf="schoolLogo">
+        <img [src]="schoolLogo" alt="School logo" />
+      </div>
     </div>
 
     <!-- Header Section -->
@@ -248,13 +252,22 @@
           
           <!-- School header: banner (Logo 1 only) + details — no second logo -->
           <div *ngIf="reportCard.settings || schoolLogo" class="school-header-block">
-            <div class="report-card-school-banner" *ngIf="schoolLogo">
-              <img [src]="schoolLogo" alt="School banner" class="banner-logo-img" />
-            </div>
-            <div
-              class="report-card-school-banner banner-fallback"
-              *ngIf="!schoolLogo && reportCard.settings?.schoolName">
-              <span class="banner-school-name">{{ reportCard.settings.schoolName }}</span>
+            <!-- Match PDF banner style (do not show full-width Logo 1 image) -->
+            <div class="rc-pdf-banner rc-pdf-banner--in-card">
+              <div class="rc-pdf-banner__text">
+                <div class="rc-pdf-banner__school">
+                  {{ reportCard.settings?.schoolName || schoolName || 'School' }}
+                </div>
+                <div class="rc-pdf-banner__meta" *ngIf="reportCard.settings?.schoolAddress || schoolAddress">
+                  {{ reportCard.settings?.schoolAddress || schoolAddress }}
+                </div>
+                <div class="rc-pdf-banner__meta" *ngIf="reportCard.settings?.schoolEmail || schoolEmail">
+                  Email: {{ reportCard.settings?.schoolEmail || schoolEmail }}
+                </div>
+              </div>
+              <div class="rc-pdf-banner__logo" *ngIf="schoolLogo">
+                <img [src]="schoolLogo" alt="School logo" />
+              </div>
             </div>
             <div class="school-header-details">
               <div class="school-text">

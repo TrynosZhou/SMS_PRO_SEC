@@ -69,6 +69,8 @@ export class ReportCardComponent implements OnInit {
   schoolLogo: string | null = null;
   /** School name from settings (banner fallback / labels) */
   schoolName = '';
+  schoolAddress = '';
+  schoolEmail = '';
   gradeThresholds: any = null;
   gradeLabels: any = null;
   
@@ -289,6 +291,8 @@ export class ReportCardComponent implements OnInit {
         }
         this.currencySymbol = data.currencySymbol || 'KES';
         this.schoolName = (data.schoolName && String(data.schoolName).trim()) || '';
+        this.schoolAddress = (data.schoolAddress && String(data.schoolAddress).trim()) || '';
+        this.schoolEmail = (data.schoolEmail && String(data.schoolEmail).trim()) || '';
         // Logo 1 — full-width banner image (letterhead); Logo 2 is not used on report cards
         this.schoolLogo = this.normalizeSchoolLogo(data.schoolLogo);
         this.gradeThresholds = data.gradeThresholds || {

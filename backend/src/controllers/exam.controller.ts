@@ -659,6 +659,27 @@ export const captureMarks = async (req: AuthRequest, res: Response) => {
 
     // Check for existing marks and update or create
     const marksToSave: Marks[] = [];
+    const invalidMarks: Array<{
+      studentId: any;
+      subjectId: any;
+      score: any;
+      maxScore: any;
+      reason: string;
+    }> = [];
+
+    const parseNumber = (v: any): number | null => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = typeof v === 'number' ? v : parseFloat(String(v));
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const isValidScore = (score: number, maxScore: number): boolean => {
+      if (!Number.isFinite(score) || !Number.isFinite(maxScore)) return false;
+      if (maxScore <= 0) return false;
+      if (score < 0) return false;
+      if (score > maxScore) return false;
+      return true;
+    };
     
     for (const mark of marksData) {
       // Ensure student belongs to current school
@@ -688,12 +709,28 @@ export const captureMarks = async (req: AuthRequest, res: Response) => {
         }
       });
 
+      const resolvedMaxScore =
+        parseNumber(mark.maxScore) ??
+        (existing?.maxScore !== undefined && existing?.maxScore !== null ? parseNumber(existing.maxScore) : null) ??
+        100;
+
       if (existing) {
         // Update existing mark
         if (mark.score !== null && mark.score !== undefined) {
-          existing.score = Math.round(parseFloat(String(mark.score)));
+          const parsedScore = parseNumber(mark.score);
+          if (parsedScore === null || !isValidScore(parsedScore, resolvedMaxScore)) {
+            invalidMarks.push({
+              studentId: mark.studentId,
+              subjectId: mark.subjectId,
+              score: mark.score,
+              maxScore: mark.maxScore ?? resolvedMaxScore,
+              reason: 'Invalid score (must be 0..maxScore)',
+            });
+            continue;
+          }
+          existing.score = Math.round(parsedScore);
         }
-        existing.maxScore = mark.maxScore ? Math.round(parseFloat(String(mark.maxScore))) : 100;
+        existing.maxScore = Math.round(resolvedMaxScore);
         // Always update comments if provided (even if empty string, to allow clearing)
         if (mark.comments !== undefined && mark.comments !== null) {
           existing.comments = mark.comments;
@@ -701,12 +738,23 @@ export const captureMarks = async (req: AuthRequest, res: Response) => {
         marksToSave.push(existing);
       } else {
         // Create new mark
+        const parsedScore = parseNumber(mark.score) ?? 0;
+        if (!isValidScore(parsedScore, resolvedMaxScore)) {
+          invalidMarks.push({
+            studentId: mark.studentId,
+            subjectId: mark.subjectId,
+            score: mark.score,
+            maxScore: mark.maxScore ?? resolvedMaxScore,
+            reason: 'Invalid score (must be 0..maxScore)',
+          });
+          continue;
+        }
         const newMark = marksRepository.create({
           examId: String(examId), // Ensure examId is a string
           studentId: String(mark.studentId),
           subjectId: String(mark.subjectId),
-          score: mark.score !== null && mark.score !== undefined ? Math.round(parseFloat(String(mark.score))) : 0,
-          maxScore: mark.maxScore ? Math.round(parseFloat(String(mark.maxScore))) : 100,
+          score: Math.round(parsedScore),
+          maxScore: Math.round(resolvedMaxScore),
           comments: mark.comments !== undefined && mark.comments !== null ? mark.comments : null,
         });
         console.log('Creating new mark:', {
@@ -725,7 +773,9 @@ export const captureMarks = async (req: AuthRequest, res: Response) => {
     res.json({ 
       message: 'Marks saved successfully. Report cards are now available for all students.',
       examId,
-      savedCount: marksToSave.length
+      savedCount: marksToSave.length,
+      invalidCount: invalidMarks.length,
+      invalidMarks: invalidMarks.length > 0 ? invalidMarks.slice(0, 50) : [],
     });
   } catch (error: any) {
     console.error('[captureMarks] Error capturing marks:', error);
@@ -1970,6 +2020,10 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
         if (hasUniformMark) {
           // uniformMark is stored as percentage (0-100)
           const uniformMarkPercentage = parseFloat(String(mark.uniformMark));
+          if (!Number.isFinite(uniformMarkPercentage) || uniformMarkPercentage < 0 || uniformMarkPercentage > 100) {
+            console.warn('Skipping mark with invalid uniformMark percentage:', { markId: mark.id, uniformMarkPercentage });
+            return;
+          }
           // Calculate score from uniformMark percentage for display purposes
           const scoreFromUniform = Math.round((uniformMarkPercentage / 100) * maxScore);
           subjectMarksMap[subjectName].scores.push(scoreFromUniform);
@@ -1978,6 +2032,10 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
         } else if (hasScore) {
           // Use original score only if uniformMark is not available
           const originalScore = Math.round(parseFloat(String(mark.score)) || 0);
+          if (!Number.isFinite(originalScore) || originalScore < 0 || originalScore > maxScore) {
+            console.warn('Skipping mark with invalid score range:', { markId: mark.id, originalScore, maxScore });
+            return;
+          }
           const originalPercentage = maxScore > 0 ? (originalScore / maxScore) * 100 : 0;
           subjectMarksMap[subjectName].scores.push(originalScore);
           subjectMarksMap[subjectName].percentages.push(originalPercentage);

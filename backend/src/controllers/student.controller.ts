@@ -1559,12 +1559,21 @@ export const getStudentReportCard = async (req: AuthRequest, res: Response) => {
 
         if (hasScore || hasUniformMark) {
           const maxScore = mark.maxScore && mark.maxScore > 0 ? parseFloat(String(mark.maxScore)) : 100;
-          const score = hasUniformMark ? parseFloat(String(mark.uniformMark)) : parseFloat(String(mark.score));
-          
-          if (!isNaN(score) && !isNaN(maxScore)) {
+          if (!Number.isFinite(maxScore) || maxScore <= 0) return;
+
+          if (hasUniformMark) {
+            const uniformPct = parseFloat(String(mark.uniformMark));
+            if (!Number.isFinite(uniformPct) || uniformPct < 0 || uniformPct > 100) return;
+            const scoreFromUniform = (uniformPct / 100) * maxScore;
+            studentMarksMap[sid].scores.push(scoreFromUniform);
+            studentMarksMap[sid].maxScores.push(maxScore);
+            studentMarksMap[sid].percentages.push(uniformPct);
+          } else {
+            const score = parseFloat(String(mark.score));
+            if (!Number.isFinite(score) || score < 0 || score > maxScore) return;
             studentMarksMap[sid].scores.push(score);
             studentMarksMap[sid].maxScores.push(maxScore);
-            const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+            const percentage = (score / maxScore) * 100;
             studentMarksMap[sid].percentages.push(percentage);
           }
         }
@@ -1624,18 +1633,33 @@ export const getStudentReportCard = async (req: AuthRequest, res: Response) => {
       
       try {
         const maxScore = mark.maxScore && mark.maxScore > 0 ? parseFloat(String(mark.maxScore)) : 100;
-        const score = hasUniformMark ? parseFloat(String(mark.uniformMark)) : parseFloat(String(mark.score));
-        
-        if (isNaN(score) || isNaN(maxScore)) {
-          console.warn('[getStudentReportCard] Invalid score values:', { score, maxScore, markId: mark.id });
+        if (!Number.isFinite(maxScore) || maxScore <= 0) {
+          console.warn('[getStudentReportCard] Invalid maxScore:', { maxScore, markId: mark.id });
           return;
         }
-        
-        const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-        
-        subjectMarksMap[subjectName].scores.push(score);
-        subjectMarksMap[subjectName].maxScores.push(maxScore);
-        subjectMarksMap[subjectName].percentages.push(percentage);
+
+        if (hasUniformMark) {
+          const uniformPct = parseFloat(String(mark.uniformMark));
+          if (!Number.isFinite(uniformPct) || uniformPct < 0 || uniformPct > 100) {
+            console.warn('[getStudentReportCard] Invalid uniformMark percentage:', { uniformPct, markId: mark.id });
+            return;
+          }
+          const scoreFromUniform = (uniformPct / 100) * maxScore;
+          subjectMarksMap[subjectName].scores.push(scoreFromUniform);
+          subjectMarksMap[subjectName].maxScores.push(maxScore);
+          subjectMarksMap[subjectName].percentages.push(uniformPct);
+        } else {
+          const score = parseFloat(String(mark.score));
+          if (!Number.isFinite(score) || score < 0 || score > maxScore) {
+            console.warn('[getStudentReportCard] Invalid score range:', { score, maxScore, markId: mark.id });
+            return;
+          }
+          const percentage = (score / maxScore) * 100;
+          subjectMarksMap[subjectName].scores.push(score);
+          subjectMarksMap[subjectName].maxScores.push(maxScore);
+          subjectMarksMap[subjectName].percentages.push(percentage);
+        }
+
         if (mark.comments) {
           subjectMarksMap[subjectName].comments.push(mark.comments);
         }
@@ -1996,15 +2020,23 @@ export const downloadStudentReportCardPDF = async (req: AuthRequest, res: Respon
       
       try {
         const maxScore = mark.maxScore && mark.maxScore > 0 ? parseFloat(String(mark.maxScore)) : 100;
-        const score = hasUniformMark ? parseFloat(String(mark.uniformMark)) : parseFloat(String(mark.score));
-        
-        if (isNaN(score) || isNaN(maxScore)) return;
-        
-        const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-        
-        subjectMarksMap[subjectName].scores.push(score);
-        subjectMarksMap[subjectName].maxScores.push(maxScore);
-        subjectMarksMap[subjectName].percentages.push(percentage);
+        if (!Number.isFinite(maxScore) || maxScore <= 0) return;
+
+        if (hasUniformMark) {
+          const uniformPct = parseFloat(String(mark.uniformMark));
+          if (!Number.isFinite(uniformPct) || uniformPct < 0 || uniformPct > 100) return;
+          const scoreFromUniform = (uniformPct / 100) * maxScore;
+          subjectMarksMap[subjectName].scores.push(scoreFromUniform);
+          subjectMarksMap[subjectName].maxScores.push(maxScore);
+          subjectMarksMap[subjectName].percentages.push(uniformPct);
+        } else {
+          const score = parseFloat(String(mark.score));
+          if (!Number.isFinite(score) || score < 0 || score > maxScore) return;
+          const percentage = (score / maxScore) * 100;
+          subjectMarksMap[subjectName].scores.push(score);
+          subjectMarksMap[subjectName].maxScores.push(maxScore);
+          subjectMarksMap[subjectName].percentages.push(percentage);
+        }
         if (mark.comments) {
           subjectMarksMap[subjectName].comments.push(mark.comments);
         }
