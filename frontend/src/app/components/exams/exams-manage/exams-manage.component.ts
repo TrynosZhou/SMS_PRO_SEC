@@ -49,6 +49,14 @@ export class ExamsManageComponent {
     );
   }
 
+  showResultsAnalysisTab(): boolean {
+    return (
+      this.authService.hasRole('teacher') ||
+      this.authService.hasRole('admin') ||
+      this.authService.hasRole('superadmin')
+    );
+  }
+
   showAdminExamTabs(): boolean {
     return this.authService.hasRole('admin') || this.authService.hasRole('superadmin');
   }

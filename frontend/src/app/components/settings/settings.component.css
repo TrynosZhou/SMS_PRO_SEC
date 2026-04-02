@@ -131,6 +131,13 @@
   font-size: 12px;
 }
 
+.form-hint-block {
+  display: block;
+  margin: -8px 0 12px;
+  color: #666;
+  font-size: 12px;
+}
+
 .demo-disabled-text {
   display: block;
   margin-top: 5px;

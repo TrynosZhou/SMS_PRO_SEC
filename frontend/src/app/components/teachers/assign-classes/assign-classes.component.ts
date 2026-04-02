@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { TeacherService } from '../../../services/teacher.service';
 import { ClassService } from '../../../services/class.service';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { teachersManageNav } from '../teachers-manage-navigation';
 
 @Component({
@@ -28,12 +28,27 @@ export class AssignClassesComponent implements OnInit {
   constructor(
     private teacherService: TeacherService,
     private classService: ClassService,
-    public router: Router
+    public router: Router,
+    private route: ActivatedRoute
   ) { }
 
   ngOnInit() {
     this.loadTeachers();
     this.loadClasses();
+
+    // If opened from "Assign Class" button (teacherId query param), auto-select that teacher.
+    this.route.queryParams.subscribe((params: any) => {
+      const teacherId = params?.teacherId ? String(params.teacherId) : '';
+      if (!teacherId) return;
+
+      const t = this.teachers.find((x: any) => x.id === teacherId);
+      if (t) {
+        this.selectTeacher(t);
+      } else {
+        // Teachers may still be loading; selection will be attempted again in loadTeachers().
+        (this as any)._autoSelectTeacherId = teacherId;
+      }
+    });
   }
 
   goToTeachersList(): void {
@@ -48,6 +63,15 @@ export class AssignClassesComponent implements OnInit {
         this.teachers = (data || []).filter((t: any) => t.isActive !== false);
         this.filteredTeachers = [...this.teachers];
         this.loading = false;
+
+        const autoId = (this as any)._autoSelectTeacherId;
+        if (autoId) {
+          const t = this.teachers.find((x: any) => x.id === autoId);
+          if (t) {
+            this.selectTeacher(t);
+            (this as any)._autoSelectTeacherId = '';
+          }
+        }
       },
       error: (err: any) => {
         this.error = 'Failed to load teachers';

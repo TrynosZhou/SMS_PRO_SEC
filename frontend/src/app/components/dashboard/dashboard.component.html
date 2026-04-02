@@ -17,9 +17,9 @@
             </div>
           </div>
           <div class="header-right">
-            <div class="school-name-container" *ngIf="displayedText">
+            <div class="school-name-container" *ngIf="displayedHeadline">
               <span class="school-icon">🏫</span>
-              <span class="school-name" [class.school-motto-text]="displayedText === schoolMotto">{{ displayedText }}</span>
+              <span class="school-banner-slide">{{ displayedHeadline }}</span>
             </div>
             <div class="quick-stats-badge" *ngIf="(isAdmin() || isAccountant()) && !loadingStats">
               <span class="badge-icon">⚡</span>

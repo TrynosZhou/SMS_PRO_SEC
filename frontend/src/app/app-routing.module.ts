@@ -9,6 +9,7 @@ import { TeacherListComponent } from './components/teachers/teacher-list/teacher
 import { TeacherFormComponent } from './components/teachers/teacher-form/teacher-form.component';
 import { TeachersManageComponent } from './components/teachers/teachers-manage/teachers-manage.component';
 import { AssignClassesComponent } from './components/teachers/assign-classes/assign-classes.component';
+import { AllocateClassComponent } from './components/teachers/allocate-class/allocate-class.component';
 import { ExamListComponent } from './components/exams/exam-list/exam-list.component';
 import { ExamFormComponent } from './components/exams/exam-form/exam-form.component';
 import { MarksEntryComponent } from './components/exams/marks-entry/marks-entry.component';
@@ -18,6 +19,7 @@ import { MarkSheetComponent } from './components/exams/mark-sheet/mark-sheet.com
 import { MarkInputProgressComponent } from './components/exams/mark-input-progress/mark-input-progress.component';
 import { PublishResultsComponent } from './components/exams/publish-results/publish-results.component';
 import { ExamsManageComponent } from './components/exams/exams-manage/exams-manage.component';
+import { ResultsAnalysisComponent } from './components/exams/results-analysis/results-analysis.component';
 import { InvoiceListComponent } from './components/finance/invoice-list/invoice-list.component';
 import { InvoiceFormComponent } from './components/finance/invoice-form/invoice-form.component';
 import { InvoiceStatementsComponent } from './components/finance/invoice-statements/invoice-statements.component';
@@ -216,6 +218,7 @@ const routes: Routes = [
       { path: 'add-new', component: TeacherFormComponent, canActivate: [AuthGuard] },
       { path: 'teachers', component: TeacherListComponent, canActivate: [AuthGuard] },
       { path: 'assign-classes', component: AssignClassesComponent, canActivate: [AuthGuard] },
+      { path: 'allocate_class', component: AllocateClassComponent, canActivate: [AuthGuard] },
       { path: 'record-book', component: TeacherRecordBookComponent, canActivate: [AuthGuard] },
       { path: 'edit/:id', component: TeacherFormComponent, canActivate: [AuthGuard] },
     ],
@@ -225,6 +228,7 @@ const routes: Routes = [
   { path: 'teachers/new', component: TeacherFormComponent, canActivate: [AuthGuard] },
   { path: 'teachers/:id/edit', component: TeacherFormComponent, canActivate: [AuthGuard] },
   { path: 'teachers/assign-classes', component: AssignClassesComponent, canActivate: [AuthGuard] },
+  { path: 'teachers/allocate_class', component: AllocateClassComponent, canActivate: [AuthGuard] },
   {
     path: 'exams/manage',
     component: ExamsManageComponent,
@@ -236,6 +240,7 @@ const routes: Routes = [
       { path: 'mark-input-progress', component: MarkInputProgressComponent, canActivate: [AuthGuard] },
       { path: 'rankings', component: RankingsComponent, canActivate: [AuthGuard] },
       { path: 'report-cards', component: ReportCardComponent, canActivate: [AuthGuard] },
+      { path: 'results-analysis', component: ResultsAnalysisComponent, canActivate: [AuthGuard] },
       { path: 'publish-results', component: PublishResultsComponent, canActivate: [AuthGuard] },
       { path: 'new', component: ExamFormComponent, canActivate: [AuthGuard] },
       { path: ':id/marks', component: MarksEntryComponent, canActivate: [AuthGuard] },

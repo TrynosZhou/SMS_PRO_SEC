@@ -187,6 +187,16 @@ export class ExamService {
     return this.http.get(url, { params });
   }
 
+  getResultsAnalysis(classId: string, examType: string, term: string): Observable<any> {
+    const params: any = { classId, examType, term };
+    return this.http.get(`${this.apiUrl}/exams/results-analysis`, { params });
+  }
+
+  getResultsAnalysisForSubject(classId: string, examType: string, term: string, subjectId: string): Observable<any> {
+    const params: any = { classId, examType, term, subjectId };
+    return this.http.get(`${this.apiUrl}/exams/results-analysis/subject`, { params });
+  }
+
   downloadReportCardPDF(studentId: string, examId: string): Observable<Blob> {
     return this.http.get(`${this.apiUrl}/exams/report-card/pdf`, {
       params: { studentId, examId },
@@ -347,6 +357,10 @@ export class ExamService {
     return this.http.post(`${this.apiUrl}/exams/publish-by-type`, { examType, term });
   }
 
+  unpublishExamByType(examType: string, term: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/exams/unpublish-by-type`, { examType, term });
+  }
+
   moderateMarks(classId: string, subjectId: string, examType: string, targetMin?: number, targetMax?: number): Observable<any> {
     const body: any = { classId, subjectId, examType };
     if (targetMin !== undefined) body.targetMin = targetMin;
@@ -366,6 +380,20 @@ export class ExamService {
     if (term) params.term = term;
     if (examType) params.examType = examType;
     return this.http.get(`${this.apiUrl}/exams/mark-input-progress`, { params });
+  }
+
+  getMarkInputProgressByClassSubjects(classId: string, term?: string, examType?: string): Observable<any> {
+    const params: any = { classId };
+    if (term) params.term = term;
+    if (examType) params.examType = examType;
+    return this.http.get(`${this.apiUrl}/exams/mark-input-progress/class-subjects`, { params });
+  }
+
+  getMarkInputProgressAllClassesSubjects(term?: string, examType?: string): Observable<any> {
+    const params: any = {};
+    if (term) params.term = term;
+    if (examType) params.examType = examType;
+    return this.http.get(`${this.apiUrl}/exams/mark-input-progress/all-classes-subjects`, { params });
   }
 
   generateAIRemark(studentId: string, subjectId: string, score: number, maxScore: number = 100): Observable<any> {

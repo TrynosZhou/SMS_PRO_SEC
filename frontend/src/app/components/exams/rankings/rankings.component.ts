@@ -152,7 +152,8 @@ export class RankingsComponent implements OnInit {
     const scores = this.rankings.map(r => 
       this.rankingType === 'subject' ? r.percentage : r.average
     );
-    return Math.max(...scores);
+    const max = Math.max(...scores);
+    return Math.round(max * 100) / 100;
   }
 
   getPassRate(): number {

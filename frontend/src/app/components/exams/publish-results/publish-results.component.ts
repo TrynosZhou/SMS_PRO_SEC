@@ -18,6 +18,7 @@ export class PublishResultsComponent implements OnInit {
   publishExamType = '';
   publishTerm = '';
   publishing = false;
+  unpublishing = false;
   loadingTerm = false;
   error = '';
   success = '';
@@ -98,6 +99,46 @@ export class PublishResultsComponent implements OnInit {
         this.error = err.error?.message || 'Failed to publish results. Please try again.';
         this.publishing = false;
         setTimeout(() => this.error = '', 5000);
+      }
+    });
+  }
+
+  unpublishResults() {
+    if (!this.publishExamType) {
+      this.error = 'Please select an exam type to unpublish results.';
+      setTimeout(() => (this.error = ''), 5000);
+      return;
+    }
+
+    if (!this.publishTerm) {
+      this.error = 'Term is required. Please ensure the active term is set in settings.';
+      setTimeout(() => (this.error = ''), 5000);
+      return;
+    }
+
+    if (
+      !confirm(
+        `Are you sure you want to UNPUBLISH all ${this.examTypes.find((t) => t.value === this.publishExamType)?.label || this.publishExamType} results for ${this.publishTerm}? Results will no longer be visible to students/parents.`
+      )
+    ) {
+      return;
+    }
+
+    this.unpublishing = true;
+    this.error = '';
+    this.success = '';
+
+    this.examService.unpublishExamByType(this.publishExamType, this.publishTerm).subscribe({
+      next: (response: any) => {
+        this.success = response?.message || 'Results unpublished successfully.';
+        this.unpublishing = false;
+        setTimeout(() => (this.success = ''), 8000);
+      },
+      error: (err: any) => {
+        console.error('Error unpublishing results:', err);
+        this.error = err?.error?.message || 'Failed to unpublish results. Please try again.';
+        this.unpublishing = false;
+        setTimeout(() => (this.error = ''), 5000);
       }
     });
   }

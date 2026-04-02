@@ -14,6 +14,7 @@ import { StudentsManageComponent } from './components/students/students-manage/s
 import { TeacherListComponent } from './components/teachers/teacher-list/teacher-list.component';
 import { TeacherFormComponent } from './components/teachers/teacher-form/teacher-form.component';
 import { AssignClassesComponent } from './components/teachers/assign-classes/assign-classes.component';
+import { AllocateClassComponent } from './components/teachers/allocate-class/allocate-class.component';
 import { TeachersManageComponent } from './components/teachers/teachers-manage/teachers-manage.component';
 import { ExamListComponent } from './components/exams/exam-list/exam-list.component';
 import { ExamsManageComponent } from './components/exams/exams-manage/exams-manage.component';
@@ -24,6 +25,7 @@ import { RankingsComponent } from './components/exams/rankings/rankings.componen
 import { MarkSheetComponent } from './components/exams/mark-sheet/mark-sheet.component';
 import { MarkInputProgressComponent } from './components/exams/mark-input-progress/mark-input-progress.component';
 import { PublishResultsComponent } from './components/exams/publish-results/publish-results.component';
+import { ResultsAnalysisComponent } from './components/exams/results-analysis/results-analysis.component';
 import { InvoiceListComponent } from './components/finance/invoice-list/invoice-list.component';
 import { InvoiceFormComponent } from './components/finance/invoice-form/invoice-form.component';
 import { InvoiceStatementsComponent } from './components/finance/invoice-statements/invoice-statements.component';
@@ -109,6 +111,7 @@ import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-prev
     TeacherListComponent,
     TeacherFormComponent,
     AssignClassesComponent,
+    AllocateClassComponent,
     TeachersManageComponent,
     ExamListComponent,
     ExamsManageComponent,
@@ -118,6 +121,7 @@ import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-prev
     MarkSheetComponent,
     MarkInputProgressComponent,
     PublishResultsComponent,
+    ResultsAnalysisComponent,
     RankingsComponent,
     InvoiceListComponent,
     InvoiceFormComponent,

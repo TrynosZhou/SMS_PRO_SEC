@@ -85,7 +85,13 @@ export class Settings {
   headmasterName: string | null;
 
   @Column({ type: 'text', nullable: true })
-  schoolMotto: string | null; // School motto or tagline
+  schoolMotto: string | null; // School motto or tagline (line 1)
+
+  @Column({ type: 'text', nullable: true })
+  schoolMotto2: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  schoolMotto3: string | null;
 
   // Academic Year
   @Column({ type: 'varchar', nullable: true })

@@ -205,6 +205,9 @@
         <button class="btn-action btn-view" (click)="viewTeacherDetails(teacher)">
           👁️ View
         </button>
+        <button class="btn-action btn-edit" (click)="goToAssignClasses(teacher)" title="Assign class(es)">
+          🏫 Assign Class
+        </button>
         <button class="btn-action btn-edit" (click)="editTeacher(teacher.id)">
           ✏️ Edit
         </button>
@@ -253,6 +256,7 @@
             <td class="col-actions">
               <div class="action-buttons">
                 <button type="button" class="btn-icon-small" (click)="viewTeacherDetails(teacher)" title="View Details" aria-label="View">👁️</button>
+                <button type="button" class="btn-icon-small" (click)="goToAssignClasses(teacher)" title="Assign Class" aria-label="Assign Class">🏫</button>
                 <button type="button" class="btn-icon-small" (click)="editTeacher(teacher.id)" title="Edit" aria-label="Edit">✏️</button>
                 <button type="button" class="btn-icon-small btn-delete" (click)="deleteTeacher(teacher.id, teacher.firstName + ' ' + teacher.lastName, teacher.teacherId)" title="Delete" [disabled]="loading" aria-label="Delete">🗑️</button>
               </div>

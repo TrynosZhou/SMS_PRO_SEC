@@ -18,11 +18,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   user: any;
   moduleAccess: any = null;
   schoolName: string = '';
-  schoolMotto: string = '';
+  /** Single banner line: alternates school name and each non-empty motto (never both at once). */
+  displayedHeadline: string = '';
   showBulkMessage = false;
-  displayedText: string = '';
-  private textToggleInterval: any;
-  private showMotto: boolean = false;
+  private headlineRotateInterval: any;
   teacherName: string = '';
 
   // Sidebar collapse state
@@ -79,9 +78,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    // Clear interval when component is destroyed
-    if (this.textToggleInterval) {
-      clearInterval(this.textToggleInterval);
+    if (this.headlineRotateInterval) {
+      clearInterval(this.headlineRotateInterval);
     }
   }
   
@@ -182,20 +180,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
         } else {
           this.schoolName = data.schoolName || '';
         }
-        this.schoolMotto = data.schoolMotto || '';
         this.moduleAccess = data.moduleAccess || {};
-        
+
         // Update module access service with latest settings
         if (data.moduleAccess) {
           (this.moduleAccessService as any).moduleAccess = data.moduleAccess;
         }
-        
-        // Initialize displayed text and start toggle timer
-        this.initializeTextToggle();
+
+        this.startHeadlineRotation(data);
       },
       error: (err: any) => {
         console.error('Error loading settings:', err);
         this.schoolName = '';
+        this.startHeadlineRotation({});
         // Use default module access from service
         this.moduleAccess = this.moduleAccessService.getModuleAccess();
       }
@@ -415,32 +412,42 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return user.email || user.username || 'User';
   }
 
-  initializeTextToggle() {
-    // Clear any existing interval
-    if (this.textToggleInterval) {
-      clearInterval(this.textToggleInterval);
+  /**
+   * Rotates one line at a time: school name (if any), then motto 1–3 (if any).
+   * Same typography in the template — no simultaneous name + motto.
+   */
+  private startHeadlineRotation(data: any) {
+    if (this.headlineRotateInterval) {
+      clearInterval(this.headlineRotateInterval);
+      this.headlineRotateInterval = null;
     }
 
-    // Set initial displayed text
-    if (this.schoolName && this.schoolMotto) {
-      // If both exist, start with school name and toggle
-      this.displayedText = this.schoolName;
-      this.showMotto = false;
-      
-      // Toggle every 3 seconds (3000ms)
-      this.textToggleInterval = setInterval(() => {
-        this.showMotto = !this.showMotto;
-        this.displayedText = this.showMotto ? this.schoolMotto : this.schoolName;
-      }, 3000);
-    } else if (this.schoolName) {
-      // Only school name available
-      this.displayedText = this.schoolName;
-    } else if (this.schoolMotto) {
-      // Only motto available
-      this.displayedText = this.schoolMotto;
-    } else {
-      this.displayedText = '';
+    const slides: string[] = [];
+    const name = (this.schoolName || '').trim();
+    if (name) {
+      slides.push(name);
     }
+
+    const mottos = [data?.schoolMotto, data?.schoolMotto2, data?.schoolMotto3]
+      .map((s: any) => (typeof s === 'string' ? s.trim() : ''))
+      .filter((s: string) => !!s);
+    slides.push(...mottos);
+
+    if (slides.length === 0) {
+      this.displayedHeadline = '';
+      return;
+    }
+
+    this.displayedHeadline = slides[0];
+    if (slides.length < 2) {
+      return;
+    }
+
+    let idx = 0;
+    this.headlineRotateInterval = setInterval(() => {
+      idx = (idx + 1) % slides.length;
+      this.displayedHeadline = slides[idx];
+    }, 4000);
   }
 }
 

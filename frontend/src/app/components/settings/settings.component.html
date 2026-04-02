@@ -456,10 +456,18 @@
           <input type="text" [(ngModel)]="settings.headmasterName" name="headmasterName" placeholder="Enter the headmaster's full name">
         </div>
         <div class="form-group">
-          <label>School Motto</label>
-          <input type="text" [(ngModel)]="settings.schoolMotto" name="schoolMotto" placeholder="Enter the school motto or tagline">
-          <small>School motto or tagline (e.g., "After instruction we soar")</small>
+          <label>School motto — line 1</label>
+          <input type="text" [(ngModel)]="settings.schoolMotto" name="schoolMotto" placeholder="First motto or tagline">
         </div>
+        <div class="form-group">
+          <label>School motto — line 2</label>
+          <input type="text" [(ngModel)]="settings.schoolMotto2" name="schoolMotto2" placeholder="Second motto (optional)">
+        </div>
+        <div class="form-group">
+          <label>School motto — line 3</label>
+          <input type="text" [(ngModel)]="settings.schoolMotto3" name="schoolMotto3" placeholder="Third motto (optional)">
+        </div>
+        <small class="form-hint-block">The dashboard rotates through any non-empty motto lines every few seconds.</small>
       </div>
 
       <!-- Grade Points -->

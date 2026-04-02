@@ -158,6 +158,25 @@
   transition: opacity 0.5s ease;
 }
 
+/* Single rotating line: school name and mottos use the same non-italic style. */
+.school-banner-slide {
+  font-weight: 600;
+  color: #fff;
+  font-size: 1.2rem;
+  font-style: normal;
+  line-height: 1.35;
+  max-width: 420px;
+  overflow-wrap: anywhere;
+  display: inline-block;
+  min-height: 1.35em;
+  animation: headline-slide-in 0.45s ease;
+}
+
+@keyframes headline-slide-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .school-motto-text {
   font-size: 1.2rem;
   font-weight: 700;

@@ -70,6 +70,13 @@ export class TeacherListComponent implements OnInit {
     this.maxDobDate = today.toISOString().split('T')[0];
   }
 
+  goToAssignClasses(teacher: any): void {
+    if (!teacher?.id) return;
+    this.router.navigateByUrl(
+      teachersManageNav(this.router).allocateClass + `?teacherId=${encodeURIComponent(teacher.id)}`
+    );
+  }
+
   ngOnInit() {
     this.loadTeachers();
     this.loadSubjects();

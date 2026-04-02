@@ -147,6 +147,23 @@
   gap: 25px;
 }
 
+.all-classes-root {
+  gap: 28px;
+}
+
+.all-classes-block {
+  background: #fafafa;
+}
+
+.all-classes-class-header {
+  margin-bottom: 16px;
+}
+
+.class-cell-strong {
+  font-weight: 800;
+  color: #1e3a5f;
+}
+
 .stream-card {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
@@ -161,6 +178,41 @@
   margin-bottom: 15px;
   flex-wrap: wrap;
   gap: 15px;
+}
+
+.stream-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stream-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.chev {
+  font-size: 14px;
+  color: #111827;
+  font-weight: 900;
+}
+
+.stream-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
 }
 
 .stream-header h4 {
@@ -226,10 +278,10 @@
   font-size: 14px;
 }
 
-.class-completion {
-  font-weight: 600;
-  color: #4A90E2;
-  font-size: 14px;
+.class-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .class-progress-bar {
@@ -277,6 +329,95 @@
   font-size: 12px;
   font-weight: 700;
   color: #4A90E2;
+}
+
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-ghost {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  color: #111827;
+  font-weight: 900;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: #eef2f7;
+}
+
+.btn-ghost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dashboard-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.chip.active {
+  background: #4A90E2;
+  border-color: #4A90E2;
+  color: #fff;
+}
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sort-label {
+  font-size: 12px;
+  font-weight: 900;
+  color: #6b7280;
+}
+
+.sort-btn {
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #111827;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.sort-btn:hover {
+  background: #eef2f7;
+}
+
+.sort-ind {
+  margin-left: 6px;
+  font-weight: 900;
 }
 
 .view-toggle {
@@ -403,6 +544,24 @@
   color: #374151;
 }
 
+.th-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 900;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.th-btn:hover {
+  text-decoration: underline;
+}
+
 .completion-cell {
   display: flex;
   flex-direction: column;
@@ -468,6 +627,47 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.loading-shell {
+  background: #fff;
+  padding: 25px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 37%, #f3f4f6 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+  border-radius: 12px;
+}
+
+.skeleton-title {
+  height: 18px;
+  width: 220px;
+  margin-bottom: 16px;
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.skeleton-card {
+  height: 70px;
+}
+
+.skeleton-table {
+  height: 220px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
 @media (max-width: 768px) {
   .filters-grid {
     grid-template-columns: 1fr;
@@ -476,6 +676,15 @@
   .stream-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .dashboard-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .skeleton-row {
+    grid-template-columns: 1fr;
   }
 
   .classes-grid {

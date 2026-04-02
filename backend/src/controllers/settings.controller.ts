@@ -295,6 +295,8 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       schoolEmail,
       headmasterName,
       schoolMotto,
+      schoolMotto2,
+      schoolMotto3,
       academicYear,
       currentTerm,
       activeTerm,
@@ -398,6 +400,12 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     }
     if (schoolMotto !== undefined) {
       settings.schoolMotto = schoolMotto;
+    }
+    if (schoolMotto2 !== undefined) {
+      settings.schoolMotto2 = schoolMotto2;
+    }
+    if (schoolMotto3 !== undefined) {
+      settings.schoolMotto3 = schoolMotto3;
     }
     if (academicYear !== undefined) {
       settings.academicYear = academicYear;

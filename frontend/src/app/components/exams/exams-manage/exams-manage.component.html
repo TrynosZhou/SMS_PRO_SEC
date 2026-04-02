@@ -51,6 +51,15 @@
       Report Cards
     </a>
     <a
+      *ngIf="showResultsAnalysisTab()"
+      routerLink="/exams/manage/results-analysis"
+      routerLinkActive="active"
+      class="em-tab"
+    >
+      <span class="em-tab-ico" aria-hidden="true">📈</span>
+      Results analysis
+    </a>
+    <a
       *ngIf="showAdminExamTabs()"
       routerLink="/exams/manage/publish-results"
       routerLinkActive="active"

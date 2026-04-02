@@ -62,6 +62,21 @@
           Publishing...
         </span>
       </button>
+
+      <button
+        *ngIf="isAdmin"
+        class="btn btn-danger btn-load"
+        (click)="unpublishResults()"
+        [disabled]="unpublishing || publishing || !publishExamType || !publishTerm"
+      >
+        <span *ngIf="!unpublishing">
+          🧹 Unpublish Results
+        </span>
+        <span *ngIf="unpublishing" class="loading-content">
+          <span class="spinner-small"></span>
+          Unpublishing...
+        </span>
+      </button>
     </div>
   </div>
 </div>

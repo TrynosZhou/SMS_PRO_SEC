@@ -626,6 +626,59 @@ export const publishExamByType = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const unpublishExamByType = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const examRepository = AppDataSource.getRepository(Exam);
+    const { examType, term } = req.body;
+
+    if (!examType) {
+      return res.status(400).json({ message: 'Exam type is required' });
+    }
+    if (!term) {
+      return res.status(400).json({ message: 'Term is required' });
+    }
+
+    const exams = await examRepository.find({
+      where: {
+        type: examType as ExamType,
+        term: term,
+      },
+      relations: ['classEntity', 'subjects'],
+    });
+
+    if (exams.length === 0) {
+      return res.status(404).json({
+        message: `No exams found for ${examType} in ${term}`,
+      });
+    }
+
+    let unpublishedCount = 0;
+    for (const exam of exams) {
+      if (exam.status === ExamStatus.PUBLISHED) {
+        exam.status = ExamStatus.DRAFT;
+        await examRepository.save(exam);
+        unpublishedCount++;
+      }
+    }
+
+    res.json({
+      message: `Results unpublished successfully. ${unpublishedCount} exam(s) were set back to draft.`,
+      unpublishedCount,
+      totalExams: exams.length,
+    });
+  } catch (error: any) {
+    console.error('Error unpublishing exams by type:', error);
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message || 'Unknown error',
+    });
+  }
+};
+
 export const captureMarks = async (req: AuthRequest, res: Response) => {
   try {
     if (!AppDataSource.isInitialized) {
@@ -2220,6 +2273,295 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
       error: error.message || 'Unknown error',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  }
+};
+
+export const getResultsAnalysis = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { classId, examType, term } = req.query;
+    if (!classId || !examType || !term) {
+      return res.status(400).json({ message: 'classId, examType and term are required' });
+    }
+
+    const classRepository = AppDataSource.getRepository(Class);
+    const examRepository = AppDataSource.getRepository(Exam);
+    const studentRepository = AppDataSource.getRepository(Student);
+    const marksRepository = AppDataSource.getRepository(Marks);
+    const settingsRepository = AppDataSource.getRepository(Settings);
+
+    const classEntity = await classRepository.findOne({
+      where: { id: classId as string },
+      relations: ['subjects']
+    });
+    if (!classEntity) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    const settingsList = await settingsRepository.find({
+      order: { createdAt: 'DESC' },
+      take: 1
+    });
+    const settings = settingsList.length > 0 ? settingsList[0] : null;
+    const passMin = settings?.gradeThresholds?.satisfactory ?? 40;
+
+    const students = await studentRepository.find({
+      where: { classId: classId as string },
+      order: { firstName: 'ASC', lastName: 'ASC' }
+    });
+    const totalStudents = students.length;
+    if (totalStudents === 0) {
+      return res.json({ classId, examType, term, passMin, results: [] });
+    }
+
+    const exams = await examRepository.find({
+      where: { classId: classId as string, type: examType as any, term: String(term) },
+      relations: ['subjects']
+    });
+    const examIds = exams.map((e) => e.id);
+    if (examIds.length === 0) {
+      return res.json({ classId, examType, term, passMin, results: [] });
+    }
+
+    const marks = await marksRepository.find({
+      where: { examId: In(examIds), studentId: In(students.map((s) => s.id)) },
+      relations: ['subject']
+    });
+
+    const subjectList = classEntity.subjects || [];
+    const subjectKey = (s: any) => s?.id || s?.name;
+
+    const marksBySubjectStudent = new Map<string, number[]>();
+
+    const addPct = (subjectId: string, studentId: string, pct: number) => {
+      const k = `${subjectId}__${studentId}`;
+      const arr = marksBySubjectStudent.get(k) || [];
+      arr.push(pct);
+      marksBySubjectStudent.set(k, arr);
+    };
+
+    for (const m of marks) {
+      if (!m.subjectId) continue;
+      const maxScore = m.maxScore && Number(m.maxScore) > 0 ? parseFloat(String(m.maxScore)) : 100;
+      if (!Number.isFinite(maxScore) || maxScore <= 0) continue;
+
+      const hasUniform = m.uniformMark !== null && m.uniformMark !== undefined;
+      const hasScore = m.score !== null && m.score !== undefined;
+
+      if (hasUniform) {
+        const pct = parseFloat(String(m.uniformMark));
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) continue;
+        addPct(m.subjectId, m.studentId, pct);
+      } else if (hasScore) {
+        const score = parseFloat(String(m.score));
+        if (!Number.isFinite(score) || score < 0 || score > maxScore) continue;
+        const pct = (score / maxScore) * 100;
+        addPct(m.subjectId, m.studentId, pct);
+      }
+    }
+
+    const results = subjectList.map((sub: any) => {
+      const sid = String(sub.id);
+      let passed = 0;
+      let withMarks = 0;
+
+      for (const st of students) {
+        const arr = marksBySubjectStudent.get(`${sid}__${st.id}`) || [];
+        if (arr.length === 0) continue;
+        withMarks++;
+        const avgPct = arr.reduce((a, b) => a + b, 0) / arr.length;
+        if (avgPct >= passMin) passed++;
+      }
+
+      const passRate = totalStudents > 0 ? (passed / totalStudents) * 100 : 0;
+      return {
+        subject: sub.name,
+        subjectCode: sub.code || '',
+        passRate: Math.round(passRate * 100) / 100,
+        passed,
+        totalStudents,
+        withMarks
+      };
+    });
+
+    res.json({ classId, examType, term, passMin, results });
+  } catch (error: any) {
+    console.error('Error generating results analysis:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+export const getResultsAnalysisForSubject = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { classId, examType, term, subjectId } = req.query;
+    if (!classId || !examType || !term || !subjectId) {
+      return res
+        .status(400)
+        .json({ message: 'classId, examType, term and subjectId are required' });
+    }
+
+    const classRepository = AppDataSource.getRepository(Class);
+    const subjectRepository = AppDataSource.getRepository(Subject);
+    const examRepository = AppDataSource.getRepository(Exam);
+    const studentRepository = AppDataSource.getRepository(Student);
+    const marksRepository = AppDataSource.getRepository(Marks);
+    const settingsRepository = AppDataSource.getRepository(Settings);
+
+    const classEntity = await classRepository.findOne({
+      where: { id: classId as string },
+    });
+    if (!classEntity) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    const subject = await subjectRepository.findOne({
+      where: { id: subjectId as string },
+    });
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+
+    const settingsList = await settingsRepository.find({
+      order: { createdAt: 'DESC' },
+      take: 1,
+    });
+    const settings = settingsList.length > 0 ? settingsList[0] : null;
+    const thresholds = settings?.gradeThresholds || {
+      veryGood: 80,
+      good: 60,
+      satisfactory: 40,
+      needsImprovement: 20,
+      basic: 1,
+    };
+    const gradeLabels = settings?.gradeLabels || {
+      veryGood: 'A',
+      good: 'B',
+      satisfactory: 'C',
+      needsImprovement: 'D',
+      basic: 'E',
+      fail: 'F',
+    };
+
+    type GradeKey = 'veryGood' | 'good' | 'satisfactory' | 'needsImprovement' | 'basic' | 'fail';
+    const getGradeInfo = (percentage: number): { key: GradeKey; label: string } => {
+      if (!Number.isFinite(percentage) || percentage <= 0) {
+        return { key: 'fail', label: gradeLabels.fail || 'UNCLASSIFIED' };
+      }
+      if (percentage >= (thresholds.veryGood || 80)) return { key: 'veryGood', label: gradeLabels.veryGood || 'VERY HIGH' };
+      if (percentage >= (thresholds.good || 60)) return { key: 'good', label: gradeLabels.good || 'HIGH' };
+      if (percentage >= (thresholds.satisfactory || 40)) return { key: 'satisfactory', label: gradeLabels.satisfactory || 'GOOD' };
+      if (percentage >= (thresholds.needsImprovement || 20)) return { key: 'needsImprovement', label: gradeLabels.needsImprovement || 'ASPIRING' };
+      if (percentage >= (thresholds.basic || 1)) return { key: 'basic', label: gradeLabels.basic || 'BASIC' };
+      return { key: 'fail', label: gradeLabels.fail || 'UNCLASSIFIED' };
+    };
+
+    const students = await studentRepository.find({
+      where: { classId: classId as string },
+      order: { firstName: 'ASC', lastName: 'ASC' },
+    });
+    const totalStudents = students.length;
+
+    const exams = await examRepository.find({
+      where: { classId: classId as string, type: examType as any, term: String(term) },
+      relations: ['subjects'],
+    });
+    const examIds = exams.map((e) => e.id);
+    if (examIds.length === 0) {
+      return res.json({
+        classId,
+        examType,
+        term,
+        subjectId,
+        subjectName: subject.name,
+        top5: [],
+        bottom5: [],
+        gradeDistribution: [],
+      });
+    }
+
+    const marks = await marksRepository.find({
+      where: {
+        examId: In(examIds),
+        studentId: In(students.map((s) => s.id)),
+        subjectId: subjectId as string,
+      },
+      relations: ['student'],
+    });
+
+    // aggregate percentage per student across exams
+    const pctMap = new Map<string, number[]>();
+    for (const m of marks) {
+      const maxScore = m.maxScore && Number(m.maxScore) > 0 ? parseFloat(String(m.maxScore)) : 100;
+      if (!Number.isFinite(maxScore) || maxScore <= 0) continue;
+
+      const hasUniform = m.uniformMark !== null && m.uniformMark !== undefined;
+      const hasScore = m.score !== null && m.score !== undefined;
+
+      let pct: number | null = null;
+      if (hasUniform) {
+        const u = parseFloat(String(m.uniformMark));
+        if (Number.isFinite(u) && u >= 0 && u <= 100) pct = u;
+      } else if (hasScore) {
+        const s = parseFloat(String(m.score));
+        if (Number.isFinite(s) && s >= 0 && s <= maxScore) pct = (s / maxScore) * 100;
+      }
+      if (pct === null) continue;
+
+      const arr = pctMap.get(m.studentId) || [];
+      arr.push(pct);
+      pctMap.set(m.studentId, arr);
+    }
+
+    const rows = Array.from(pctMap.entries()).map(([studentId, arr]) => {
+      const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+      const st = students.find((s) => s.id === studentId);
+      const name = st ? `${st.firstName} ${st.lastName}`.trim() : studentId;
+      const grade = getGradeInfo(avg);
+      return {
+        studentId,
+        studentName: name,
+        percentage: Math.round(avg * 100) / 100,
+        gradeLabel: grade.label,
+      };
+    });
+
+    const sortedDesc = [...rows].sort((a, b) => b.percentage - a.percentage);
+    const sortedAsc = [...rows].sort((a, b) => a.percentage - b.percentage);
+
+    const top5 = sortedDesc.slice(0, 5);
+    const bottom5 = sortedAsc.slice(0, 5);
+
+    const dist = new Map<string, number>();
+    for (const r of rows) {
+      const k = r.gradeLabel || 'N/A';
+      dist.set(k, (dist.get(k) || 0) + 1);
+    }
+    const gradeDistribution = Array.from(dist.entries())
+      .map(([grade, count]) => ({ grade, count }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json({
+      classId,
+      examType,
+      term,
+      subjectId,
+      subjectName: subject.name,
+      totalStudents,
+      studentsWithMarks: rows.length,
+      top5,
+      bottom5,
+      gradeDistribution,
+    });
+  } catch (error: any) {
+    console.error('Error generating subject analysis:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
   }
 };
 
@@ -4139,6 +4481,249 @@ export const getMarkInputProgress = async (req: AuthRequest, res: Response) => {
       error: error.message || 'Unknown error',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  }
+};
+
+/**
+ * Mark Input Progress for a single class across all subjects
+ * GET /api/exams/mark-input-progress/class-subjects
+ * Query params: classId (required), term?, examType?
+ */
+export const getMarkInputProgressByClassSubjects = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { classId, term, examType } = req.query as any;
+    if (!classId) {
+      return res.status(400).json({ message: 'classId is required' });
+    }
+
+    const classRepository = AppDataSource.getRepository(Class);
+    const studentRepository = AppDataSource.getRepository(Student);
+    const examRepository = AppDataSource.getRepository(Exam);
+    const subjectRepository = AppDataSource.getRepository(Subject);
+    const marksRepository = AppDataSource.getRepository(Marks);
+
+    const classEntity = await classRepository.findOne({ where: { id: String(classId) } });
+    if (!classEntity) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    const students = await studentRepository.find({
+      where: { classId: classEntity.id, isActive: true }
+    });
+    const totalStudents = students.length;
+
+    // Exams to consider (term/examType), scoped to class.
+    const examWhere: any = { classId: classEntity.id };
+    if (examType) examWhere.type = examType as ExamType;
+    if (term) examWhere.term = String(term);
+
+    const exams = await examRepository.find({ where: examWhere });
+    const examIds = exams.map(e => e.id);
+
+    // Active subjects list (we can later restrict to classEntity.subjects if needed)
+    const subjects = await subjectRepository.find({
+      where: { isActive: true },
+      order: { code: 'ASC', name: 'ASC' }
+    });
+
+    if (totalStudents === 0 || examIds.length === 0 || subjects.length === 0) {
+      return res.json({
+        filters: {
+          classId: classEntity.id,
+          term: term || null,
+          examType: examType || null
+        },
+        class: {
+          id: classEntity.id,
+          name: classEntity.name,
+          form: classEntity.form
+        },
+        totalStudents,
+        subjects: subjects.map(s => ({
+          subjectId: s.id,
+          subjectName: s.name,
+          subjectCode: s.code,
+          studentsWithMarks: 0,
+          completionPercentage: 0
+        }))
+      });
+    }
+
+    const studentIds = students.map(s => s.id);
+
+    // Aggregate: for each subject, how many distinct students have a mark record.
+    const raw = await marksRepository
+      .createQueryBuilder('marks')
+      .select('marks.subjectId', 'subjectId')
+      .addSelect('COUNT(DISTINCT marks.studentId)', 'studentsWithMarks')
+      .where('marks.examId IN (:...examIds)', { examIds })
+      .andWhere('marks.studentId IN (:...studentIds)', { studentIds })
+      .groupBy('marks.subjectId')
+      .getRawMany();
+
+    const countsBySubject = new Map<string, number>();
+    for (const row of raw) {
+      const sid = String(row.subjectId);
+      const count = Number(row.studentsWithMarks || 0);
+      countsBySubject.set(sid, Number.isFinite(count) ? count : 0);
+    }
+
+    const subjectsProgress = subjects.map(s => {
+      const studentsWithMarks = countsBySubject.get(s.id) ?? 0;
+      const completionPercentage =
+        totalStudents > 0 ? parseFloat(((studentsWithMarks / totalStudents) * 100).toFixed(2)) : 0;
+      return {
+        subjectId: s.id,
+        subjectName: s.name,
+        subjectCode: s.code,
+        studentsWithMarks,
+        completionPercentage
+      };
+    });
+
+    return res.json({
+      filters: {
+        classId: classEntity.id,
+        term: term || null,
+        examType: examType || null
+      },
+      class: {
+        id: classEntity.id,
+        name: classEntity.name,
+        form: classEntity.form
+      },
+      totalStudents,
+      subjects: subjectsProgress
+    });
+  } catch (error: any) {
+    console.error('[getMarkInputProgressByClassSubjects] Error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+/**
+ * Mark Input Progress for every active class (subject completion per class)
+ * GET /api/exams/mark-input-progress/all-classes-subjects
+ * Query params: term?, examType? (same filters as single-class endpoint)
+ */
+export const getMarkInputProgressAllClassesSubjects = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { term, examType } = req.query as any;
+
+    const classRepository = AppDataSource.getRepository(Class);
+    const studentRepository = AppDataSource.getRepository(Student);
+    const examRepository = AppDataSource.getRepository(Exam);
+    const subjectRepository = AppDataSource.getRepository(Subject);
+    const marksRepository = AppDataSource.getRepository(Marks);
+
+    const subjectList = await subjectRepository.find({
+      where: { isActive: true },
+      order: { code: 'ASC', name: 'ASC' }
+    });
+
+    const classes = await classRepository.find({
+      where: { isActive: true },
+      order: { form: 'ASC', name: 'ASC' }
+    });
+
+    const examWhere: any = {};
+    if (examType) examWhere.type = examType as ExamType;
+    if (term) examWhere.term = String(term);
+
+    const allExams =
+      Object.keys(examWhere).length > 0 ? await examRepository.find({ where: examWhere }) : await examRepository.find();
+
+    const allExamIds = allExams.map(e => e.id);
+
+    const studentCountsRaw = await studentRepository
+      .createQueryBuilder('s')
+      .select('s.classId', 'classId')
+      .addSelect('COUNT(s.id)', 'cnt')
+      .where('s.isActive = true')
+      .andWhere('s.classId IS NOT NULL')
+      .groupBy('s.classId')
+      .getRawMany();
+
+    const studentCountByClass = new Map<string, number>();
+    for (const row of studentCountsRaw) {
+      if (row.classId) {
+        studentCountByClass.set(String(row.classId), Number(row.cnt) || 0);
+      }
+    }
+
+    const countsByClassSubject = new Map<string, Map<string, number>>();
+
+    if (allExamIds.length > 0) {
+      const raw = await marksRepository
+        .createQueryBuilder('m')
+        .innerJoin('m.exam', 'e')
+        .innerJoin(Student, 's', 's.id = m.studentId')
+        .where('e.id IN (:...examIds)', { examIds: allExamIds })
+        .andWhere('s.classId = e.classId')
+        .andWhere('s.isActive = true')
+        .select('e.classId', 'classId')
+        .addSelect('m.subjectId', 'subjectId')
+        .addSelect('COUNT(DISTINCT m.studentId)', 'studentsWithMarks')
+        .groupBy('e.classId')
+        .addGroupBy('m.subjectId')
+        .getRawMany();
+
+      for (const row of raw) {
+        const cid = String(row.classId);
+        const sid = String(row.subjectId);
+        const cnt = Number(row.studentsWithMarks) || 0;
+        if (!countsByClassSubject.has(cid)) countsByClassSubject.set(cid, new Map());
+        countsByClassSubject.get(cid)!.set(sid, cnt);
+      }
+    }
+
+    const classesOut = classes.map(classEntity => {
+      const totalStudents = studentCountByClass.get(classEntity.id) ?? 0;
+      const bySubject = countsByClassSubject.get(classEntity.id) ?? new Map();
+
+      const subjectsProgress = subjectList.map(s => {
+        const studentsWithMarks = bySubject.get(s.id) ?? 0;
+        const completionPercentage =
+          totalStudents > 0 ? parseFloat(((studentsWithMarks / totalStudents) * 100).toFixed(2)) : 0;
+        return {
+          subjectId: s.id,
+          subjectName: s.name,
+          subjectCode: s.code,
+          studentsWithMarks,
+          completionPercentage
+        };
+      });
+
+      return {
+        class: {
+          id: classEntity.id,
+          name: classEntity.name,
+          form: classEntity.form
+        },
+        totalStudents,
+        subjects: subjectsProgress
+      };
+    });
+
+    return res.json({
+      mode: 'all',
+      filters: {
+        term: term || null,
+        examType: examType || null
+      },
+      classes: classesOut
+    });
+  } catch (error: any) {
+    console.error('[getMarkInputProgressAllClassesSubjects] Error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
   }
 };
 

@@ -57,6 +57,8 @@ export class SettingsComponent implements OnInit {
     schoolEmail: '',
     headmasterName: '',
     schoolMotto: '',
+    schoolMotto2: '',
+    schoolMotto3: '',
     academicYear: new Date().getFullYear().toString(),
     currentTerm: `Term 1 ${new Date().getFullYear()}`,
     schoolLogo: null,

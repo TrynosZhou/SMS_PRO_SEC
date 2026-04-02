@@ -22,6 +22,7 @@ import { syncStoredTeacherIdsWithSettingsPrefix } from './utils/syncStoredTeache
 import { ensureETaskTable } from './utils/ensureETaskTable';
 import { ensureETaskSubmissionTable } from './utils/ensureETaskSubmissionTable';
 import { ensureTeacherGenderColumn } from './utils/ensureTeacherGenderColumn';
+import { ensureSchoolMottoColumns } from './utils/ensureSchoolMottoColumns';
 import { ensureMessageAttachmentUrlColumn } from './utils/ensureMessageAttachmentUrlColumn';
 
 import * as path from 'path';
@@ -270,6 +271,12 @@ async function bootstrap() {
       await ensureTeacherGenderColumn(AppDataSource);
     } catch (tgErr: any) {
       console.warn('[Server] ensureTeacherGenderColumn:', tgErr?.message || tgErr);
+    }
+
+    try {
+      await ensureSchoolMottoColumns(AppDataSource);
+    } catch (smErr: any) {
+      console.warn('[Server] ensureSchoolMottoColumns:', smErr?.message || smErr);
     }
 
     try {
