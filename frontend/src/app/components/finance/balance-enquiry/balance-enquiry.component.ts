@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { FinanceService } from '../../../services/finance.service';
 import { StudentService } from '../../../services/student.service';
 import { SettingsService } from '../../../services/settings.service';
@@ -14,14 +14,18 @@ export class BalanceEnquiryComponent implements OnInit {
   studentData: any = null;
   loading = false;
   error = '';
+  copyFeedback = '';
 
   currencySymbol = 'KES';
+  showInvoiceBreakdown = false;
 
   // Name search fallback (Admin/Accountant only)
   nameSearchResults: any[] = [];
   showStudentPicker = false;
   nameSearchLoading = false;
   nameSearchSelectedStudentKey = '';
+
+  private copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private financeService: FinanceService,
@@ -33,7 +37,8 @@ export class BalanceEnquiryComponent implements OnInit {
   ngOnInit(): void {
     this.settingsService.getSettings().subscribe({
       next: (settings: any) => {
-        this.currencySymbol = settings?.currencySymbol || 'KES';
+        const raw = Array.isArray(settings) && settings.length > 0 ? settings[0] : settings;
+        this.currencySymbol = raw?.currencySymbol || 'KES';
       },
       error: () => {
         this.currencySymbol = 'KES';
@@ -49,6 +54,15 @@ export class BalanceEnquiryComponent implements OnInit {
     );
   }
 
+  /** Visual state for the balance hero */
+  balanceTone(): 'clear' | 'due' | 'loading' {
+    if (this.loading || !this.studentData) return 'loading';
+    const bal = Number(this.studentData.balance);
+    if (!Number.isFinite(bal)) return 'due';
+    if (bal <= 0.01) return 'clear';
+    return 'due';
+  }
+
   clear(): void {
     this.searchValue = '';
     this.studentData = null;
@@ -57,12 +71,23 @@ export class BalanceEnquiryComponent implements OnInit {
     this.nameSearchResults = [];
     this.showStudentPicker = false;
     this.nameSearchSelectedStudentKey = '';
+    this.showInvoiceBreakdown = false;
+    this.copyFeedback = '';
+  }
+
+  @HostListener('document:keyup', ['$event'])
+  onDocumentKeyup(ev: KeyboardEvent): void {
+    if (ev.key !== 'Escape') return;
+    if (!this.showStudentPicker) return;
+    this.showStudentPicker = false;
+    this.nameSearchResults = [];
+    this.nameSearchSelectedStudentKey = '';
   }
 
   getBalance(): void {
     const query = (this.searchValue || '').trim();
     if (!query) {
-      this.error = 'Please enter Student ID / Student Number or First Name / Last Name';
+      this.error = 'Enter a student ID, student number, or name to continue.';
       return;
     }
 
@@ -71,6 +96,8 @@ export class BalanceEnquiryComponent implements OnInit {
     this.showStudentPicker = false;
     this.nameSearchResults = [];
     this.nameSearchSelectedStudentKey = '';
+    this.showInvoiceBreakdown = false;
+    this.copyFeedback = '';
 
     this.loading = true;
     this.financeService.getStudentBalance(query).subscribe({
@@ -82,7 +109,6 @@ export class BalanceEnquiryComponent implements OnInit {
         const status = err?.status;
         const errMsg = err?.error?.message || err?.message || 'Failed to get student balance';
 
-        // If the direct lookup failed, attempt resolving by name.
         if (status === 404 && this.canSearchByName()) {
           this.loading = false;
           this.resolveStudentByName(query);
@@ -102,14 +128,14 @@ export class BalanceEnquiryComponent implements OnInit {
     this.showStudentPicker = false;
     this.nameSearchSelectedStudentKey = '';
 
-    this.studentService.getStudents({ page: 1, limit: 10, search: query }).subscribe({
+    this.studentService.getStudents({ page: 1, limit: 100, search: query }).subscribe({
       next: (data: any) => {
         const results = Array.isArray(data) ? data : data?.data || [];
         this.nameSearchResults = results || [];
         this.nameSearchLoading = false;
 
         if (!this.nameSearchResults.length) {
-          this.error = 'Student not found. Please check the Student ID / Student Number or name.';
+          this.error = 'Student not found. Check the ID, student number, or spelling of the name.';
           return;
         }
 
@@ -120,7 +146,6 @@ export class BalanceEnquiryComponent implements OnInit {
           return;
         }
 
-        // Multiple matches: let the accountant pick.
         this.showStudentPicker = true;
       },
       error: (err: any) => {
@@ -134,6 +159,7 @@ export class BalanceEnquiryComponent implements OnInit {
     this.loading = true;
     this.studentData = null;
     this.showStudentPicker = false;
+    this.showInvoiceBreakdown = false;
 
     this.financeService.getStudentBalance(lookupId).subscribe({
       next: (data: any) => {
@@ -152,11 +178,15 @@ export class BalanceEnquiryComponent implements OnInit {
     if (!this.nameSearchSelectedStudentKey) return;
 
     const key = this.nameSearchSelectedStudentKey;
-    const match = this.nameSearchResults.find((s: any) => (s?.id || s?.studentNumber) === key);
+    const match = this.nameSearchResults.find((s: any) => String(s?.id || s?.studentNumber) === String(key));
     const lookupId = match?.id || match?.studentNumber || key;
     const fallbackValue = match?.studentNumber || this.searchValue;
 
     this.loadBalanceForResolvedStudent(lookupId, fallbackValue);
+  }
+
+  studentOptionKey(s: any): string {
+    return String(s?.id || s?.studentNumber || '');
   }
 
   formatCurrency(amount: number): string {
@@ -165,5 +195,38 @@ export class BalanceEnquiryComponent implements OnInit {
       maximumFractionDigits: 2
     }).format(amount);
   }
-}
 
+  formatDate(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium'
+    }).format(d);
+  }
+
+  num(v: unknown): number {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  async copyText(label: string, text: string): Promise<void> {
+    const t = (text || '').trim();
+    if (!t) return;
+    try {
+      await navigator.clipboard.writeText(t);
+      this.flashCopyFeedback(`${label} copied`);
+    } catch {
+      this.flashCopyFeedback(`Could not copy ${label.toLowerCase()}`);
+    }
+  }
+
+  private flashCopyFeedback(msg: string): void {
+    this.copyFeedback = msg;
+    if (this.copyFeedbackTimer) clearTimeout(this.copyFeedbackTimer);
+    this.copyFeedbackTimer = setTimeout(() => {
+      this.copyFeedback = '';
+      this.copyFeedbackTimer = null;
+    }, 2200);
+  }
+}

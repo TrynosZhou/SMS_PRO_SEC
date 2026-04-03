@@ -28,7 +28,7 @@ export class ClassListsComponent implements OnInit {
   teacherClasses: any[] = [];
   pagination = {
     page: 1,
-    limit: 20,
+    limit: 100,
     total: 0,
     totalPages: 1
   };

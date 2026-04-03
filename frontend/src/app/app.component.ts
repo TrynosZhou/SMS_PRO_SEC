@@ -2,7 +2,7 @@ import { Component, HostListener, OnInit } from '@angular/core';
 import { AuthService } from './services/auth.service';
 import { SettingsService } from './services/settings.service';
 import { ModuleAccessService } from './services/module-access.service';
-import { Router, NavigationEnd } from '@angular/router';
+import { Router, NavigationEnd, IsActiveMatchOptions } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { UserActivityService } from './services/user-activity.service';
 
@@ -12,6 +12,17 @@ import { UserActivityService } from './services/user-activity.service';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent implements OnInit {
+  /**
+   * Subset match for nested admin routes. Must set queryParams/matrixParams/fragment:
+   * partial `{ paths: 'subset' }` is treated as full IsActiveMatchOptions and breaks Router.isActive.
+   */
+  readonly linkActiveSubset: IsActiveMatchOptions = {
+    paths: 'subset',
+    queryParams: 'subset',
+    fragment: 'ignored',
+    matrixParams: 'ignored',
+  };
+
   schoolName = 'School Management System';
   mobileMenuOpen = false;
   /** Slide-out nav drawer for staff/student on narrow viewports (separate from sidebarCollapsed). */

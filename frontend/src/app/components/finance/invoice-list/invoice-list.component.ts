@@ -75,11 +75,11 @@ export class InvoiceListComponent implements OnInit {
   Math = Math; // Expose Math to template for calculations
   pagination = {
     page: 1,
-    limit: 10,
+    limit: 100,
     total: 0,
     totalPages: 1
   };
-  pageSizeOptions = [10, 20, 50];
+  pageSizeOptions = [10, 20, 50, 100];
   private searchDebounceTimer: any = null;
 
   // Invoice Management quick actions (matches the uploaded UI)
@@ -386,6 +386,43 @@ export class InvoiceListComponent implements OnInit {
     this.loadInvoices();
   }
 
+  setStatusFilter(status: string) {
+    this.selectedStatusFilter = status || '';
+    this.pagination.page = 1;
+    this.loadInvoices();
+  }
+
+  clearSearchAndReload() {
+    this.invoiceSearchQuery = '';
+    this.pagination.page = 1;
+    this.loadInvoices();
+  }
+
+  trackByInvoiceId(_index: number, invoice: any): string {
+    return invoice?.id ?? _index;
+  }
+
+  getStatusPillClass(status: string | undefined): string {
+    const s = (status || '').toLowerCase();
+    const map: Record<string, string> = {
+      paid: 'bl-pill bl-pill-success',
+      pending: 'bl-pill bl-pill-warn',
+      partial: 'bl-pill bl-pill-info',
+      overdue: 'bl-pill bl-pill-danger',
+    };
+    return map[s] || 'bl-pill bl-pill-muted';
+  }
+
+  getPageRangeLabel(): string {
+    const total = this.pagination.total;
+    if (total <= 0) {
+      return '0 invoices';
+    }
+    const start = (this.pagination.page - 1) * this.pagination.limit + 1;
+    const end = Math.min(this.pagination.page * this.pagination.limit, total);
+    return `Showing ${start}–${end} of ${total}`;
+  }
+
   hasActiveInvoiceFilters(): boolean {
     return !!(this.invoiceSearchQuery || this.selectedStatusFilter || this.selectedTermFilter || this.selectedStudent);
   }
@@ -614,16 +651,6 @@ export class InvoiceListComponent implements OnInit {
     }
     const byteArray = new Uint8Array(byteNumbers);
     return new Blob([byteArray], { type: mimeType });
-  }
-
-  getStatusClass(status: string): string {
-    const statusMap: any = {
-      'paid': 'alert-success',
-      'pending': 'alert-info',
-      'partial': 'alert-info',
-      'overdue': 'alert-error'
-    };
-    return statusMap[status] || '';
   }
 
   viewInvoicePDF(invoiceId: string, event?: Event) {

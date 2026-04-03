@@ -21,7 +21,7 @@ export class TransactionAuditComponent implements OnInit {
   error = '';
 
   page = 1;
-  limit = 20;
+  limit = 100;
   total = 0;
   totalPages = 1;
 
@@ -47,13 +47,15 @@ export class TransactionAuditComponent implements OnInit {
     this.loadLogs();
   }
 
-  toggleSort(column: string) {
+  toggleSort(column: string): void {
     if (this.sortBy === column) {
       this.sortDir = this.sortDir === 'ASC' ? 'DESC' : 'ASC';
-      return;
+    } else {
+      this.sortBy = column;
+      this.sortDir = 'DESC';
     }
-    this.sortBy = column;
-    this.sortDir = 'DESC';
+    this.page = 1;
+    this.loadLogs();
   }
 
   loadLogs() {
@@ -114,8 +116,45 @@ export class TransactionAuditComponent implements OnInit {
     this.loadLogs();
   }
 
+  onLimitChange(next: number | string): void {
+    const n = typeof next === 'number' ? next : parseInt(String(next), 10);
+    if (!Number.isFinite(n) || n < 1 || n === this.limit) return;
+    this.limit = n;
+    this.page = 1;
+    this.loadLogs();
+  }
+
+  sortChevron(column: string): string {
+    if (this.sortBy !== column) return '';
+    return this.sortDir === 'ASC' ? '↑' : '↓';
+  }
+
+  trackByLog(_index: number, log: any): string {
+    return String(log?.id ?? log?.eventAt ?? _index);
+  }
+
+  getShowingRange(): { from: number; to: number } {
+    if (this.total === 0) return { from: 0, to: 0 };
+    const from = (this.page - 1) * this.limit + 1;
+    const to = Math.min(this.page * this.limit, this.total);
+    return { from, to };
+  }
+
+  refresh(): void {
+    this.loadLogs();
+  }
+
   highlightAnomaly(anomaly: boolean): string {
     return anomaly ? 'anomaly-row' : '';
+  }
+
+  formatAmount(value: unknown): string {
+    const n = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+    if (!Number.isFinite(n)) return String(value ?? '—');
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(n);
   }
 }
 

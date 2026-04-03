@@ -23,7 +23,7 @@ export class OutstandingBalanceComponent implements OnInit {
   sortDirection: 'asc' | 'desc' = 'desc';
   riskFilter: 'all' | 'low' | 'medium' | 'high' = 'all';
   page = 1;
-  pageSize = 10;
+  pageSize = 100;
   maxBalance = 0;
 
   constructor(
@@ -40,7 +40,8 @@ export class OutstandingBalanceComponent implements OnInit {
 
   loadSettings(): void {
     this.settingsService.getSettings().subscribe({
-      next: (settings: any) => {
+      next: (raw: any) => {
+        const settings = Array.isArray(raw) && raw.length > 0 ? raw[0] : raw;
         if (settings) {
           this.currencySymbol = settings.currencySymbol || 'KES';
         }
@@ -175,13 +176,17 @@ export class OutstandingBalanceComponent implements OnInit {
     return 'Low';
   }
 
-  getRiskClass(amount: number): string {
-    const risk = this.getRiskCategory(amount).toLowerCase(); // high|medium|low
-    return `risk-${risk}`;
-  }
-
   getTotalPages(sourceLength: number = this.filteredBalances.length): number {
     return Math.max(1, Math.ceil(sourceLength / this.pageSize));
+  }
+
+  /** 1-based inclusive range for current page (“Showing …” label). */
+  getPageRange(): { from: number; to: number; total: number } {
+    const total = this.filteredBalances.length;
+    if (total === 0) return { from: 0, to: 0, total: 0 };
+    const from = (this.page - 1) * this.pageSize + 1;
+    const to = Math.min(this.page * this.pageSize, total);
+    return { from, to, total };
   }
 
   changePage(nextPage: number): void {
@@ -208,6 +213,15 @@ export class OutstandingBalanceComponent implements OnInit {
     return this.authService.hasRole('admin') || 
            this.authService.hasRole('superadmin') || 
            this.authService.hasRole('accountant');
+  }
+
+  setRiskFilter(level: 'all' | 'low' | 'medium' | 'high'): void {
+    this.riskFilter = level;
+    this.filterBalances();
+  }
+
+  trackByBalance(_index: number, balance: any): string {
+    return String(balance?.studentId || balance?.studentNumber || balance?.invoiceId || _index);
   }
 
   payInvoice(balance: any): void {

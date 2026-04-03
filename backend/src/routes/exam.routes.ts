@@ -31,7 +31,8 @@ import {
   getMarkInputProgress,
   getMarkInputProgressByClassSubjects,
   getMarkInputProgressAllClassesSubjects,
-  generateAIRemark
+  generateAIRemark,
+  generateAIReportRemark
 } from '../controllers/exam.controller';
 
 const router = Router();
@@ -48,6 +49,12 @@ router.post(
 );
 router.post('/marks', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.TEACHER, UserRole.DEMO_USER), captureMarks);
 router.post('/generate-ai-remark', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.TEACHER, UserRole.DEMO_USER), generateAIRemark);
+router.post(
+  '/generate-ai-report-remark',
+  authenticate,
+  authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.TEACHER, UserRole.DEMO_USER),
+  generateAIReportRemark
+);
 router.get('/marks', authenticate, getMarks);
 router.get('/rankings/class', authenticate, getStudentRankings);
 router.get('/rankings/class-by-type', authenticate, getClassRankingsByType);

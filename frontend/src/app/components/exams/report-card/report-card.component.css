@@ -899,12 +899,85 @@
   margin-bottom: 20px;
 }
 
+.remarks-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
 .remarks-label {
   display: block;
   margin-bottom: 8px;
   font-weight: 700;
   color: #000000;
   font-size: 14px;
+}
+
+.remarks-label-inline {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-ai-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-suggest-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.95;
+}
+
+.btn-ai-report-remark {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-ai-report-remark:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.btn-ai-report-remark:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.btn-ai-report-remark .ai-busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spinner-tiny {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: report-card-spin 0.7s linear infinite;
+}
+
+@keyframes report-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .read-only-badge {
@@ -948,15 +1021,63 @@
 
 .remarks-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 15px;
+  gap: 12px 15px;
   margin-top: 20px;
 }
 
-.saved-indicator {
-  color: #28a745;
-  font-size: 14px;
+.remarks-actions--status-only {
+  margin-top: 12px;
+}
+
+.autosave-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748b;
   font-weight: 500;
+}
+
+.autosave-indicator .spinner-small {
+  flex-shrink: 0;
+}
+
+/* Solid green tick beside class teacher / headmaster labels after save */
+.remark-saved-tick {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #16a34a;
+  animation: remark-tick-pop 0.35s ease-out;
+}
+
+.remark-saved-tick-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(22, 163, 74, 0.35));
+}
+
+@keyframes remark-tick-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.autosave-indicator.autosave-err {
+  color: #b45309;
+  max-width: 100%;
 }
 
 /* Navigation Hint */

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ExamService } from '../../../services/exam.service';
 import { ClassService } from '../../../services/class.service';
@@ -31,7 +31,7 @@ import { trigger, state, style, transition, animate } from '@angular/animations'
     ])
   ]
 })
-export class ReportCardComponent implements OnInit {
+export class ReportCardComponent implements OnInit, OnDestroy {
   classes: any[] = [];
   allSubjects: any[] = [];
   subjects: any[] = [];
@@ -50,7 +50,6 @@ export class ReportCardComponent implements OnInit {
   error = '';
   success = '';
   canEditRemarks = false;
-  savingRemarks = false;
   studentSearchQuery = '';
   
   // Form validation
@@ -73,7 +72,16 @@ export class ReportCardComponent implements OnInit {
   schoolEmail = '';
   gradeThresholds: any = null;
   gradeLabels: any = null;
-  
+
+  /** Keys `${studentId}:class_teacher` | `${studentId}:headmaster` while AI remark is loading */
+  private readonly aiReportRemarkBusy = new Set<string>();
+
+  /** Short delay so typing feels “immediate” without flooding the API */
+  private readonly REMARK_AUTOSAVE_MS = 320;
+  private readonly remarkAutosaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Per-student UI state after debounced remark save */
+  remarkAutosaveStatus: Record<string, 'idle' | 'saving' | 'saved' | 'error'> = {};
+
   // Teacher data
   teacher: any = null;
   teacherSubjects: any[] = [];
@@ -90,11 +98,20 @@ export class ReportCardComponent implements OnInit {
     private parentService: ParentService,
     private settingsService: SettingsService
   ) {
-    // Check if user can edit remarks (teacher or admin)
-    this.canEditRemarks = this.authService.hasRole('teacher') || this.authService.hasRole('admin');
+    this.canEditRemarks =
+      this.authService.hasRole('teacher') ||
+      this.authService.hasRole('admin') ||
+      this.authService.hasRole('superadmin');
     this.isParent = this.authService.hasRole('parent');
     const user = this.authService.getCurrentUser();
     this.isAdmin = user ? (user.role === 'admin' || user.role === 'superadmin') : false;
+  }
+
+  ngOnDestroy(): void {
+    for (const t of this.remarkAutosaveTimers.values()) {
+      clearTimeout(t);
+    }
+    this.remarkAutosaveTimers.clear();
   }
 
   ngOnInit() {
@@ -577,43 +594,159 @@ export class ReportCardComponent implements OnInit {
     });
   }
 
-  saveRemarks(reportCard: any) {
-    if (!reportCard || !reportCard.student || !this.selectedClass || !this.selectedExamType) {
-      this.error = 'Invalid report card data';
-      return;
+  /** Called when class teacher or headmaster textarea changes (debounced auto-save). */
+  onReportCardRemarksChange(reportCard: any): void {
+    if (!reportCard?.student?.id) return;
+    if (this.isParent || !this.isSelectionValid()) return;
+    if (!this.canEditRemarks && !this.isAdmin) return;
+    const sid = reportCard.student.id as string;
+    if (this.remarkAutosaveStatus[sid] === 'saved') {
+      this.remarkAutosaveStatus = { ...this.remarkAutosaveStatus, [sid]: 'idle' };
+    }
+    this.scheduleRemarksAutosave(reportCard);
+  }
+
+  getRemarkAutosaveState(studentId: string): 'idle' | 'saving' | 'saved' | 'error' {
+    return this.remarkAutosaveStatus[studentId] || 'idle';
+  }
+
+  /**
+   * Grade scale footer: same band logic as backend report-card `getGradeInfo`
+   * (settings gradeThresholds + gradeLabels).
+   */
+  getGradeScaleFooterRows(): { range: string; label: string }[] {
+    const t = this.gradeThresholds;
+    const l = this.gradeLabels || {};
+    if (!t) {
+      return [];
     }
 
-    this.savingRemarks = true;
-    this.error = '';
-    this.success = '';
+    const vg = this.clampPct(this.toPctThreshold(t.veryGood, 80));
+    const g = this.clampPct(this.toPctThreshold(t.good, 60));
+    const sat = this.clampPct(this.toPctThreshold(t.satisfactory, 40));
+    const ni = this.clampPct(this.toPctThreshold(t.needsImprovement, 20));
+    const basic = this.clampPct(this.toPctThreshold(t.basic, 1));
+
+    const rows: { range: string; label: string }[] = [];
+
+    const pushBand = (low: number, high: number, labelKey: string, fallback: string) => {
+      if (low > high) return;
+      const raw = (l as Record<string, string | undefined>)[labelKey];
+      const label =
+        raw !== undefined && raw !== null && String(raw).trim() !== ''
+          ? String(raw).trim()
+          : fallback;
+      rows.push({
+        range: low === high ? `${low}` : `${low} – ${high}`,
+        label,
+      });
+    };
+
+    pushBand(vg, 100, 'veryGood', 'VERY HIGH');
+    if (g <= vg - 1) pushBand(g, vg - 1, 'good', 'HIGH');
+    if (sat <= g - 1) pushBand(sat, g - 1, 'satisfactory', 'GOOD');
+    if (ni <= sat - 1) pushBand(ni, sat - 1, 'needsImprovement', 'ASPIRING');
+    if (basic <= ni - 1) pushBand(basic, ni - 1, 'basic', 'BASIC');
+
+    const failLabel = l.fail || 'UNCLASSIFIED';
+    if (basic <= 1) {
+      rows.push({ range: '0', label: failLabel });
+    } else {
+      pushBand(0, basic - 1, 'fail', failLabel);
+    }
+
+    return rows;
+  }
+
+  private toPctThreshold(v: unknown, fallback: number): number {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n) : fallback;
+  }
+
+  private clampPct(n: number): number {
+    return Math.max(0, Math.min(100, n));
+  }
+
+  private clearRemarkAutosaveTimer(studentId: string): void {
+    const t = this.remarkAutosaveTimers.get(studentId);
+    if (t) {
+      clearTimeout(t);
+      this.remarkAutosaveTimers.delete(studentId);
+    }
+  }
+
+  private scheduleRemarksAutosave(reportCard: any): void {
+    const sid = reportCard?.student?.id as string | undefined;
+    if (!sid || !this.selectedClass || !this.selectedExamType) return;
+    if (this.isAIReportRemarkBusyForStudent(sid)) return;
+
+    this.clearRemarkAutosaveTimer(sid);
+    const timer = setTimeout(() => {
+      this.remarkAutosaveTimers.delete(sid);
+      this.persistReportCardRemarks(reportCard);
+    }, this.REMARK_AUTOSAVE_MS);
+    this.remarkAutosaveTimers.set(sid, timer);
+  }
+
+  private isAIReportRemarkBusyForStudent(studentId: string): boolean {
+    return (
+      this.aiReportRemarkBusy.has(`${studentId}:class_teacher`) ||
+      this.aiReportRemarkBusy.has(`${studentId}:headmaster`)
+    );
+  }
+
+  /**
+   * Persists class teacher + headmaster remarks for one student (backend applies fields by role).
+   */
+  private persistReportCardRemarks(reportCard: any): void {
+    const sid = reportCard?.student?.id as string;
+    if (!sid || !this.selectedClass || !this.selectedExamType || !reportCard.student) return;
+    if (this.isAIReportRemarkBusyForStudent(sid)) return;
+
+    this.remarkAutosaveStatus = { ...this.remarkAutosaveStatus, [sid]: 'saving' };
 
     const classTeacherRemarks = reportCard.remarks?.classTeacherRemarks || '';
     const headmasterRemarks = reportCard.remarks?.headmasterRemarks || '';
 
-    this.examService.saveReportCardRemarks(
-      reportCard.student.id,
-      this.selectedClass,
-      this.selectedExamType,
-      classTeacherRemarks,
-      headmasterRemarks
-    ).subscribe({
-      next: (response: any) => {
-        this.success = 'Remarks saved successfully';
-        // Update the report card with saved remarks
-        if (!reportCard.remarks) {
-          reportCard.remarks = {};
-        }
-        reportCard.remarks.id = response.remarks.id;
-        reportCard.remarks.classTeacherRemarks = response.remarks.classTeacherRemarks;
-        reportCard.remarks.headmasterRemarks = response.remarks.headmasterRemarks;
-        this.savingRemarks = false;
-        setTimeout(() => this.success = '', 3000);
-      },
-      error: (err: any) => {
-        this.error = err.error?.message || 'Failed to save remarks';
-        this.savingRemarks = false;
-      }
-    });
+    this.examService
+      .saveReportCardRemarks(
+        sid,
+        this.selectedClass,
+        this.selectedExamType,
+        classTeacherRemarks,
+        headmasterRemarks
+      )
+      .subscribe({
+        next: (response: any) => {
+          if (!reportCard.remarks) {
+            reportCard.remarks = {};
+          }
+          reportCard.remarks.id = response.remarks.id;
+          reportCard.remarks.classTeacherRemarks = response.remarks.classTeacherRemarks;
+          reportCard.remarks.headmasterRemarks = response.remarks.headmasterRemarks;
+          this.showRemarkSavedTick(sid);
+        },
+        error: (err: any) => {
+          const msg = err.error?.message || 'Failed to save remarks';
+          this.remarkAutosaveStatus = { ...this.remarkAutosaveStatus, [sid]: 'error' };
+          if (err.status === 403) {
+            this.error = msg;
+            setTimeout(() => (this.error = ''), 10000);
+          }
+          setTimeout(() => {
+            if (this.remarkAutosaveStatus[sid] === 'error') {
+              const next = { ...this.remarkAutosaveStatus };
+              next[sid] = 'idle';
+              this.remarkAutosaveStatus = next;
+            }
+          }, 6000);
+        },
+      });
+  }
+
+  /** Solid green tick stays until the user edits the remarks again (see onReportCardRemarksChange). */
+  private showRemarkSavedTick(studentId: string): void {
+    this.remarkAutosaveStatus = { ...this.remarkAutosaveStatus, [studentId]: 'saved' };
   }
 
   // Search and filtering
@@ -751,6 +884,84 @@ export class ReportCardComponent implements OnInit {
       return null;
     }
     return Math.round(parsed);
+  }
+
+  isAIReportRemarkBusy(studentId: string, kind: 'class_teacher' | 'headmaster'): boolean {
+    return this.aiReportRemarkBusy.has(`${studentId}:${kind}`);
+  }
+
+  private buildReportRemarkContext(reportCard: any): Record<string, unknown> {
+    const examLabel =
+      this.examTypes.find((e) => e.value === this.selectedExamType)?.label || this.selectedExamType || '';
+    return {
+      studentName: reportCard?.student?.name,
+      className: reportCard?.student?.class,
+      term: this.selectedTerm,
+      examTypeLabel: examLabel,
+      overallAverage: reportCard?.overallAverage,
+      overallGrade: reportCard?.overallGrade,
+      classPosition:
+        reportCard?.classPosition && reportCard?.totalStudents
+          ? `${reportCard.classPosition} / ${reportCard.totalStudents}`
+          : reportCard?.classPosition,
+      formPosition:
+        reportCard?.formPosition && reportCard?.totalStudentsPerStream
+          ? `${reportCard.formPosition} / ${reportCard.totalStudentsPerStream}`
+          : reportCard?.formPosition,
+      subjects: (reportCard?.subjects || []).map((s: any) => ({
+        subject: s.subject,
+        grade: s.grade,
+        percentage: s.percentage,
+      })),
+    };
+  }
+
+  generateAIReportRemark(reportCard: any, kind: 'class_teacher' | 'headmaster'): void {
+    if (!reportCard?.student?.id) return;
+    const sid = reportCard.student.id as string;
+    const key = `${sid}:${kind}`;
+    if (this.aiReportRemarkBusy.has(key)) return;
+
+    if (kind === 'headmaster' && !this.isAdmin) return;
+    if (kind === 'class_teacher' && !this.canEditRemarks) return;
+
+    this.aiReportRemarkBusy.add(key);
+    this.error = '';
+    const context = this.buildReportRemarkContext(reportCard);
+
+    this.examService
+      .generateAIReportRemark(sid, kind, context, this.selectedClass || undefined, this.selectedExamType || undefined)
+      .subscribe({
+        next: (res) => {
+          const text = (res?.remark || '').trim().slice(0, 500);
+          if (!reportCard.remarks) {
+            reportCard.remarks = { id: null, classTeacherRemarks: null, headmasterRemarks: null };
+          }
+          if (kind === 'class_teacher') {
+            reportCard.remarks = { ...reportCard.remarks, classTeacherRemarks: text || null };
+          } else {
+            reportCard.remarks = { ...reportCard.remarks, headmasterRemarks: text || null };
+          }
+          this.aiReportRemarkBusy.delete(key);
+          this.clearRemarkAutosaveTimer(sid);
+          this.persistReportCardRemarks(reportCard);
+        },
+        error: (err: any) => {
+          this.aiReportRemarkBusy.delete(key);
+          const body = err.error;
+          let msg = 'Failed to generate AI remark';
+          if (err.status === 429 || body?.code === 'insufficient_quota') {
+            msg =
+              'AI is unavailable: OpenAI quota or billing. Add credits at platform.openai.com, then retry.';
+          } else if (body?.message) {
+            msg = body.message;
+          } else if (typeof err.error === 'string') {
+            msg = err.error;
+          }
+          this.error = msg;
+          setTimeout(() => (this.error = ''), 10000);
+        },
+      });
   }
 }
 

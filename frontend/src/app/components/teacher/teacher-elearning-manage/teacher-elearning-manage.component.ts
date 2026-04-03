@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, IsActiveMatchOptions } from '@angular/router';
 
 /**
  * Tabbed shell for teacher E-learning: Create Task, Submissions, Record Book, My Classes.
@@ -11,6 +11,13 @@ import { Router } from '@angular/router';
   styleUrls: ['./teacher-elearning-manage.component.css'],
 })
 export class TeacherElearningManageComponent {
+  readonly linkActiveSubset: IsActiveMatchOptions = {
+    paths: 'subset',
+    queryParams: 'subset',
+    fragment: 'ignored',
+    matrixParams: 'ignored',
+  };
+
   constructor(public router: Router) {}
 
   isTasksActive(): boolean {

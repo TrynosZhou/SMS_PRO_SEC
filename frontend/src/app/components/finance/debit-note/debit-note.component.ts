@@ -148,7 +148,7 @@ export class DebitNoteComponent implements OnInit {
     this.nameSearchResults = [];
     this.showStudentPicker = false;
 
-    this.studentService.getStudents({ page: 1, limit: 20, search: query }).subscribe({
+    this.studentService.getStudents({ page: 1, limit: 100, search: query }).subscribe({
       next: (data: any) => {
         const results = Array.isArray(data) ? data : data?.data || [];
         this.nameSearchResults = results || [];

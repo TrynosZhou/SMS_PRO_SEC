@@ -64,8 +64,9 @@ export async function generateAIComment(
     const prompt = buildCommentPrompt(performanceData, commentType);
 
     // Call OpenAI API
+    const model = (process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
     const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo', // Use gpt-4 for better quality if available
+      model,
       messages: [
         {
           role: 'system',

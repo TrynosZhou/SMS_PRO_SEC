@@ -29,7 +29,16 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 // =================== ENVIRONMENT SETUP ===================
-dotenv.config();
+// Load .env from backend root (works for `node dist/server.js` and `nodemon src/server.ts`)
+const envPath = path.resolve(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+} else {
+  dotenv.config();
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn('[Server] No .env at', envPath, '(cwd:', process.cwd(), ') — using default dotenv lookup');
+  }
+}
 
 // Validate required environment variables
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim());

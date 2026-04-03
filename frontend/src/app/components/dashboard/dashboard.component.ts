@@ -45,6 +45,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   };
   
   loadingStats = true;
+  /** Pending XHRs for admin/accountant stats (5 sources). */
+  private statsLoadRemaining = 0;
+  currencySymbol = '';
+  academicYear = '';
+  currentTerm = '';
   recentStudents: any[] = [];
   recentInvoices: any[] = [];
 
@@ -85,8 +90,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   
   loadStatistics() {
     this.loadingStats = true;
-    
-    // Load students
+    this.statsLoadRemaining = 5;
+    const done = () => {
+      this.statsLoadRemaining--;
+      if (this.statsLoadRemaining <= 0) {
+        this.loadingStats = false;
+      }
+    };
+
     this.studentService.getStudents().subscribe({
       next: (students: any[]) => {
         this.stats.totalStudents = students.length;
@@ -96,74 +107,83 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.recentStudents = students
           .sort((a, b) => new Date(b.enrollmentDate || b.createdAt || 0).getTime() - new Date(a.enrollmentDate || a.createdAt || 0).getTime())
           .slice(0, 5);
-        this.checkLoadingComplete();
+        done();
       },
       error: (err) => {
         console.error('Error loading students:', err);
-        this.checkLoadingComplete();
+        done();
       }
     });
-    
-    // Load teachers
+
     this.teacherService.getTeachers().subscribe({
       next: (teachers: any[]) => {
         this.stats.totalTeachers = teachers.length;
-        this.checkLoadingComplete();
+        done();
       },
       error: (err) => {
         console.error('Error loading teachers:', err);
-        this.checkLoadingComplete();
+        done();
       }
     });
-    
-    // Load classes
+
     this.classService.getClasses().subscribe({
-      next: (classes: any[]) => {
-        this.stats.totalClasses = classes.filter(c => c.isActive).length;
-        this.checkLoadingComplete();
+      next: (classes: any) => {
+        const list = Array.isArray(classes) ? classes : classes?.data || [];
+        this.stats.totalClasses = list.filter((c: any) => c.isActive).length;
+        done();
       },
       error: (err) => {
         console.error('Error loading classes:', err);
-        this.checkLoadingComplete();
+        done();
       }
     });
-    
-    // Load subjects
+
     this.subjectService.getSubjects().subscribe({
-      next: (subjects: any[]) => {
-        this.stats.totalSubjects = subjects.length;
-        this.checkLoadingComplete();
+      next: (subjects: any) => {
+        const list = Array.isArray(subjects) ? subjects : subjects?.data || [];
+        this.stats.totalSubjects = list.length;
+        done();
       },
       error: (err) => {
         console.error('Error loading subjects:', err);
-        this.checkLoadingComplete();
+        done();
       }
     });
-    
-    // Load invoices (for admin/accountant)
+
     if (this.isAdmin() || this.isAccountant()) {
       this.financeService.getInvoices().subscribe({
-        next: (invoices: any[]) => {
-          this.stats.totalInvoices = invoices.length;
-          this.stats.totalBalance = invoices.reduce((sum, inv) => sum + (parseFloat(inv.balance) || 0), 0);
-          this.recentInvoices = invoices
-            .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        next: (invoices: any) => {
+          const list = Array.isArray(invoices) ? invoices : invoices?.data || [];
+          this.stats.totalInvoices = list.length;
+          this.stats.totalBalance = list.reduce((sum: number, inv: any) => sum + (parseFloat(String(inv.balance)) || 0), 0);
+          this.recentInvoices = list
+            .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
             .slice(0, 5);
-          this.checkLoadingComplete();
+          done();
         },
         error: (err) => {
           console.error('Error loading invoices:', err);
-          this.checkLoadingComplete();
+          done();
         }
       });
     }
   }
-  
-  private checkLoadingComplete() {
-    // Simple check - in a real app, you'd use a more sophisticated loading state
-    setTimeout(() => {
-      this.loadingStats = false;
-    }, 500);
+
+  getRoleLabel(): string {
+    if (this.isSuperAdmin()) return 'Super admin';
+    if (this.isAdmin()) return 'Admin';
+    if (this.isAccountant()) return 'Accountant';
+    if (this.isParent()) return 'Parent';
+    if (this.isStudent()) return 'Student';
+    return 'Staff';
+  }
+
+  trackByStudentId(_i: number, s: any): string {
+    return s?.id ?? String(_i);
+  }
+
+  trackByInvoiceId(_i: number, inv: any): string {
+    return inv?.id ?? String(_i);
   }
 
   isDemoUser(): boolean {
@@ -174,24 +194,31 @@ export class DashboardComponent implements OnInit, OnDestroy {
   loadSettings() {
     this.settingsService.getSettings().subscribe({
       next: (data: any) => {
+        const row = Array.isArray(data) && data.length ? data[0] : data;
         // For demo users, always use "Demo School"
         if (this.isDemoUser()) {
           this.schoolName = 'Demo School';
         } else {
-          this.schoolName = data.schoolName || '';
+          this.schoolName = row?.schoolName || '';
         }
-        this.moduleAccess = data.moduleAccess || {};
+        this.currencySymbol = row?.currencySymbol || '';
+        this.academicYear = row?.academicYear || '';
+        this.currentTerm = row?.currentTerm || '';
+        this.moduleAccess = row?.moduleAccess || {};
 
         // Update module access service with latest settings
-        if (data.moduleAccess) {
-          (this.moduleAccessService as any).moduleAccess = data.moduleAccess;
+        if (row?.moduleAccess) {
+          (this.moduleAccessService as any).moduleAccess = row.moduleAccess;
         }
 
-        this.startHeadlineRotation(data);
+        this.startHeadlineRotation(row || {});
       },
       error: (err: any) => {
         console.error('Error loading settings:', err);
         this.schoolName = '';
+        this.currencySymbol = '';
+        this.academicYear = '';
+        this.currentTerm = '';
         this.startHeadlineRotation({});
         // Use default module access from service
         this.moduleAccess = this.moduleAccessService.getModuleAccess();

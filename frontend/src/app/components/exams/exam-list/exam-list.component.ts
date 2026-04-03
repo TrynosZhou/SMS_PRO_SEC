@@ -1055,14 +1055,9 @@ export class ExamListComponent implements OnInit, OnDestroy {
         this.generatingRemarks.set(studentId, false);
       },
       error: (err: any) => {
-        console.error('Error generating AI remark:', err);
-        console.error('Error details:', {
-          status: err.status,
-          statusText: err.statusText,
-          message: err.error?.message || err.message,
-          error: err.error,
-          errorString: JSON.stringify(err.error, null, 2)
-        });
+        const body = err.error;
+        console.error('Error generating AI remark:', err.status, err.statusText);
+        console.error('API response body (JSON):', typeof body === 'object' && body !== null ? JSON.stringify(body, null, 2) : body);
         
         // Show detailed error message to user
         let errorMessage = 'Failed to generate AI remark';
@@ -1079,7 +1074,11 @@ export class ExamListComponent implements OnInit, OnDestroy {
         }
         
         // Show error message to user
-        if (err.status === 500) {
+        if (err.status === 429 || err.error?.code === 'insufficient_quota') {
+          this.error =
+            'AI remarks are paused: your OpenAI account has no quota or billing. Add payment method or credits at platform.openai.com (organization billing), then retry.';
+          setTimeout(() => (this.error = ''), 12000);
+        } else if (err.status === 500) {
           if (errorMessage.includes('OpenAI API key')) {
             this.error = 'AI remark generation is not configured. Please contact the administrator to set up OpenAI API key.';
           } else {

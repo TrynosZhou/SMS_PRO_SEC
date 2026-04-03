@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FinanceService } from '../../../services/finance.service';
 import { SettingsService } from '../../../services/settings.service';
@@ -136,7 +136,8 @@ export class RecordPaymentComponent implements OnInit {
 
   loadCurrentTerm(): void {
     this.settingsService.getSettings().subscribe({
-      next: (settings: any) => {
+      next: (raw: any) => {
+        const settings = Array.isArray(raw) && raw.length > 0 ? raw[0] : raw;
         if (settings) {
           // Load currency symbol
           this.currencySymbol = settings.currencySymbol || 'KES';
@@ -254,7 +255,7 @@ export class RecordPaymentComponent implements OnInit {
           }
 
           this.nameSearchLoading = true;
-          this.studentService.getStudents({ page: 1, limit: 10, search: searchQuery }).subscribe({
+          this.studentService.getStudents({ page: 1, limit: 100, search: searchQuery }).subscribe({
             next: (data: any) => {
               const results = Array.isArray(data) ? data : data?.data || [];
               this.nameSearchResults = results || [];
@@ -377,7 +378,7 @@ export class RecordPaymentComponent implements OnInit {
     this.nameSearchResults = [];
     this.nameSearchSelectedStudentNumber = '';
 
-    this.studentService.getStudents({ page: 1, limit: 10, search: query }).subscribe({
+    this.studentService.getStudents({ page: 1, limit: 100, search: query }).subscribe({
       next: (data: any) => {
         // API may return array or paginated response. Normalize.
         const results = Array.isArray(data) ? data : data?.data || [];
@@ -400,6 +401,19 @@ export class RecordPaymentComponent implements OnInit {
     this.nameSearchSelectedStudentNumber = '';
     // Skip name-search retry since this selection should be a direct match.
     this.getBalance(false, true);
+  }
+
+  studentPickKey(s: any): string {
+    return String(s?.id || s?.studentNumber || '');
+  }
+
+  @HostListener('document:keyup', ['$event'])
+  onDocumentKeyup(ev: KeyboardEvent): void {
+    if (ev.key !== 'Escape') return;
+    if (!this.showStudentPicker) return;
+    this.showStudentPicker = false;
+    this.nameSearchResults = [];
+    this.nameSearchSelectedStudentNumber = '';
   }
 
   onPaymentMethodChange(): void {

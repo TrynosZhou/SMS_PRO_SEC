@@ -318,25 +318,39 @@ export function createReportCardPDF(
         return x;
       };
 
-      const headerH = 16;
+      const headerH = Math.round(16 * 1.2);
       const rowFont = 7;
-      doc.rect(tableLeft, y, tw, headerH).fill(RC.headerGrey);
-      doc.font('Helvetica-Bold').fontSize(7).fillColor('#000000');
+      const headerTextDy = Math.round((headerH - rowFont) / 2);
       const heads = ['Ser', 'Subject', 'Mark', 'Average', 'Position', 'Grade', "Teacher's Comment"];
       const wids = [cols.ser, cols.subject, cols.mark, cols.avg, cols.pos, cols.grade, cols.comment];
-      heads.forEach((h, i) => {
-        doc.text(h, colX(i) + 2, y + 4, {
-          width: wids[i] - 4,
-          align: i === 1 || i === 6 ? 'left' : 'center',
+
+      const drawOuterFrame = () => {
+        const pageH = doc.page.height;
+        doc.rect(mOut, 0, barW, pageH).fill(RC.bar);
+        doc.rect(W - mOut - barW, 0, barW, pageH).fill(RC.bar);
+        doc.lineWidth(1).strokeColor(RC.frame);
+        doc.rect(innerL, minY, innerW, maxY - minY).stroke();
+      };
+
+      const paintSubjectTableHeader = (yy: number): number => {
+        doc.rect(tableLeft, yy, tw, headerH).fill(RC.headerGrey);
+        doc.font('Helvetica-Bold').fontSize(7).fillColor('#000000');
+        heads.forEach((h, i) => {
+          doc.text(h, colX(i) + 2, yy + headerTextDy, {
+            width: wids[i] - 4,
+            align: i === 1 || i === 6 ? 'left' : 'center',
+          });
         });
-      });
-      doc.strokeColor(RC.border).lineWidth(0.35);
-      for (let i = 0; i <= 7; i++) {
-        doc.moveTo(colX(i), y).lineTo(colX(i), y + headerH).stroke();
-      }
-      doc.moveTo(tableLeft, y).lineTo(tableRight, y).stroke();
-      doc.moveTo(tableLeft, y + headerH).lineTo(tableRight, y + headerH).stroke();
-      y += headerH;
+        doc.strokeColor(RC.border).lineWidth(0.35);
+        for (let i = 0; i <= 7; i++) {
+          doc.moveTo(colX(i), yy).lineTo(colX(i), yy + headerH).stroke();
+        }
+        doc.moveTo(tableLeft, yy).lineTo(tableRight, yy).stroke();
+        doc.moveTo(tableLeft, yy + headerH).lineTo(tableRight, yy + headerH).stroke();
+        return yy + headerH;
+      };
+
+      y = paintSubjectTableHeader(y);
 
       const sanitizeNumber = (value: any): number | null => {
         if (value === null || value === undefined) return null;
@@ -364,11 +378,22 @@ export function createReportCardPDF(
       };
 
       const bottomReserve = 118;
-      const maxTableY = maxY - bottomReserve;
-      const baseRow = 12;
+      let subjectPageBottom = maxY - bottomReserve;
+      const baseRow = Math.round(12 * 1.2);
+      const rowTextDy = Math.round((baseRow - rowFont) / 2);
 
       for (let index = 0; index < reportCard.subjects.length; index++) {
-        if (y + baseRow > maxTableY) break;
+        if (y + baseRow > subjectPageBottom) {
+          doc.addPage();
+          drawOuterFrame();
+          y = minY + 10;
+          doc.font('Helvetica-Bold').fontSize(7.5).fillColor(RC.label);
+          const contLine = `${reportCard.student.name} — ${buildReportCardTitle(reportCard, settings)} (continued)`;
+          doc.text(contLine, innerL + 6, y, { width: innerW - 12 });
+          y += 14;
+          y = paintSubjectTableHeader(y);
+          subjectPageBottom = maxY - 40;
+        }
         const subject = reportCard.subjects[index];
         const subjectName = subject?.subject || 'N/A';
         const subjectCode = subject?.subjectCode || '';
@@ -397,28 +422,28 @@ export function createReportCardPDF(
         doc.rect(tableLeft, y, tw, rowH).fill(fill);
 
         doc.font('Helvetica').fontSize(rowFont);
-        doc.fillColor('#000000').text(String(index + 1), colX(0) + 2, y + 3, {
+        doc.fillColor('#000000').text(String(index + 1), colX(0) + 2, y + rowTextDy, {
           width: cols.ser - 4,
           align: 'center',
         });
-        doc.fillColor('#000000').text(subjDisplay, colX(1) + 2, y + 3, { width: cols.subject - 4 });
-        doc.fillColor(RC.valueBlue).text(markStr, colX(2) + 1, y + 3, {
+        doc.fillColor('#000000').text(subjDisplay, colX(1) + 2, y + rowTextDy, { width: cols.subject - 4 });
+        doc.fillColor(RC.valueBlue).text(markStr, colX(2) + 1, y + rowTextDy, {
           width: cols.mark - 2,
           align: 'center',
         });
-        doc.fillColor('#000000').text(avgStr, colX(3) + 1, y + 3, {
+        doc.fillColor('#000000').text(avgStr, colX(3) + 1, y + rowTextDy, {
           width: cols.avg - 2,
           align: 'center',
         });
-        doc.fillColor('#000000').text(posStr, colX(4) + 1, y + 3, {
+        doc.fillColor('#000000').text(posStr, colX(4) + 1, y + rowTextDy, {
           width: cols.pos - 2,
           align: 'center',
         });
-        doc.fillColor('#000000').text(gradeStr, colX(5) + 1, y + 3, {
+        doc.fillColor('#000000').text(gradeStr, colX(5) + 1, y + rowTextDy, {
           width: cols.grade - 2,
           align: 'center',
         });
-        doc.fillColor('#374151').text(comStr, colX(6) + 2, y + 3, { width: cols.comment - 4 });
+        doc.fillColor('#374151').text(comStr, colX(6) + 2, y + rowTextDy, { width: cols.comment - 4 });
 
         for (let i = 0; i <= 7; i++) {
           doc.moveTo(colX(i), y).lineTo(colX(i), y + rowH).stroke();
@@ -427,14 +452,23 @@ export function createReportCardPDF(
         y += rowH;
       }
 
-      const avgRowH = 14;
-      if (y + avgRowH <= maxY - 60) {
+      const avgRowH = Math.round(14 * 1.2);
+      const avgRowFont = 8;
+      const avgTextDy = Math.round((avgRowH - avgRowFont) / 2);
+      const footerBlockMin = avgRowH + 8 + 24 + 40 + 140;
+      if (y + footerBlockMin > maxY) {
+        doc.addPage();
+        drawOuterFrame();
+        y = minY + 10;
+      }
+
+      if (y + avgRowH <= maxY - 24) {
         doc.rect(tableLeft, y, tw, avgRowH).fill('#dbeafe');
-        doc.font('Helvetica-Bold').fontSize(8).fillColor('#000000');
-        doc.text('Average Mark', colX(1) + 2, y + 4, { width: cols.subject + cols.ser - 4 });
+        doc.font('Helvetica-Bold').fontSize(avgRowFont).fillColor('#000000');
+        doc.text('Average Mark', colX(1) + 2, y + avgTextDy, { width: cols.subject + cols.ser - 4 });
         const ov = parseFloat(reportCard.overallAverage);
         const avgTxt = Number.isFinite(ov) ? ov.toFixed(2) : reportCard.overallAverage;
-        doc.fillColor(RC.valueBlue).text(avgTxt, colX(2) + 1, y + 3, {
+        doc.fillColor(RC.valueBlue).text(avgTxt, colX(2) + 1, y + avgTextDy, {
           width: cols.mark - 2,
           align: 'center',
         });
@@ -445,40 +479,62 @@ export function createReportCardPDF(
         y += avgRowH + 8;
       }
 
-      const classTeacherRemarks = reportCard.remarks?.classTeacherRemarks || 'No remarks provided.';
-      const headmasterRemarks = reportCard.remarks?.headmasterRemarks || 'No remarks provided.';
+      // Space before remarks: 3×8pt + further 5×8pt so results and remarks read clearly apart
+      y += 24 + 40;
 
-      const splitMid = innerL + innerW / 2;
-      const gap = 8;
-      const boxW = (innerW - gap) / 2;
-      const boxH = 64;
+      /** Stacked remarks block (matches app UI: title + labeled rounded boxes, full width). */
+      const remarksX = innerL + 6;
+      const remarksW = innerW - 12;
+      const remarkRadius = 5;
+      const remarkBorderColor = '#d1d5db';
+      const remarkPad = 10;
+      const remarkFont = 8.5;
 
-      const underTitle = (label: string, bx: number, by: number) => {
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(RC.label).text(label, bx, by);
-        const w = doc.widthOfString(label);
-        doc.moveTo(bx, by + 11).lineTo(bx + w, by + 11).lineWidth(0.5).strokeColor('#000000').stroke();
-      };
+      const classTeacherBody =
+        (reportCard.remarks?.classTeacherRemarks || '').trim() || '—';
+      const headmasterBody =
+        (reportCard.remarks?.headmasterRemarks || '').trim() || '—';
+      const tRem = truncatePdf(classTeacherBody, 900);
+      const hRem = truncatePdf(headmasterBody, 900);
 
-      underTitle("Form Teacher's Comment", innerL + 6, y);
-      underTitle("Head's Comment", splitMid + gap / 2, y);
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#000000');
+      doc.text('Remarks', remarksX, y);
       y += 16;
 
-      const tRem = truncatePdf(classTeacherRemarks, 320);
-      const hRem = truncatePdf(headmasterRemarks, 320);
+      const footerReserve = 40;
+      const availableForRemarks = Math.max(80, maxY - y - footerReserve);
+      const perBoxContentMax = Math.max(36, Math.min(96, (availableForRemarks - 52) / 2));
 
-      doc.rect(innerL + 6, y, boxW - 6, boxH).strokeColor(RC.border).lineWidth(0.6).stroke();
-      doc.font('Helvetica').fontSize(7.5).fillColor('#111827');
-      doc.text(tRem, innerL + 9, y + 4, { width: boxW - 14 });
+      const drawRemarkBlock = (label: string, body: string) => {
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#000000');
+        doc.text(label, remarksX, y);
+        y += 11;
 
-      doc.rect(splitMid + gap / 2, y, boxW - 6, boxH).strokeColor(RC.border).lineWidth(0.6).stroke();
-      doc.text(hRem, splitMid + gap / 2 + 3, y + 4, { width: boxW - 10 });
+        const innerTextW = remarksW - 2 * remarkPad;
+        doc.font('Helvetica').fontSize(remarkFont).fillColor('#111827');
+        const naturalH = doc.heightOfString(body, { width: innerTextW });
+        const contentH = Math.max(28, Math.min(perBoxContentMax, naturalH + 4));
+        const boxH = contentH + 2 * remarkPad;
 
-      y += boxH + 10;
+        doc.lineWidth(0.55);
+        doc.roundedRect(remarksX, y, remarksW, boxH, remarkRadius);
+        doc.fillAndStroke('#ffffff', remarkBorderColor);
+
+        doc.font('Helvetica').fontSize(remarkFont).fillColor('#111827');
+        doc.text(body, remarksX + remarkPad, y + remarkPad, {
+          width: innerTextW,
+          height: contentH,
+        });
+        y += boxH + 12;
+      };
+
+      drawRemarkBlock('Class Teacher Remarks', tRem);
+      drawRemarkBlock('Headmaster/Principal Remarks', hRem);
 
       const headmasterName = settings?.headmasterName || '';
       if (headmasterName) {
         doc.font('Helvetica-Bold').fontSize(7).fillColor('#000000');
-        doc.text(headmasterName, splitMid + gap / 2 + 3, y, { width: boxW - 10, align: 'right' });
+        doc.text(headmasterName, remarksX, y, { width: remarksW, align: 'right' });
       }
 
       y = maxY - 14;

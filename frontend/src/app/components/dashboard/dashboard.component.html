@@ -1,33 +1,36 @@
-<div class="dashboard-container">
-  <!-- Main Content -->
-    <main class="main-content">
-      <div class="content-header">
-        <div class="header-top">
-          <div class="header-left">
-            <div class="greeting-section">
-              <h1 class="dashboard-title">
-                <span class="title-icon">📊</span>
-                Dashboard
-              </h1>
-              <p class="welcome-text">
-                <span class="greeting-icon">👋</span>
-                Welcome back, <strong>{{ getDisplayName() }}</strong>!
-              </p>
-              <p class="date-time">{{ getCurrentDateTime() }}</p>
-            </div>
-          </div>
-          <div class="header-right">
-            <div class="school-name-container" *ngIf="displayedHeadline">
-              <span class="school-icon">🏫</span>
-              <span class="school-banner-slide">{{ displayedHeadline }}</span>
-            </div>
-            <div class="quick-stats-badge" *ngIf="(isAdmin() || isAccountant()) && !loadingStats">
-              <span class="badge-icon">⚡</span>
-              <span class="badge-text">Live Stats</span>
-            </div>
-          </div>
+<div class="dashboard-container db-page">
+  <main class="main-content">
+    <header class="db-hero">
+      <div class="db-hero-main">
+        <div class="db-hero-badges">
+          <span class="db-role-pill">{{ getRoleLabel() }}</span>
+          <span class="db-live-pill" *ngIf="(isAdmin() || isAccountant()) && !loadingStats" title="KPIs refreshed from live data">
+            <span class="db-live-dot" aria-hidden="true"></span>
+            Live overview
+          </span>
+        </div>
+        <h1 class="db-title">
+          <span class="db-title-ico" aria-hidden="true">📊</span>
+          Dashboard
+        </h1>
+        <p class="db-welcome">
+          <span class="db-wave" aria-hidden="true">👋</span>
+          Welcome back, <strong>{{ getDisplayName() }}</strong>
+        </p>
+        <div class="db-meta">
+          <span class="db-chip" *ngIf="academicYear">AY {{ academicYear }}</span>
+          <span class="db-chip" *ngIf="currentTerm">{{ currentTerm }}</span>
+          <span class="db-chip" *ngIf="currencySymbol && (isAdmin() || isAccountant())">{{ currencySymbol }} reporting</span>
+          <span class="db-chip db-chip-muted">{{ getCurrentDateTime() }}</span>
         </div>
       </div>
+      <div class="db-hero-aside" *ngIf="displayedHeadline">
+        <div class="school-name-container db-school-banner">
+          <span class="school-icon" aria-hidden="true">🏫</span>
+          <span class="school-banner-slide">{{ displayedHeadline }}</span>
+        </div>
+      </div>
+    </header>
     
     <!-- Statistics Cards -->
     <div class="stats-grid" *ngIf="(isAdmin() || isAccountant()) && !loadingStats">
@@ -105,7 +108,7 @@
           <div class="stat-value animated-value">{{ stats.totalInvoices }}</div>
           <div class="stat-label">Total Invoices</div>
           <div class="stat-sublabel" *ngIf="stats.totalBalance > 0">
-            <span class="sublabel-item warning-text">⚠️ Outstanding: {{ stats.totalBalance | number:'1.2-2' }}</span>
+            <span class="sublabel-item warning-text">⚠️ Outstanding: {{ currencySymbol }} {{ stats.totalBalance | number:'1.2-2' }}</span>
           </div>
         </div>
         <div class="stat-trend">
@@ -130,9 +133,14 @@
       </div>
     </div>
     
-    <div class="loading-stats" *ngIf="(isAdmin() || isAccountant()) && loadingStats">
-      <div class="spinner"></div>
-      <p>Loading statistics...</p>
+    <div class="db-skeleton-stats" *ngIf="(isAdmin() || isAccountant()) && loadingStats" aria-busy="true">
+      <div class="db-sk-card" *ngFor="let _ of [1, 2, 3, 4, 5, 6]">
+        <div class="db-sk-icon"></div>
+        <div class="db-sk-lines">
+          <div class="db-sk-line db-sk-line-lg"></div>
+          <div class="db-sk-line db-sk-line-sm"></div>
+        </div>
+      </div>
     </div>
     
     <div class="dashboard-cards">
@@ -179,112 +187,152 @@
         </div>
       </div>
 
-      <div class="card modern-card" *ngIf="isAdmin() || isAccountant()">
+      <div class="card modern-card db-quick-card" *ngIf="isAdmin() || isAccountant()">
         <div class="card-header-modern">
           <h2>
             <span class="card-icon">🚀</span>
-            Quick Actions
+            Quick actions
           </h2>
+          <p class="db-card-lead">Jump to the tasks you use most often. Modules still respect your access settings.</p>
         </div>
-        <div class="quick-actions modern-actions">
-          <a routerLink="/students/manage/add-new" class="action-btn modern-action-btn primary-action" *ngIf="isAdmin()">
-            <span class="action-icon">👤</span>
-            <span class="action-text">Add Student</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/classes/manage/add-new" class="action-btn modern-action-btn info-action" *ngIf="isAdmin()">
-            <span class="action-icon">🏫</span>
-            <span class="action-text">Add Class</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/subjects/new" class="action-btn modern-action-btn warning-action" *ngIf="isAdmin()">
-            <span class="action-icon">📚</span>
-            <span class="action-text">Add Subject</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/teachers/manage/add-new" class="action-btn modern-action-btn success-action" *ngIf="isAdmin()">
-            <span class="action-icon">👨‍🏫</span>
-            <span class="action-text">Add Teacher</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a (click)="openBulkMessage()" class="action-btn modern-action-btn secondary-action" style="cursor: pointer;" *ngIf="isAdmin()">
-            <span class="action-icon">📧</span>
-            <span class="action-text">Bulk Message</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/communication_manage" class="action-btn modern-action-btn secondary-action" *ngIf="isAdmin()">
-            <span class="action-icon">💬</span>
-            <span class="action-text">Communications</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/classes/manage/mark-register" class="action-btn modern-action-btn success-action" *ngIf="isAdmin() && canAccessModule('attendance')">
-            <span class="action-icon">✅</span>
-            <span class="action-text">Mark Register</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/classes/manage/attendance-reports" class="action-btn modern-action-btn info-action" *ngIf="isAdmin() && canAccessModule('attendance')">
-            <span class="action-icon">📊</span>
-            <span class="action-text">Attendance Reports</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/students/manage/students" class="action-btn modern-action-btn primary-action" *ngIf="isAccountant()">
-            <span class="action-icon">📋</span>
-            <span class="action-text">View Students</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/invoices" class="action-btn modern-action-btn danger-action" *ngIf="isAccountant()">
-            <span class="action-icon">💰</span>
-            <span class="action-text">Finance Overview</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/invoices/new" class="action-btn modern-action-btn danger-action" *ngIf="isAdmin() || isAccountant()">
-            <span class="action-icon">📝</span>
-            <span class="action-text">Create Invoice</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/admin/manage-accounts" class="action-btn modern-action-btn secondary-action" *ngIf="isAdmin()">
-            <span class="action-icon">👥</span>
-            <span class="action-text">Manage Accounts</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <a routerLink="/admin/parent-management" class="action-btn modern-action-btn secondary-action" *ngIf="isAdmin()">
-            <span class="action-icon">👨‍👩‍👧‍👦</span>
-            <span class="action-text">Parent Management</span>
-            <span class="action-arrow">→</span>
-          </a>
-          <div class="quick-actions-adjacent-pair" *ngIf="isAdmin()">
-            <a routerLink="/admin/class-promotion" class="action-btn modern-action-btn warning-action adjacent-action-btn">
-              <span class="action-icon">⬆️</span>
-              <span class="action-text">Class Promotion</span>
+
+        <section class="db-action-group" *ngIf="isAdmin()">
+          <h3 class="db-action-group-title">People &amp; structure</h3>
+          <div class="quick-actions modern-actions">
+            <a routerLink="/students/manage/add-new" class="action-btn modern-action-btn primary-action">
+              <span class="action-icon">👤</span>
+              <span class="action-text">Add Student</span>
               <span class="action-arrow">→</span>
             </a>
-            <a routerLink="/elearning" class="action-btn modern-action-btn elearning-quick-action adjacent-action-btn">
-              <span class="action-icon">💻</span>
-              <span class="action-text">E-learning</span>
+            <a routerLink="/classes/manage/add-new" class="action-btn modern-action-btn info-action">
+              <span class="action-icon">🏫</span>
+              <span class="action-text">Add Class</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <a routerLink="/subjects/new" class="action-btn modern-action-btn warning-action">
+              <span class="action-icon">📚</span>
+              <span class="action-text">Add Subject</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <a routerLink="/teachers/manage/add-new" class="action-btn modern-action-btn success-action">
+              <span class="action-icon">👨‍🏫</span>
+              <span class="action-text">Add Teacher</span>
               <span class="action-arrow">→</span>
             </a>
           </div>
-        </div>
+        </section>
+
+        <section class="db-action-group" *ngIf="isAdmin() && canAccessModule('attendance')">
+          <h3 class="db-action-group-title">Attendance</h3>
+          <div class="quick-actions modern-actions">
+            <a routerLink="/classes/manage/mark-register" class="action-btn modern-action-btn success-action">
+              <span class="action-icon">✅</span>
+              <span class="action-text">Mark Register</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <a routerLink="/classes/manage/attendance-reports" class="action-btn modern-action-btn info-action">
+              <span class="action-icon">📊</span>
+              <span class="action-text">Attendance Reports</span>
+              <span class="action-arrow">→</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="db-action-group" *ngIf="isAdmin() || isAccountant()">
+          <h3 class="db-action-group-title">Finance</h3>
+          <div class="quick-actions modern-actions">
+            <a routerLink="/students/manage/students" class="action-btn modern-action-btn primary-action" *ngIf="isAccountant()">
+              <span class="action-icon">📋</span>
+              <span class="action-text">View Students</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <a routerLink="/finance/manage/billing" class="action-btn modern-action-btn danger-action">
+              <span class="action-icon">💳</span>
+              <span class="action-text">Billing</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <a routerLink="/invoices" class="action-btn modern-action-btn danger-action" *ngIf="isAccountant()">
+              <span class="action-icon">💰</span>
+              <span class="action-text">Finance Overview</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <a routerLink="/invoices/new" class="action-btn modern-action-btn danger-action">
+              <span class="action-icon">📝</span>
+              <span class="action-text">Create Invoice</span>
+              <span class="action-arrow">→</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="db-action-group" *ngIf="isAdmin()">
+          <h3 class="db-action-group-title">Communication</h3>
+          <div class="quick-actions modern-actions">
+            <a (click)="openBulkMessage()" class="action-btn modern-action-btn secondary-action" style="cursor: pointer;">
+              <span class="action-icon">📧</span>
+              <span class="action-text">Bulk Message</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <a routerLink="/communication_manage" class="action-btn modern-action-btn secondary-action">
+              <span class="action-icon">💬</span>
+              <span class="action-text">Communications</span>
+              <span class="action-arrow">→</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="db-action-group" *ngIf="isAdmin()">
+          <h3 class="db-action-group-title">Administration</h3>
+          <div class="quick-actions modern-actions">
+            <a routerLink="/admin/manage-accounts" class="action-btn modern-action-btn secondary-action">
+              <span class="action-icon">👥</span>
+              <span class="action-text">Manage Accounts</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <a routerLink="/admin/parent-management" class="action-btn modern-action-btn secondary-action">
+              <span class="action-icon">👨‍👩‍👧‍👦</span>
+              <span class="action-text">Parent Management</span>
+              <span class="action-arrow">→</span>
+            </a>
+            <div class="quick-actions-adjacent-pair">
+              <a routerLink="/admin/class-promotion" class="action-btn modern-action-btn warning-action adjacent-action-btn">
+                <span class="action-icon">⬆️</span>
+                <span class="action-text">Class Promotion</span>
+                <span class="action-arrow">→</span>
+              </a>
+              <a routerLink="/elearning" class="action-btn modern-action-btn elearning-quick-action adjacent-action-btn">
+                <span class="action-icon">💻</span>
+                <span class="action-text">E-learning</span>
+                <span class="action-arrow">→</span>
+              </a>
+            </div>
+          </div>
+        </section>
       </div>
       
       <!-- Recent Activity Section -->
       <div class="card recent-activity modern-card" *ngIf="(isAdmin() || isAccountant()) && !loadingStats">
-        <div class="card-header-flex">
+        <div class="card-header-flex db-activity-head">
           <h2>
             <span class="card-icon">🕒</span>
-            Recent Activity
+            Recent activity
           </h2>
-          <a routerLink="/students/manage/students" class="view-all-link modern-link" *ngIf="recentStudents.length > 0">
-            View All 
-            <span class="link-arrow">→</span>
-          </a>
+          <div class="db-activity-links" *ngIf="recentStudents.length > 0 || recentInvoices.length > 0">
+            <a routerLink="/students/manage/students" class="view-all-link modern-link" *ngIf="recentStudents.length > 0" title="Open full student directory">
+              Students
+              <span class="link-arrow">→</span>
+            </a>
+            <a routerLink="/finance/manage/billing" class="view-all-link modern-link db-link-alt" *ngIf="recentInvoices.length > 0" title="Open billing / invoice list">
+              Billing
+              <span class="link-arrow">→</span>
+            </a>
+          </div>
         </div>
         
         <div class="activity-tabs">
           <div class="tab-content">
             <h3 class="tab-title">Recent Students</h3>
             <div class="activity-list" *ngIf="recentStudents.length > 0; else noRecentStudents">
-              <div class="activity-item modern-activity-item" *ngFor="let student of recentStudents">
+              <div class="activity-item modern-activity-item" *ngFor="let student of recentStudents; trackBy: trackByStudentId">
                 <div class="activity-icon-wrapper">
                   <div class="activity-icon modern-activity-icon">👤</div>
                 </div>
@@ -313,7 +361,7 @@
           <div class="tab-content" *ngIf="isAdmin() || isAccountant()">
             <h3 class="tab-title">Recent Invoices</h3>
             <div class="activity-list" *ngIf="recentInvoices.length > 0; else noRecentInvoices">
-              <div class="activity-item modern-activity-item" *ngFor="let invoice of recentInvoices">
+              <div class="activity-item modern-activity-item" *ngFor="let invoice of recentInvoices; trackBy: trackByInvoiceId">
                 <div class="activity-icon-wrapper">
                   <div class="activity-icon modern-activity-icon invoice-icon">💰</div>
                 </div>
@@ -321,7 +369,7 @@
                   <div class="activity-name">Invoice #{{ invoice.invoiceNumber }}</div>
                   <div class="activity-meta">
                     <span class="meta-badge" [class.balance-warning]="invoice.balance > 0">
-                      💵 Balance: {{ invoice.balance | number:'1.2-2' }}
+                      💵 Balance: {{ currencySymbol }} {{ invoice.balance | number:'1.2-2' }}
                     </span>
                     <span class="meta-badge" *ngIf="invoice.student">
                       👤 {{ invoice.student.firstName }} {{ invoice.student.lastName }}
@@ -329,8 +377,8 @@
                   </div>
                 </div>
                 <div class="activity-action">
-                  <a [routerLink]="['/invoices']" class="btn-link modern-btn-link">
-                    <span>👁️</span> View
+                  <a routerLink="/finance/manage/billing" class="btn-link modern-btn-link">
+                    <span>👁️</span> Billing
                   </a>
                 </div>
               </div>

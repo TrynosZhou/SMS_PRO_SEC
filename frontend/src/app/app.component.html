@@ -78,7 +78,7 @@
       <a
         routerLink="/students/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="(canAccessModule('students') || isAdmin() || isSuperAdmin() || canEnrollStudents()) && !isStudent()"
         (click)="closeMobileMenu()"
@@ -101,7 +101,7 @@
       <a
         routerLink="/teachers/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()"
         (click)="closeMobileMenu()"
@@ -114,7 +114,7 @@
       <a
         routerLink="/classes/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="(isAdmin() || isSuperAdmin() || isTeacher() || canAccessModule('attendance')) && !isStudent()"
         (click)="closeMobileMenu()"
@@ -127,7 +127,7 @@
       <a
         routerLink="/subjects/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()"
         (click)="closeMobileMenu()"
@@ -140,7 +140,7 @@
       <a
         routerLink="/exams/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="(canAccessModule('exams') || canAccessModule('reportCards') || canAccessModule('rankings') || isAdmin() || isSuperAdmin()) && !isStudent()"
         (click)="closeMobileMenu()"
@@ -153,7 +153,7 @@
       <a
         routerLink="/finance/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="canAccessModule('finance') && !isStudent()"
         (click)="closeMobileMenu()"
@@ -166,7 +166,7 @@
       <a
         routerLink="/communication_manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="isAdmin() && !isStudent()"
         (click)="closeMobileMenu()"
@@ -179,7 +179,7 @@
       <a
         routerLink="/payroll/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="canAccessModule('finance') && !isStudent()"
         (click)="closeMobileMenu()"
@@ -192,7 +192,7 @@
       <a
         routerLink="/timetable/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()"
         (click)="closeMobileMenu()"
@@ -205,7 +205,7 @@
       <a
         routerLink="/reports/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="(isAdmin() || isSuperAdmin()) && !isStudent()"
         (click)="closeMobileMenu()"
@@ -218,7 +218,7 @@
       <a
         routerLink="/teacher/elearning-manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="isTeacher() && canAccessModule('recordBook') && !isStudent()"
         (click)="closeMobileMenu()"
@@ -232,7 +232,7 @@
       <a
         routerLink="/general/manage"
         routerLinkActive="active"
-        [routerLinkActiveOptions]="{ paths: 'subset' }"
+        [routerLinkActiveOptions]="linkActiveSubset"
         class="sidebar-item"
         *ngIf="(canAccessModule('settings') || isAdmin() || isSuperAdmin() || authService.hasRole('accountant')) && !isStudent()"
         (click)="closeMobileMenu()"

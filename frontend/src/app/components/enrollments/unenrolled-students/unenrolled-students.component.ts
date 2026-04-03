@@ -21,7 +21,7 @@ export class UnenrolledStudentsComponent implements OnInit {
   searchQuery = '';
   pagination = {
     page: 1,
-    limit: 20,
+    limit: 100,
     total: 0,
     totalPages: 1
   };

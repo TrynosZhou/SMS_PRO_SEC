@@ -411,5 +411,22 @@ export class ExamService {
       maxScore
     });
   }
+
+  /** AI suggestion for class teacher or headmaster report card remarks (context built on client). */
+  generateAIReportRemark(
+    studentId: string,
+    remarkType: 'class_teacher' | 'headmaster',
+    context: Record<string, unknown>,
+    classId?: string,
+    examType?: string
+  ): Observable<{ remark: string; generatedAt?: string }> {
+    const body: Record<string, unknown> = { studentId, remarkType, context };
+    if (classId) body['classId'] = classId;
+    if (examType) body['examType'] = examType;
+    return this.http.post<{ remark: string; generatedAt?: string }>(
+      `${this.apiUrl}/exams/generate-ai-report-remark`,
+      body
+    );
+  }
 }
 

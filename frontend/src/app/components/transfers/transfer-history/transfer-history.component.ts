@@ -17,7 +17,7 @@ export class TransferHistoryComponent implements OnInit {
   
   // Pagination
   currentPage = 1;
-  pageSize = 20;
+  pageSize = 100;
   totalItems = 0;
   totalPages = 0;
   pageSizeOptions = [10, 20, 50, 100];
@@ -111,7 +111,7 @@ export class TransferHistoryComponent implements OnInit {
           this.transfers = response.data || [];
           this.filteredTransfers = this.transfers;
           this.currentPage = response.page || 1;
-          this.pageSize = response.limit || 20;
+          this.pageSize = response.limit || 100;
           this.totalItems = response.total || 0;
           this.totalPages = response.totalPages || 0;
         } else {

@@ -31,7 +31,7 @@ export class UserLogComponent implements OnInit {
 
   // Pagination
   page = 1;
-  limit = 20;
+  limit = 100;
   total = 0;
   totalPages = 1;
 

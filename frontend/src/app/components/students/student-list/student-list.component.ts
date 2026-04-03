@@ -40,11 +40,11 @@ export class StudentListComponent implements OnInit {
   selectedStudent: any = null;
   pagination = {
     page: 1,
-    limit: 12,
+    limit: 100,
     total: 0,
     totalPages: 1
   };
-  pageSizeOptions = [12, 24, 48];
+  pageSizeOptions = [12, 24, 48, 100];
   private searchDebounceTimer: any = null;
 
   /** ID card PDF preview in modal */

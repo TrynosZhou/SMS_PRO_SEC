@@ -67,6 +67,39 @@ const DEFAULT_GRADE_POINTS = {
   fail: 0 // U
 } as const;
 
+/** Subjects on the class record plus subjects linked to exams (deduped by id). */
+function mergeClassSubjectsWithExamSubjects(classSubjects: Subject[], exams: Exam[]): Subject[] {
+  const map = new Map<string, Subject>();
+  for (const s of classSubjects || []) {
+    if (s?.id) map.set(s.id, s);
+  }
+  for (const exam of exams || []) {
+    for (const s of exam.subjects || []) {
+      if (s?.id && !map.has(s.id)) map.set(s.id, s);
+    }
+  }
+  return Array.from(map.values());
+}
+
+/** Include subjects that appear on marks but were missing from class/exam lists. */
+function mergeSubjectsWithMarksSubjects(subjects: Subject[], marks: Marks[]): Subject[] {
+  const map = new Map<string, Subject>();
+  for (const s of subjects || []) {
+    if (s?.id) map.set(s.id, s);
+  }
+  for (const m of marks || []) {
+    const s = m.subject;
+    if (s?.id && !map.has(s.id)) map.set(s.id, s);
+  }
+  return Array.from(map.values());
+}
+
+function sortSubjectsByName(subjects: Subject[]): Subject[] {
+  return [...subjects].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+  );
+}
+
 export const createExam = async (req: AuthRequest, res: Response) => {
   try {
     // Ensure database is initialized
@@ -881,17 +914,13 @@ export const generateAIRemark = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid score value' });
     }
 
-    // Check if OpenAI API key is configured
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    console.log('[generateAIRemark] OpenAI API key check:', { 
-      hasKey: !!openaiApiKey, 
-      keyLength: openaiApiKey ? openaiApiKey.length : 0,
-      keyPrefix: openaiApiKey ? openaiApiKey.substring(0, 7) + '...' : 'none',
-      allEnvKeys: Object.keys(process.env).filter(k => k.includes('OPENAI'))
-    });
-    if (!openaiApiKey || openaiApiKey.trim() === '') {
-      console.error('[generateAIRemark] OpenAI API key not found in environment variables');
-      console.error('[generateAIRemark] Available env vars:', Object.keys(process.env).filter(k => k.includes('AI') || k.includes('OPEN')));
+    // Check if OpenAI API key is configured (trim; strip accidental quotes from .env paste)
+    const openaiApiKey = (process.env.OPENAI_API_KEY || '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    const openaiModel = (process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
+    if (!openaiApiKey) {
+      console.error('[generateAIRemark] OPENAI_API_KEY missing after load (check backend/.env and restart server)');
       return res.status(500).json({ 
         message: 'OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file and restart the server.',
         error: 'OPENAI_API_KEY environment variable is missing or empty'
@@ -947,9 +976,9 @@ Requirements:
 Generate only the remark text, without any additional explanation or formatting.`;
 
     try {
-      console.log('[generateAIRemark] Calling OpenAI API...');
+      console.log('[generateAIRemark] Calling OpenAI API, model:', openaiModel);
       const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: openaiModel,
         messages: [
           {
             role: 'system',
@@ -986,14 +1015,46 @@ Generate only the remark text, without any additional explanation or formatting.
         type: openaiError.type,
         stack: openaiError.stack
       });
-      return res.status(500).json({ 
+
+      const code = openaiError?.code ?? openaiError?.error?.code;
+      const status = openaiError?.status;
+
+      if (code === 'insufficient_quota' || openaiError?.type === 'insufficient_quota') {
+        return res.status(429).json({
+          message:
+            'OpenAI account has no available quota. Add billing or credits at platform.openai.com, then try again.',
+          error: 'insufficient_quota',
+          code: 'insufficient_quota'
+        });
+      }
+
+      if (status === 429) {
+        return res.status(429).json({
+          message: 'OpenAI rate limit reached. Wait a moment and try again.',
+          error: openaiError.message || 'rate_limit',
+          code: 'rate_limit'
+        });
+      }
+
+      if (status === 401) {
+        return res.status(502).json({
+          message: 'OpenAI rejected the API key (invalid or revoked). Check OPENAI_API_KEY in backend/.env.',
+          error: 'invalid_api_key',
+          code: 'invalid_api_key'
+        });
+      }
+
+      return res.status(500).json({
         message: 'Failed to generate AI remark',
         error: openaiError.message || 'Unknown error',
-        details: process.env.NODE_ENV === 'development' ? {
-          status: openaiError.status,
-          code: openaiError.code,
-          type: openaiError.type
-        } : undefined
+        details:
+          process.env.NODE_ENV === 'development'
+            ? {
+                status: openaiError.status,
+                code: openaiError.code,
+                type: openaiError.type
+              }
+            : undefined
       });
     }
   } catch (error: any) {
@@ -1003,6 +1064,171 @@ Generate only the remark text, without any additional explanation or formatting.
       message: 'Server error', 
       error: error.message || 'Unknown error',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+function buildReportCardContextSummary(ctx: Record<string, any>): string {
+  const lines: string[] = [];
+  if (ctx.studentName) lines.push(`Student: ${ctx.studentName}`);
+  if (ctx.className) lines.push(`Class: ${ctx.className}`);
+  if (ctx.term) lines.push(`Term: ${ctx.term}`);
+  if (ctx.examTypeLabel) lines.push(`Exam: ${ctx.examTypeLabel}`);
+  if (ctx.overallAverage != null && ctx.overallAverage !== '') {
+    lines.push(`Overall average: ${ctx.overallAverage}%`);
+  }
+  if (ctx.overallGrade) lines.push(`Overall attainment label: ${ctx.overallGrade}`);
+  if (ctx.classPosition) lines.push(`Class position: ${ctx.classPosition}`);
+  if (ctx.formPosition) lines.push(`Form/stream position: ${ctx.formPosition}`);
+  if (Array.isArray(ctx.subjects) && ctx.subjects.length > 0) {
+    lines.push('Subjects:');
+    ctx.subjects.slice(0, 30).forEach((s: any) => {
+      const name = s.subject || s.name || 'Subject';
+      const parts = [s.grade, s.percentage != null ? `${s.percentage}%` : ''].filter(Boolean);
+      lines.push(`  - ${name}: ${parts.length ? parts.join(', ') : 'N/A'}`);
+    });
+  }
+  return lines.join('\n');
+}
+
+/**
+ * POST /api/exams/generate-ai-report-remark
+ * Body: { studentId, remarkType: 'class_teacher' | 'headmaster', context, classId?, examType? }
+ */
+export const generateAIReportRemark = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { studentId, remarkType, context, classId, examType } = req.body;
+    const user = req.user;
+
+    if (!studentId || !remarkType || !context || typeof context !== 'object') {
+      return res.status(400).json({ message: 'studentId, remarkType, and context are required' });
+    }
+
+    if (remarkType !== 'class_teacher' && remarkType !== 'headmaster') {
+      return res.status(400).json({ message: 'remarkType must be class_teacher or headmaster' });
+    }
+
+    const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+    const isTeacher = user?.role === 'teacher';
+
+    if (remarkType === 'headmaster' && !isAdmin) {
+      return res.status(403).json({ message: 'Only administrators can generate headmaster remarks' });
+    }
+
+    if (remarkType === 'class_teacher' && !isTeacher && !isAdmin) {
+      return res.status(403).json({
+        message: 'Only teachers and administrators can generate class teacher remarks',
+      });
+    }
+
+    if (classId && examType) {
+      const examRepository = AppDataSource.getRepository(Exam);
+      const exams = await examRepository.find({
+        where: { classId: classId as string, type: examType as any },
+      });
+      if (exams.length > 0 && exams.some((e) => e.status === ExamStatus.PUBLISHED)) {
+        return res.status(403).json({
+          message: 'Cannot generate AI remarks for published exams (read-only).',
+        });
+      }
+    }
+
+    const studentRepository = AppDataSource.getRepository(Student);
+    const student = await studentRepository.findOne({ where: { id: studentId as string } });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    const openaiApiKey = (process.env.OPENAI_API_KEY || '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    const openaiModel = (process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
+    if (!openaiApiKey) {
+      return res.status(500).json({
+        message:
+          'OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file and restart the server.',
+        error: 'OPENAI_API_KEY environment variable is missing or empty',
+      });
+    }
+
+    const summary = buildReportCardContextSummary(context);
+    if (!summary.trim()) {
+      return res.status(400).json({ message: 'context must include enough data to summarize performance' });
+    }
+
+    const openai = new OpenAI({ apiKey: openaiApiKey });
+
+    const isHead = remarkType === 'headmaster';
+    const systemPrompt = isHead
+      ? 'You are an experienced school principal/headmaster writing brief formal report card endorsements. Tone: professional, warm, authoritative. Do not invent facts beyond the summary.'
+      : 'You are an experienced class teacher writing holistic report card comments. Be encouraging, specific to the performance summary, and suitable for parents. Do not invent facts beyond the summary.';
+
+    const userPrompt = isHead
+      ? `Based only on the following performance summary, write a short headmaster/principal remark (2–3 sentences, max 120 words) for the student’s report card. Do not repeat the summary as a list. Do not include bullet points.\n\n---\n${summary}\n---\n\nOutput only the remark text.`
+      : `Based only on the following performance summary, write a class teacher remark (2–4 sentences, max 150 words) for the student’s report card. Address strengths and one constructive focus where appropriate. Do not repeat every subject score. Do not include bullet points.\n\n---\n${summary}\n---\n\nOutput only the remark text.`;
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: openaiModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: 320,
+        temperature: 0.65,
+      });
+
+      const remark = completion.choices[0]?.message?.content?.trim() || '';
+      if (!remark) {
+        return res.status(500).json({ message: 'Failed to generate remark from AI' });
+      }
+
+      res.json({
+        remark,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (openaiError: any) {
+      console.error('[generateAIReportRemark] OpenAI error:', openaiError);
+      const code = openaiError?.code ?? openaiError?.error?.code;
+      const status = openaiError?.status;
+
+      if (code === 'insufficient_quota' || openaiError?.type === 'insufficient_quota') {
+        return res.status(429).json({
+          message:
+            'OpenAI account has no available quota. Add billing or credits at platform.openai.com, then try again.',
+          error: 'insufficient_quota',
+          code: 'insufficient_quota',
+        });
+      }
+      if (status === 429) {
+        return res.status(429).json({
+          message: 'OpenAI rate limit reached. Wait a moment and try again.',
+          error: openaiError.message || 'rate_limit',
+          code: 'rate_limit',
+        });
+      }
+      if (status === 401) {
+        return res.status(502).json({
+          message:
+            'OpenAI rejected the API key (invalid or revoked). Check OPENAI_API_KEY in backend/.env.',
+          error: 'invalid_api_key',
+          code: 'invalid_api_key',
+        });
+      }
+      return res.status(500).json({
+        message: 'Failed to generate AI report remark',
+        error: openaiError.message || 'Unknown error',
+      });
+    }
+  } catch (error: any) {
+    console.error('[generateAIReportRemark] Error:', error);
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message || 'Unknown error',
     });
   }
 };
@@ -1671,66 +1897,25 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
     
     console.log('Found exams:', exams.length, exams.map(e => ({ id: e.id, name: e.name, type: e.type, classId: e.classId, status: e.status })));
 
-    // Get all subjects for this class (to ensure all subjects appear on report card)
+    // Subjects for columns: class-assigned ∪ exam-linked (class record alone can omit subjects marks were captured for)
     const classWithSubjects = await classRepository.findOne({
       where: { id: classId as string },
       relations: ['subjects']
     });
-    let allClassSubjects = classWithSubjects?.subjects || [];
-    console.log('All subjects for class:', allClassSubjects.length, allClassSubjects.map(s => s.name));
-    
-    // If subjectId is provided, filter to that subject only
+    let allClassSubjects = mergeClassSubjectsWithExamSubjects(
+      classWithSubjects?.subjects || [],
+      exams
+    );
+    console.log('Subjects (class ∪ exams):', allClassSubjects.length, allClassSubjects.map(s => s.name));
+
     if (subjectId) {
-      const selectedSubject = allClassSubjects.find(s => s.id === subjectId);
+      const subjectIdStr = String(subjectId);
+      const selectedSubject = allClassSubjects.find(s => s.id === subjectIdStr);
       if (!selectedSubject) {
-        // Try to get from exams if not in class subjects
-        if (exams.length > 0) {
-          const examSubjectsSet = new Set<string>();
-          const examSubjectsMap = new Map<string, Subject>();
-          
-          exams.forEach(exam => {
-            if (exam.subjects && exam.subjects.length > 0) {
-              exam.subjects.forEach((subject: Subject) => {
-                if (subject.id === subjectId) {
-                  examSubjectsSet.add(subject.id);
-                  examSubjectsMap.set(subject.id, subject);
-                }
-              });
-            }
-          });
-          
-          const subjectIdStr = String(subjectId);
-          if (examSubjectsMap.has(subjectIdStr)) {
-            allClassSubjects = [examSubjectsMap.get(subjectIdStr)!];
-          } else {
-            return res.status(404).json({ message: 'Subject not found in this class' });
-          }
-        } else {
-          return res.status(404).json({ message: 'Subject not found in this class' });
-        }
-      } else {
-        allClassSubjects = [selectedSubject];
+        return res.status(404).json({ message: 'Subject not found in this class or exams' });
       }
+      allClassSubjects = [selectedSubject];
       console.log('Filtered to selected subject:', allClassSubjects.map(s => s.name));
-    } else if (allClassSubjects.length === 0 && exams.length > 0) {
-      // If no subjects are assigned to the class, get subjects from the exams instead
-      console.log('No subjects assigned to class, getting subjects from exams...');
-      const examSubjectsSet = new Set<string>();
-      const examSubjectsMap = new Map<string, Subject>();
-      
-      exams.forEach(exam => {
-        if (exam.subjects && exam.subjects.length > 0) {
-          exam.subjects.forEach((subject: Subject) => {
-            if (!examSubjectsSet.has(subject.id)) {
-              examSubjectsSet.add(subject.id);
-              examSubjectsMap.set(subject.id, subject);
-            }
-          });
-        }
-      });
-      
-      allClassSubjects = Array.from(examSubjectsMap.values());
-      console.log('Found subjects from exams:', allClassSubjects.length, allClassSubjects.map(s => s.name));
     }
 
     if (exams.length === 0) {
@@ -1821,6 +2006,11 @@ export const getReportCard = async (req: AuthRequest, res: Response) => {
       relations: ['subject', 'exam', 'student']
     });
     console.log('Found marks:', allMarks.length, subjectId ? `(filtered by subject ${subjectId})` : '(all subjects)');
+
+    if (!subjectId) {
+      allClassSubjects = sortSubjectsByName(mergeSubjectsWithMarksSubjects(allClassSubjects, allMarks));
+      console.log('Subjects (after marks):', allClassSubjects.length, allClassSubjects.map(s => s.name));
+    }
 
     // Calculate class averages for each subject
     // Class Average = Total marks scored by all students in a subject / number of students who wrote the exam
@@ -2714,40 +2904,29 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
         return res.status(404).json({ message: `No ${examType} exams found for this class` });
       }
 
-      // Get all subjects for this class (to ensure all subjects appear on report card)
       const classWithSubjects = await classRepository.findOne({
         where: { id: classId as string },
         relations: ['subjects']
       });
-      let allClassSubjects = classWithSubjects?.subjects || [];
-      
-      // If no subjects are assigned to the class, get subjects from the exams instead
-      if (allClassSubjects.length === 0 && exams.length > 0) {
-        console.log('No subjects assigned to class, getting subjects from exams...');
-        const examSubjectsSet = new Set<string>();
-        const examSubjectsMap = new Map<string, Subject>();
-        
-        exams.forEach(exam => {
-          if (exam.subjects && exam.subjects.length > 0) {
-            exam.subjects.forEach((subject: Subject) => {
-              if (!examSubjectsSet.has(subject.id)) {
-                examSubjectsSet.add(subject.id);
-                examSubjectsMap.set(subject.id, subject);
-              }
-            });
-          }
-        });
-        
-        allClassSubjects = Array.from(examSubjectsMap.values());
-        console.log('Found subjects from exams:', allClassSubjects.length, allClassSubjects.map(s => s.name));
-      }
 
-      // Get all marks for this student across all exams of this type
-      const examIds = exams.map(e => e.id);
+      const examIds = exams.map((e) => e.id);
       const allMarks = await marksRepository.find({
         where: { examId: In(examIds), studentId: studentId as string },
         relations: ['subject', 'exam', 'student']
       });
+
+      let allClassSubjects = mergeClassSubjectsWithExamSubjects(
+        classWithSubjects?.subjects || [],
+        exams
+      );
+      allClassSubjects = sortSubjectsByName(
+        mergeSubjectsWithMarksSubjects(allClassSubjects, allMarks)
+      );
+      console.log(
+        'PDF report card subjects (class ∪ exams ∪ marks):',
+        allClassSubjects.length,
+        allClassSubjects.map((s) => s.name)
+      );
       
       // Get all marks for all students in the class to calculate class averages
       const allClassMarksForAverage = await marksRepository.find({
@@ -2832,20 +3011,32 @@ export const generateReportCardPDF = async (req: AuthRequest, res: Response) => 
       
       // Note: We now include all subjects from the class, even if student has no marks
 
-      // Group marks by subject
       const subjectMarksMap: { [key: string]: { scores: number[]; maxScores: number[]; comments: string[] } } = {};
 
-      allMarks.forEach(mark => {
-        if (!mark.subject || !mark.score || !mark.maxScore) {
-          return;
-        }
+      allMarks.forEach((mark) => {
+        if (!mark.subject) return;
+        const hasScore = mark.score !== null && mark.score !== undefined;
+        const hasUniformMark = mark.uniformMark !== null && mark.uniformMark !== undefined;
+        if (!hasScore && !hasUniformMark) return;
+
+        const maxScore =
+          mark.maxScore && Number(mark.maxScore) > 0
+            ? parseFloat(String(mark.maxScore))
+            : 100;
         const subjectName = mark.subject.name;
         if (!subjectMarksMap[subjectName]) {
           subjectMarksMap[subjectName] = { scores: [], maxScores: [], comments: [] };
         }
-        // Round scores to integers
-        subjectMarksMap[subjectName].scores.push(Math.round(parseFloat(String(mark.score)) || 0));
-        subjectMarksMap[subjectName].maxScores.push(Math.round(parseFloat(String(mark.maxScore)) || 100));
+
+        if (hasUniformMark) {
+          const uniformPct = parseFloat(String(mark.uniformMark));
+          const scoreFromUniform = Math.round((uniformPct / 100) * maxScore);
+          subjectMarksMap[subjectName].scores.push(scoreFromUniform);
+          subjectMarksMap[subjectName].maxScores.push(Math.round(maxScore));
+        } else {
+          subjectMarksMap[subjectName].scores.push(Math.round(parseFloat(String(mark.score)) || 0));
+          subjectMarksMap[subjectName].maxScores.push(Math.round(maxScore));
+        }
         if (mark.comments) {
           subjectMarksMap[subjectName].comments.push(mark.comments);
         }
@@ -3374,57 +3565,53 @@ export const generateMarkSheet = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'No students found in this class' });
     }
 
-    // Get all exams of the specified type for this class
+    const termStr = term ? String(term).trim() : '';
+    const examWhere: Record<string, unknown> = {
+      classId: classId as string,
+      type: examType as ExamType,
+    };
+    if (termStr) {
+      examWhere.term = termStr;
+    }
+
     const exams = await examRepository.find({
-      where: {
-        classId: classId as string,
-        type: examType as ExamType,
-      },
+      where: examWhere as any,
       relations: ['subjects'],
-      order: { examDate: 'DESC' }
+      order: { examDate: 'DESC' },
     });
 
     if (exams.length === 0) {
-      return res.status(404).json({ message: `No ${examType} exams found for this class` });
-    }
-
-    // Get all subjects for this class
-    let subjects = classEntity.subjects || [];
-    
-    // If no subjects are assigned to the class, get subjects from the exams instead
-    if (subjects.length === 0 && exams.length > 0) {
-      console.log('No subjects assigned to class, getting subjects from exams...');
-      const examSubjectsSet = new Set<string>();
-      const examSubjectsMap = new Map<string, Subject>();
-      
-      exams.forEach(exam => {
-        if (exam.subjects && exam.subjects.length > 0) {
-          exam.subjects.forEach((subject: Subject) => {
-            if (!examSubjectsSet.has(subject.id)) {
-              examSubjectsSet.add(subject.id);
-              examSubjectsMap.set(subject.id, subject);
-            }
-          });
-        }
+      return res.status(404).json({
+        message: `No ${examType} exams found for this class${termStr ? ` in ${termStr}` : ''}`,
       });
-      
-      subjects = Array.from(examSubjectsMap.values());
-      console.log('Found subjects from exams:', subjects.length, subjects.map(s => s.name));
-    }
-    
-    if (subjects.length === 0) {
-      return res.status(404).json({ message: 'No subjects found for this class or in the exams' });
     }
 
-    // Get all marks for these exams
-    const examIds = exams.map(exam => exam.id);
+    const examIds = exams.map((exam) => exam.id);
     const allMarks = await marksRepository.find({
       where: {
         examId: In(examIds),
-        studentId: In(students.map(s => s.id)),
+        studentId: In(students.map((s) => s.id)),
       },
-      relations: ['student', 'exam', 'subject']
+      relations: ['student', 'exam', 'subject'],
     });
+
+    let subjects = mergeClassSubjectsWithExamSubjects(classEntity.subjects || [], exams);
+    subjects = mergeSubjectsWithMarksSubjects(subjects, allMarks);
+
+    const subjectIdStr = subjectId ? String(subjectId).trim() : '';
+    if (subjectIdStr) {
+      const selected = subjects.find((s) => s.id === subjectIdStr);
+      if (!selected) {
+        return res.status(404).json({ message: 'Subject not found for this class/exams/marks' });
+      }
+      subjects = [selected];
+    }
+
+    subjects = sortSubjectsByName(subjects);
+
+    if (subjects.length === 0) {
+      return res.status(404).json({ message: 'No subjects found for this class or in the exams' });
+    }
 
     // Organize marks by student and subject
     const markSheetData: any[] = [];
@@ -3514,8 +3701,8 @@ export const generateMarkSheet = async (req: AuthRequest, res: Response) => {
         form: classEntity.form
       },
       examType,
-      term: term || exams[0]?.term || null,
-      subject: subjectId ? subjects.find(s => s.id === subjectId) : null,
+      term: termStr || exams[0]?.term || null,
+      subject: subjectIdStr ? subjects.find((s) => s.id === subjectIdStr) || null : null,
       subjects: subjects.map(s => ({ id: s.id, name: s.name })),
       exams: exams.map(e => ({
         id: e.id,
@@ -3621,25 +3808,10 @@ export const generateMarkSheetPDF = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: `No ${examType} exams found for this class${term ? ` in ${term}` : ''}` });
     }
 
-    // If subjectId is provided, filter to that subject only
-    let subjects = classEntity.subjects || [];
-    if (subjectId) {
-      const selectedSubject = subjects.find(s => s.id === subjectId);
-      if (!selectedSubject) {
-        return res.status(404).json({ message: 'Subject not found in this class' });
-      }
-      subjects = [selectedSubject];
-    }
-
-    if (subjects.length === 0) {
-      return res.status(404).json({ message: 'No subjects found for this class' });
-    }
-
-    // Get all marks for these exams, filtered by subject if provided
-    const examIds = exams.map(exam => exam.id);
+    const examIds = exams.map((exam) => exam.id);
     const marksWhere: any = {
       examId: In(examIds),
-      studentId: In(students.map(s => s.id)),
+      studentId: In(students.map((s) => s.id)),
     };
     if (subjectId) {
       marksWhere.subjectId = subjectId as string;
@@ -3647,8 +3819,26 @@ export const generateMarkSheetPDF = async (req: AuthRequest, res: Response) => {
 
     const allMarks = await marksRepository.find({
       where: marksWhere,
-      relations: ['student', 'exam', 'subject']
+      relations: ['student', 'exam', 'subject'],
     });
+
+    let subjects = mergeClassSubjectsWithExamSubjects(classEntity.subjects || [], exams);
+    subjects = mergeSubjectsWithMarksSubjects(subjects, allMarks);
+
+    const pdfSubjectIdStr = subjectId ? String(subjectId).trim() : '';
+    if (pdfSubjectIdStr) {
+      const selected = subjects.find((s) => s.id === pdfSubjectIdStr);
+      if (!selected) {
+        return res.status(404).json({ message: 'Subject not found for this class/exams/marks' });
+      }
+      subjects = [selected];
+    }
+
+    subjects = sortSubjectsByName(subjects);
+
+    if (subjects.length === 0) {
+      return res.status(404).json({ message: 'No subjects found for this class or in the exams' });
+    }
 
     // Organize marks by student and subject
     const markSheetData: any[] = [];

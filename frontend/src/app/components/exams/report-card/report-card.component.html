@@ -397,57 +397,113 @@
             <h3 class="remarks-title">Remarks</h3>
             
             <div class="remarks-item">
-              <label class="remarks-label">
-                Class Teacher Remarks
-                <span *ngIf="!canEditRemarks" class="read-only-badge">Read-only</span>
-              </label>
+              <div class="remarks-label-row">
+                <label class="remarks-label remarks-label-inline">
+                  Class Teacher Remarks
+                  <span *ngIf="!canEditRemarks" class="read-only-badge">Read-only</span>
+                </label>
+                <button
+                  *ngIf="canEditRemarks"
+                  type="button"
+                  class="btn btn-sm btn-ai-report-remark"
+                  (click)="generateAIReportRemark(reportCard, 'class_teacher')"
+                  [disabled]="isAIReportRemarkBusy(reportCard.student.id, 'class_teacher')"
+                  title="AI suggestion — text is saved automatically after generation and when you stop typing">
+                  <span *ngIf="!isAIReportRemarkBusy(reportCard.student.id, 'class_teacher')" class="btn-ai-inner">
+                    <svg class="ai-suggest-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path fill="currentColor" d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/>
+                    </svg>
+                    Suggestion
+                  </span>
+                  <span *ngIf="isAIReportRemarkBusy(reportCard.student.id, 'class_teacher')" class="ai-busy">
+                    <span class="spinner-tiny"></span> Generating…
+                  </span>
+                </button>
+                <span
+                  *ngIf="canEditRemarks && getRemarkAutosaveState(reportCard.student.id) === 'saved'"
+                  class="remark-saved-tick"
+                  role="img"
+                  aria-label="Class teacher remark saved"
+                  title="Saved">
+                  <svg viewBox="0 0 24 24" class="remark-saved-tick-icon" aria-hidden="true" focusable="false">
+                    <circle cx="12" cy="12" r="12" fill="currentColor"/>
+                    <path fill="#ffffff" d="M17.65 8.35l-6.4 6.35-3.45-3.4 1.05-1.05 2.4 2.35 5.35-5.3 1.05 1.05z"/>
+                  </svg>
+                </span>
+              </div>
               <textarea 
                 *ngIf="canEditRemarks"
                 [(ngModel)]="reportCard.remarks.classTeacherRemarks" 
+                (ngModelChange)="onReportCardRemarksChange(reportCard)"
                 name="classTeacherRemarks_{{reportCard.student.id}}"
                 class="remarks-textarea"
-                placeholder="Enter class teacher remarks..."
+                [placeholder]="isAIReportRemarkBusy(reportCard.student.id, 'class_teacher') ? 'Generating AI suggestion…' : 'Enter class teacher remarks...'"
                 rows="3"
-                maxlength="500"></textarea>
+                maxlength="500"
+                [disabled]="isAIReportRemarkBusy(reportCard.student.id, 'class_teacher')"></textarea>
               <div *ngIf="!canEditRemarks" class="remarks-readonly">
                 {{ reportCard.remarks?.classTeacherRemarks ? reportCard.remarks.classTeacherRemarks : 'No remarks entered' }}
               </div>
             </div>
 
             <div class="remarks-item">
-              <label class="remarks-label">
-                Headmaster/Principal Remarks
-                <span *ngIf="!authService.hasRole('admin')" class="read-only-badge">Read-only</span>
-              </label>
+              <div class="remarks-label-row">
+                <label class="remarks-label remarks-label-inline">
+                  Headmaster/Principal Remarks
+                  <span *ngIf="!isAdmin" class="read-only-badge">Read-only</span>
+                </label>
+                <button
+                  *ngIf="isAdmin"
+                  type="button"
+                  class="btn btn-sm btn-ai-report-remark"
+                  (click)="generateAIReportRemark(reportCard, 'headmaster')"
+                  [disabled]="isAIReportRemarkBusy(reportCard.student.id, 'headmaster')"
+                  title="AI suggestion — text is saved automatically after generation and when you stop typing">
+                  <span *ngIf="!isAIReportRemarkBusy(reportCard.student.id, 'headmaster')" class="btn-ai-inner">
+                    <svg class="ai-suggest-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path fill="currentColor" d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/>
+                    </svg>
+                    Suggestion
+                  </span>
+                  <span *ngIf="isAIReportRemarkBusy(reportCard.student.id, 'headmaster')" class="ai-busy">
+                    <span class="spinner-tiny"></span> Generating…
+                  </span>
+                </button>
+                <span
+                  *ngIf="isAdmin && getRemarkAutosaveState(reportCard.student.id) === 'saved'"
+                  class="remark-saved-tick"
+                  role="img"
+                  aria-label="Headmaster remark saved"
+                  title="Saved">
+                  <svg viewBox="0 0 24 24" class="remark-saved-tick-icon" aria-hidden="true" focusable="false">
+                    <circle cx="12" cy="12" r="12" fill="currentColor"/>
+                    <path fill="#ffffff" d="M17.65 8.35l-6.4 6.35-3.45-3.4 1.05-1.05 2.4 2.35 5.35-5.3 1.05 1.05z"/>
+                  </svg>
+                </span>
+              </div>
               <textarea 
-                *ngIf="authService.hasRole('admin')"
+                *ngIf="isAdmin"
                 [(ngModel)]="reportCard.remarks.headmasterRemarks" 
+                (ngModelChange)="onReportCardRemarksChange(reportCard)"
                 name="headmasterRemarks_{{reportCard.student.id}}"
                 class="remarks-textarea"
-                placeholder="Enter headmaster/principal remarks..."
+                [placeholder]="isAIReportRemarkBusy(reportCard.student.id, 'headmaster') ? 'Generating AI suggestion…' : 'Enter headmaster/principal remarks...'"
                 rows="3"
-                maxlength="500"></textarea>
-              <div *ngIf="!authService.hasRole('admin')" class="remarks-readonly">
+                maxlength="500"
+                [disabled]="isAIReportRemarkBusy(reportCard.student.id, 'headmaster')"></textarea>
+              <div *ngIf="!isAdmin" class="remarks-readonly">
                 {{ reportCard.remarks?.headmasterRemarks ? reportCard.remarks.headmasterRemarks : 'No remarks entered' }}
               </div>
             </div>
 
-            <div *ngIf="canEditRemarks" class="remarks-actions">
-              <button 
-                type="button" 
-                class="btn btn-primary" 
-                (click)="saveRemarks(reportCard)" 
-                [disabled]="savingRemarks">
-                <span *ngIf="!savingRemarks">
-                  💾 Save Remarks for {{ reportCard.student.name }}
-                </span>
-                <span *ngIf="savingRemarks" class="loading-content">
-                  <span class="spinner-small"></span>
-                  Saving...
-                </span>
-              </button>
-              <span *ngIf="reportCard.remarks?.id" class="saved-indicator">
-                ✓ Remarks saved
+            <div
+              *ngIf="canEditRemarks && (getRemarkAutosaveState(reportCard.student.id) === 'saving' || getRemarkAutosaveState(reportCard.student.id) === 'error')"
+              class="remarks-actions remarks-actions--status-only">
+              <span *ngIf="getRemarkAutosaveState(reportCard.student.id) === 'saving'" class="autosave-indicator">
+                <span class="spinner-small"></span> Saving…
+              </span>
+              <span *ngIf="getRemarkAutosaveState(reportCard.student.id) === 'error'" class="autosave-indicator autosave-err">
+                Couldn’t save remarks — check connection or try again
               </span>
             </div>
           </div>
@@ -469,35 +525,15 @@
         </button>
       </div>
 
-      <!-- Grade Scale Footer -->
-      <div *ngIf="reportCards.length > 0 && gradeThresholds && gradeLabels" class="grade-scale-footer">
+      <!-- Grade Scale Footer (thresholds + labels from Settings) -->
+      <div *ngIf="reportCards.length > 0 && gradeThresholds && getGradeScaleFooterRows().length > 0" class="grade-scale-footer">
         <div class="grade-scale-header">
           <h3>📊 Grade Scale / Attainment Levels</h3>
         </div>
         <div class="grade-scale-grid">
-          <div class="grade-scale-item">
-            <span class="grade-range">80 – 100</span>
-            <span class="grade-label">{{ gradeLabels.veryGood || 'VERY HIGH' }}</span>
-          </div>
-          <div class="grade-scale-item">
-            <span class="grade-range">60 – 79</span>
-            <span class="grade-label">{{ gradeLabels.good || 'HIGH' }}</span>
-          </div>
-          <div class="grade-scale-item">
-            <span class="grade-range">40 – 59</span>
-            <span class="grade-label">{{ gradeLabels.satisfactory || 'GOOD' }}</span>
-          </div>
-          <div class="grade-scale-item">
-            <span class="grade-range">20 – 39</span>
-            <span class="grade-label">{{ gradeLabels.needsImprovement || 'ASPIRING' }}</span>
-          </div>
-          <div class="grade-scale-item">
-            <span class="grade-range">1 – 19</span>
-            <span class="grade-label">{{ gradeLabels.basic || 'BASIC' }}</span>
-          </div>
-          <div class="grade-scale-item">
-            <span class="grade-range">0</span>
-            <span class="grade-label">{{ gradeLabels.fail || 'UNCLASSIFIED' }}</span>
+          <div class="grade-scale-item" *ngFor="let row of getGradeScaleFooterRows()">
+            <span class="grade-range">{{ row.range }}</span>
+            <span class="grade-label">{{ row.label }}</span>
           </div>
         </div>
       </div>
