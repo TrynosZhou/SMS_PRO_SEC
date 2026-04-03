@@ -593,7 +593,10 @@ export class TimetableViewComponent implements OnInit {
       next: ({ slots, config, settings }) => {
         const teaching = slots.filter((s) => !s.isBreak);
         if (teaching.length === 0) {
-          this.previewError = 'No timetable slots to preview for this version.';
+          this.previewError =
+            slots.length === 0
+              ? 'This version has no lesson slots in the database. It may have been saved when scheduling produced zero lessons. Generate a new timetable after fixing Configuration (periods per day, weekly lessons) and teacher–class–subject assignments, or select a different version that already has lessons.'
+              : 'There are only break rows for this version—nothing to show in the teaching grid.';
           this.previewLoading = false;
           return;
         }

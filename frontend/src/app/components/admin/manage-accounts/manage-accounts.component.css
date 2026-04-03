@@ -1,5 +1,336 @@
 /* Modern Manage Accounts Styles */
 
+:host {
+  --um-text: #0f172a;
+  --um-muted: #64748b;
+  --um-border: #e2e8f0;
+  --um-accent: #6366f1;
+  --um-radius: 14px;
+  --um-shadow: 0 4px 24px rgba(15, 23, 42, 0.07);
+}
+
+.um-page.container {
+  max-width: 1280px;
+  padding: 1.15rem 1.25rem 2.5rem;
+}
+
+.um-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem 1.35rem;
+  background: linear-gradient(125deg, #eef2ff 0%, #fff 48%, #ecfeff 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: var(--um-radius);
+  box-shadow: var(--um-shadow);
+}
+
+.um-hero-text {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.um-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--um-text);
+  letter-spacing: -0.03em;
+}
+
+.um-lead {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--um-muted);
+}
+
+.um-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.um-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: box-shadow 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+
+.um-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.um-btn-sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.um-btn-primary {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(79, 70, 229, 0.35);
+}
+
+.um-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.um-btn-ghost {
+  background: #fff;
+  border: 1px solid var(--um-border);
+  color: var(--um-text);
+}
+
+.um-btn-ghost:hover:not(:disabled) {
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+}
+
+.um-spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid #e2e8f0;
+  border-top-color: var(--um-accent);
+  border-radius: 50%;
+  animation: um-spin 0.7s linear infinite;
+}
+
+@keyframes um-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.um-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.um-alert-ico {
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+.um-alert-success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.um-alert-success .um-alert-ico {
+  background: #a7f3d0;
+  color: #065f46;
+}
+
+.um-alert-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.um-alert-error .um-alert-ico {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.um-surface {
+  border: 1px solid var(--um-border);
+  box-shadow: var(--um-shadow);
+}
+
+.manual-account-card.um-surface,
+.demo-notice-card.um-surface,
+.admin-password-section.um-surface {
+  border-radius: var(--um-radius);
+}
+
+.um-section-head h2 {
+  font-size: 1.15rem;
+}
+
+.um-kpi.um-kpi-accent {
+  background: linear-gradient(145deg, #eef2ff 0%, #fff 90%);
+  border: 1px solid #c7d2fe;
+}
+
+.um-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.um-toolbar.um-toolbar {
+  border: 1px solid var(--um-border);
+  box-shadow: var(--um-shadow);
+  border-radius: var(--um-radius);
+}
+
+.um-search {
+  position: relative;
+  margin-bottom: 0.85rem;
+}
+
+.um-search-ico {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.55;
+  pointer-events: none;
+  font-size: 0.95rem;
+}
+
+.um-search-input.search-input {
+  padding-left: 2.35rem;
+  padding-right: 2.25rem;
+}
+
+.um-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: #e2e8f0;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #475569;
+}
+
+.um-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+}
+
+.um-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--um-muted);
+}
+
+.um-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  background: #f1f5f9;
+  border-radius: 10px;
+  flex: 1 1 220px;
+}
+
+.um-seg-btn {
+  border: none;
+  background: transparent;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--um-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.um-seg-btn:hover {
+  color: var(--um-text);
+}
+
+.um-seg-btn.active {
+  background: #fff;
+  color: #4338ca;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.um-toolbar-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.78rem;
+  color: var(--um-muted);
+}
+
+.um-skeleton-card {
+  background: #fff;
+  border: 1px solid var(--um-border);
+  border-radius: var(--um-radius);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--um-shadow);
+}
+
+.um-sh-row {
+  height: 3rem;
+  border-radius: 8px;
+  margin-bottom: 0.55rem;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: um-shimmer 1.2s ease-in-out infinite;
+}
+
+.um-sh-row:last-child {
+  margin-bottom: 0;
+}
+
+@keyframes um-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.um-table-card {
+  border: 1px solid var(--um-border);
+  box-shadow: var(--um-shadow);
+  border-radius: var(--um-radius);
+  overflow: hidden;
+}
+
+.um-table-scroll {
+  overflow-x: auto;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+}
+
+.um-table-scroll .teachers-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
 .container {
   max-width: 1400px;
   margin: 0 auto;

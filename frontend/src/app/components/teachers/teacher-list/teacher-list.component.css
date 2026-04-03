@@ -476,13 +476,14 @@
 
 .teachers-data-table {
   width: 100%;
-  min-width: 1020px;
+  min-width: 56rem;
+  max-width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 .teachers-data-table thead th {
-  padding: 14px 12px;
+  padding: 12px 10px;
   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   color: #fff;
   font-weight: 600;
@@ -495,13 +496,20 @@
 }
 
 .teachers-data-table tbody td {
-  padding: 14px 12px;
+  padding: 12px 10px;
   border-bottom: 1px solid #f0f0f0;
   font-size: 14px;
   color: #333;
   vertical-align: middle;
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+/* Staff / teacher IDs must stay on one line (avoid mid-ID breaks from break-word). */
+.teachers-data-table tbody td.col-staff-id {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .teachers-data-table tbody tr:hover {
@@ -512,16 +520,30 @@
   border-bottom: none;
 }
 
-/* Column widths — aligned with headers */
-.col-staff-id { width: 10%; }
-.col-firstname { width: 11%; }
-.col-lastname { width: 11%; }
-.col-contact { width: 12%; }
-.col-status { width: 9%; }
-.col-subject { width: 13%; }
+/* Column widths — sum 100%; tighter Subject so Actions sits closer to content */
+.col-staff-id {
+  width: 13%;
+  min-width: 7.25rem;
+}
+.col-firstname { width: 14%; min-width: 0; }
+.col-lastname { width: 14%; min-width: 0; }
+.col-status { width: 9%; min-width: 0; }
+.col-subject {
+  width: 28%;
+  min-width: 0;
+}
 .col-actions {
-  width: 12%;
+  width: 22%;
+  min-width: 7.25rem;
   white-space: nowrap;
+}
+
+.teachers-data-table .col-subject-text {
+  display: block;
+  max-width: 100%;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .col-actions .action-buttons {

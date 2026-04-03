@@ -45,6 +45,10 @@ export class TimetableSlot {
   @Column({ type: 'boolean', default: false })
   isManuallyEdited: boolean; // True if manually edited after generation
 
+  /** When true, the slot cannot be moved until an administrator unlocks it. */
+  @Column({ type: 'boolean', default: false })
+  isLocked: boolean;
+
   @Column({ type: 'timestamp', nullable: true })
   editedAt: Date | null; // When this slot was manually edited
 

@@ -73,24 +73,36 @@
     <div *ngIf="!loading && students.length > 0" class="id-cards-container">
       <div class="id-cards-grid">
         <div *ngFor="let student of students" class="id-card">
-          <!-- Top Header Band -->
+          <!-- Top Header Band: Settings logo 1 left + right (matches PDF) -->
           <div class="id-card-top-band">
-            <div class="top-band-logo" *ngIf="schoolLogo">
-              <img
-                [src]="schoolLogo"
-                alt="School Logo"
-                class="top-band-school-logo"
-                (error)="schoolLogo = null"
-              />
-            </div>
-            <div class="school-name-header">{{ schoolName }}</div>
-            <div class="school-contact-info">
-              <div class="contact-line" *ngIf="schoolAddress">{{ schoolAddress }}</div>
-              <div class="contact-line" *ngIf="schoolPhone">
-                <span>Landline: {{ schoolPhone }}</span>
+            <div class="top-band-inner">
+              <div class="top-band-logo" *ngIf="schoolLogo">
+                <img
+                  [src]="schoolLogo"
+                  alt="School logo"
+                  class="top-band-school-logo"
+                  (error)="schoolLogo = null"
+                />
               </div>
-              <div class="contact-line" *ngIf="schoolEmail && schoolEmail.includes('+')">
-                <span>Cell: {{ schoolEmail }}</span>
+              <div class="top-band-center">
+                <div class="school-name-header">{{ schoolName }}</div>
+                <div class="school-contact-info">
+                  <div class="contact-line" *ngIf="schoolPhone">
+                    <span>Landline: {{ schoolPhone }}</span>
+                  </div>
+                  <div class="contact-line" *ngIf="schoolEmail && schoolEmail.includes('+')">
+                    <span>Cell: {{ schoolEmail }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="top-band-logo" *ngIf="schoolLogo">
+                <img
+                  [src]="schoolLogo"
+                  alt=""
+                  class="top-band-school-logo"
+                  aria-hidden="true"
+                  (error)="schoolLogo = null"
+                />
               </div>
             </div>
           </div>
@@ -139,7 +151,13 @@
             <!-- Right: QR Code -->
             <div class="qr-section">
               <div class="qr-code-placeholder">
-                <div class="qr-code">QR</div>
+                <img
+                  *ngIf="student.qrDataUrl"
+                  [src]="student.qrDataUrl"
+                  alt="Verification QR code"
+                  class="qr-code-img"
+                />
+                <span *ngIf="!student.qrDataUrl" class="qr-code-loading" aria-hidden="true">…</span>
               </div>
               <div class="qr-label">Scan QR for verification</div>
             </div>

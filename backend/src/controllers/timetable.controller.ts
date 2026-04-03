@@ -112,6 +112,20 @@ export const generateTimetable = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'No active timetable configuration found. Please configure the timetable first.' });
     }
 
+    const configDays = config.daysOfWeek?.filter((d) => String(d).trim() !== '') || [];
+    if (!config.periodsPerDay || config.periodsPerDay < 1) {
+      return res.status(400).json({
+        message:
+          'Timetable configuration must have at least one period per day. Open Configuration and set periods per day before generating.',
+      });
+    }
+    if (configDays.length === 0) {
+      return res.status(400).json({
+        message:
+          'Timetable configuration must include at least one school day. Open Configuration and select days of the week.',
+      });
+    }
+
     console.log('[generateTimetable] Found active configuration:', config.id);
 
     // Get all active teachers, classes, and subjects
@@ -213,15 +227,26 @@ export const generateTimetable = async (req: AuthRequest, res: Response) => {
       const slots = await generateTimetableSlots(config, teachers, classes, subjects, version.id);
       console.log(`[generateTimetable] Generated ${slots.length} slots`);
 
+      if (slots.length === 0) {
+        await versionRepository.remove(version);
+        console.warn('[generateTimetable] Removed empty version after scheduler placed no lessons');
+        return res.status(400).json({
+          message:
+            'No lessons could be placed on the timetable. Increase periods per day, reduce weekly lessons per subject in configuration, or check teacher–class–subject assignments—then generate again.',
+          help: [
+            'Configuration: Periods per day should match how many teaching slots exist each day.',
+            'Configuration: Lower lessons-per-week if the grid is too small for all subjects.',
+            'Every class subject needs one teacher who is assigned to that class and teaches that subject.',
+            'Versions with zero saved lessons cannot show a preview; generate again after fixing the above.',
+          ],
+        });
+      }
+
       // Save all slots
       console.log('[generateTimetable] Saving slots to database...');
       const slotRepository = AppDataSource.getRepository(TimetableSlot);
-      if (slots.length > 0) {
-        await slotRepository.save(slots);
-        console.log('[generateTimetable] Slots saved successfully');
-      } else {
-        console.warn('[generateTimetable] No slots to save');
-      }
+      await slotRepository.save(slots);
+      console.log('[generateTimetable] Slots saved successfully');
 
       // Fetch the complete version with slots
       const completeVersion = await versionRepository.findOne({
@@ -760,7 +785,7 @@ export const updateTimetableSlot = async (req: AuthRequest, res: Response) => {
     }
 
     const { slotId } = req.params;
-    const { teacherId, classId, subjectId, dayOfWeek, periodNumber, room } = req.body;
+    const { teacherId, classId, subjectId, dayOfWeek, periodNumber, room, isLocked } = req.body;
 
     const slotRepository = AppDataSource.getRepository(TimetableSlot);
     const slot = await slotRepository.findOne({ where: { id: slotId } });
@@ -769,30 +794,76 @@ export const updateTimetableSlot = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Timetable slot not found' });
     }
 
+    const wantsLockUpdate = Object.prototype.hasOwnProperty.call(req.body, 'isLocked');
+    const nextIsLocked = wantsLockUpdate ? Boolean(isLocked) : Boolean(slot.isLocked);
+
+    const nextTeacherId = teacherId !== undefined && teacherId !== null && teacherId !== ''
+      ? teacherId
+      : slot.teacherId;
+    const nextClassId = classId !== undefined && classId !== null && classId !== ''
+      ? classId
+      : slot.classId;
+    const nextSubjectId = subjectId !== undefined && subjectId !== null && subjectId !== ''
+      ? subjectId
+      : slot.subjectId;
+    const nextDay = dayOfWeek !== undefined && dayOfWeek !== null && String(dayOfWeek).trim() !== ''
+      ? String(dayOfWeek).trim()
+      : slot.dayOfWeek;
+    const nextPeriod =
+      periodNumber !== undefined && periodNumber !== null && !Number.isNaN(Number(periodNumber))
+        ? Number(periodNumber)
+        : slot.periodNumber;
+
+    const positionChanging =
+      nextTeacherId !== slot.teacherId ||
+      nextClassId !== slot.classId ||
+      nextDay !== slot.dayOfWeek ||
+      nextPeriod !== slot.periodNumber;
+
+    if (positionChanging && slot.isLocked && !(wantsLockUpdate && nextIsLocked === false)) {
+      return res.status(400).json({
+        message: 'This lesson is locked. Right-click the card and choose Unlock before moving it.',
+      });
+    }
+
     // Check for conflicts if changing teacher, class, day, or period
-    if (teacherId !== slot.teacherId || classId !== slot.classId || 
-        dayOfWeek !== slot.dayOfWeek || periodNumber !== slot.periodNumber) {
+    if (positionChanging) {
       const conflicts = await slotRepository.find({
         where: [
-          { versionId: slot.versionId, teacherId, dayOfWeek, periodNumber, id: Not(slotId) },
-          { versionId: slot.versionId, classId, dayOfWeek, periodNumber, id: Not(slotId) }
+          {
+            versionId: slot.versionId,
+            teacherId: nextTeacherId,
+            dayOfWeek: nextDay,
+            periodNumber: nextPeriod,
+            id: Not(slotId)
+          },
+          {
+            versionId: slot.versionId,
+            classId: nextClassId,
+            dayOfWeek: nextDay,
+            periodNumber: nextPeriod,
+            id: Not(slotId)
+          }
         ]
       });
 
       if (conflicts.length > 0) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Conflict detected. This slot would create a scheduling conflict.',
-          conflicts 
+          conflicts
         });
       }
     }
 
-    slot.teacherId = teacherId || slot.teacherId;
-    slot.classId = classId || slot.classId;
-    slot.subjectId = subjectId || slot.subjectId;
-    slot.dayOfWeek = dayOfWeek || slot.dayOfWeek;
-    slot.periodNumber = periodNumber || slot.periodNumber;
-    slot.room = room || slot.room;
+    slot.teacherId = nextTeacherId;
+    slot.classId = nextClassId;
+    slot.subjectId = nextSubjectId;
+    slot.dayOfWeek = nextDay;
+    slot.periodNumber = nextPeriod;
+    slot.room = room !== undefined ? room : slot.room;
+    if (wantsLockUpdate) {
+      slot.isLocked = nextIsLocked;
+    }
     slot.isManuallyEdited = true;
     slot.editedAt = new Date();
     slot.editedBy = req.user?.id || null;

@@ -81,6 +81,7 @@ import { SplashComponent } from './components/splash/splash.component';
 import { TimetableConfigComponent } from './components/timetable/timetable-config/timetable-config.component';
 import { TimetableViewComponent } from './components/timetable/timetable-view/timetable-view.component';
 import { TimetableManageComponent } from './components/timetable/timetable-manage/timetable-manage.component';
+import { TimetableManualAdjustmentsComponent } from './components/timetable/timetable-manual-adjustments/timetable-manual-adjustments.component';
 import { StudentDashboardComponent } from './components/student/student-dashboard/student-dashboard.component';
 import { StudentReportCardComponent } from './components/student/student-report-card/student-report-card.component';
 import { StudentInvoiceStatementComponent } from './components/student/student-invoice-statement/student-invoice-statement.component';
@@ -375,8 +376,9 @@ const routes: Routes = [
     canActivate: [AuthGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'view' },
-      { path: 'view', component: TimetableViewComponent, canActivate: [AuthGuard] },
       { path: 'config', component: TimetableConfigComponent, canActivate: [AuthGuard] },
+      { path: 'manual', component: TimetableManualAdjustmentsComponent, canActivate: [AuthGuard] },
+      { path: 'view', component: TimetableViewComponent, canActivate: [AuthGuard] },
     ],
   },
   { path: 'timetable_manage', redirectTo: 'timetable/manage', pathMatch: 'full' },

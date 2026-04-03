@@ -1,8 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { StudentService } from '../../../services/student.service';
 import { ClassService } from '../../../services/class.service';
+import { AuthService } from '../../../services/auth.service';
 import { environment } from '../../../../environments/environment';
 import { studentsManageNav } from '../students-manage-navigation';
 
@@ -62,12 +63,70 @@ export class StudentListComponent implements OnInit {
   fieldEditSelectOptions: { value: string; label: string }[] = [];
   fieldEditSaving = false;
 
+  /** Single hidden file input for passport photo uploads (per-row buttons trigger this). */
+  @ViewChild('passportPhotoFile') passportPhotoFile?: ElementRef<HTMLInputElement>;
+  private passportPhotoTarget: any = null;
+
   constructor(
     private studentService: StudentService,
     private classService: ClassService,
     private router: Router,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private authService: AuthService
   ) { }
+
+  /** Same roles as student update + photo on the API (admin-type staff). */
+  canUploadStudentPhoto(): boolean {
+    const r = this.authService.getCurrentUser()?.role;
+    return r === 'superadmin' || r === 'admin' || r === 'accountant' || r === 'demo_user';
+  }
+
+  openPassportPhotoPicker(student: any, event?: Event): void {
+    event?.stopPropagation();
+    event?.preventDefault();
+    if (!this.canUploadStudentPhoto() || !student?.id || this.loading) {
+      return;
+    }
+    this.passportPhotoTarget = student;
+    setTimeout(() => this.passportPhotoFile?.nativeElement?.click());
+  }
+
+  onPassportPhotoFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const student = this.passportPhotoTarget;
+    this.passportPhotoTarget = null;
+    input.value = '';
+    if (!file || !student?.id) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      this.error = 'Please choose an image file (JPG, PNG, etc.).';
+      setTimeout(() => (this.error = ''), 5000);
+      return;
+    }
+    this.error = '';
+    this.success = '';
+    this.loading = true;
+    this.studentService.updateStudent(student.id, {}, file).subscribe({
+      next: (res: any) => {
+        this.loading = false;
+        const updated = res?.student;
+        if (updated) {
+          this.applyStudentPatch(updated);
+        } else {
+          this.loadStudents();
+        }
+        this.success = 'Passport photo updated';
+        setTimeout(() => (this.success = ''), 4000);
+      },
+      error: (err: any) => {
+        this.loading = false;
+        this.error = err.error?.message || err.message || 'Failed to upload photo';
+        setTimeout(() => (this.error = ''), 6000);
+      }
+    });
+  }
 
   ngOnInit() {
     this.loadClasses();

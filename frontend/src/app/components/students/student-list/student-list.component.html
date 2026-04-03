@@ -118,13 +118,25 @@
   <div class="students-grid" *ngIf="!loading && viewMode === 'grid' && filteredStudents.length > 0">
     <div *ngFor="let student of filteredStudents" class="student-card">
       <div class="card-header">
-        <div class="student-avatar" [class.male]="student.gender === 'Male'" [class.female]="student.gender === 'Female'">
-          <img *ngIf="student.photo" 
-               [src]="serverBaseUrl + student.photo" 
-               [alt]="student.firstName + ' ' + student.lastName"
-               class="student-photo"
-               onerror="this.style.display='none'">
-          <span class="avatar-icon avatar-initials" *ngIf="!student.photo">{{ getInitials(student) }}</span>
+        <div class="avatar-with-upload">
+          <div class="student-avatar" [class.male]="student.gender === 'Male'" [class.female]="student.gender === 'Female'">
+            <img *ngIf="student.photo" 
+                 [src]="serverBaseUrl + student.photo" 
+                 [alt]="student.firstName + ' ' + student.lastName"
+                 class="student-photo"
+                 onerror="this.style.display='none'">
+            <span class="avatar-icon avatar-initials" *ngIf="!student.photo">{{ getInitials(student) }}</span>
+          </div>
+          <button
+            *ngIf="canUploadStudentPhoto()"
+            type="button"
+            class="btn-passport-upload"
+            (click)="openPassportPhotoPicker(student, $event)"
+            [disabled]="loading"
+            title="Upload passport-size photo"
+            aria-label="Upload passport photo for {{ student.firstName }} {{ student.lastName }}">
+            📷
+          </button>
         </div>
         <div class="student-badge clickable-value" [class.boarder]="student.studentType === 'Boarder'" [class.day-scholar]="student.studentType === 'Day Scholar'" (click)="openFieldEdit(student, 'studentType', $event)" title="Click to edit type">
           {{ student.studentType || 'Day Scholar' }}
@@ -149,10 +161,6 @@
           <div class="info-item">
             <span class="info-label">Class</span>
             <span class="info-value clickable-value" (click)="openFieldEdit(student, 'classId', $event)" title="Click to edit">{{ getClassName(student) }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">Contact</span>
-            <span class="info-value clickable-value" (click)="openFieldEdit(student, 'contactNumber', $event)" title="Click to edit">{{ student.contactNumber || student.phoneNumber || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">Gender</span>
@@ -185,7 +193,7 @@
             <th class="col-lastname" scope="col">Last name</th>
             <th class="col-class" scope="col">Class</th>
             <th class="col-gender" scope="col">Gender</th>
-            <th class="col-contact" scope="col">Contact</th>
+            <th class="col-passport" scope="col">Passport photo</th>
             <th class="col-type" scope="col">Type</th>
             <th class="col-actions" scope="col">Actions</th>
           </tr>
@@ -196,22 +204,33 @@
               <strong class="student-id-link" (click)="openIdCardPreview(student.id, $event)" title="Preview student ID card (PDF)">{{ student.studentNumber }}</strong>
             </td>
             <td class="col-firstname">
-              <div class="name-cell">
-                <img *ngIf="student.photo"
-                     [src]="serverBaseUrl + student.photo"
-                     [alt]="student.firstName + ' ' + student.lastName"
-                     class="avatar-small-photo"
-                     onerror="this.style.display='none'"
-                     (click)="$event.stopPropagation()">
-                <span class="name-text clickable-value" (click)="openFieldEdit(student, 'firstName', $event)" title="Click to edit">{{ student.firstName || '—' }}</span>
-              </div>
+              <span class="name-text clickable-value" (click)="openFieldEdit(student, 'firstName', $event)" title="Click to edit">{{ student.firstName || '—' }}</span>
             </td>
             <td class="col-lastname">
               <span class="name-text clickable-value" (click)="openFieldEdit(student, 'lastName', $event)" title="Click to edit">{{ student.lastName || '—' }}</span>
             </td>
             <td class="col-class"><span class="clickable-value" (click)="openFieldEdit(student, 'classId', $event)" title="Click to edit">{{ getClassName(student) }}</span></td>
             <td class="col-gender"><span class="clickable-value" (click)="openFieldEdit(student, 'gender', $event)" title="Click to edit">{{ student.gender }}</span></td>
-            <td class="col-contact"><span class="clickable-value" (click)="openFieldEdit(student, 'contactNumber', $event)" title="Click to edit">{{ student.contactNumber || student.phoneNumber || 'N/A' }}</span></td>
+            <td class="col-passport">
+              <div class="passport-cell">
+                <img *ngIf="student.photo"
+                     [src]="serverBaseUrl + student.photo"
+                     [alt]="'Photo of ' + student.firstName"
+                     class="passport-thumb"
+                     onerror="this.style.display='none'">
+                <span *ngIf="!student.photo" class="passport-thumb passport-thumb--empty" aria-hidden="true">—</span>
+                <button
+                  *ngIf="canUploadStudentPhoto()"
+                  type="button"
+                  class="btn-passport-upload-inline"
+                  (click)="openPassportPhotoPicker(student, $event)"
+                  [disabled]="loading"
+                  title="Upload passport-size photo"
+                  aria-label="Upload passport photo for {{ student.firstName }} {{ student.lastName }}">
+                  📷
+                </button>
+              </div>
+            </td>
             <td class="col-type">
               <span class="type-badge clickable-value" [class.boarder]="student.studentType === 'Boarder'" [class.day-scholar]="student.studentType === 'Day Scholar'" (click)="openFieldEdit(student, 'studentType', $event)" title="Click to edit">
                 {{ student.studentType || 'Day Scholar' }}
@@ -249,13 +268,23 @@
     <div class="modal-content student-detail-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="student-modal-title">
       <button type="button" class="modal-close modal-close-modern" (click)="closeStudentDetails()" aria-label="Close dialog">&times;</button>
       <div class="modal-header modal-header-modern">
-        <div class="modal-avatar" [class.male]="selectedStudent.gender === 'Male'" [class.female]="selectedStudent.gender === 'Female'">
-          <img *ngIf="selectedStudent.photo" 
-               [src]="serverBaseUrl + selectedStudent.photo" 
-               [alt]="selectedStudent.firstName + ' ' + selectedStudent.lastName"
-               class="student-photo-large"
-               onerror="this.style.display='none'">
-          <span class="avatar-icon-large avatar-initials" *ngIf="!selectedStudent.photo">{{ getInitials(selectedStudent) }}</span>
+        <div class="modal-avatar-block">
+          <div class="modal-avatar" [class.male]="selectedStudent.gender === 'Male'" [class.female]="selectedStudent.gender === 'Female'">
+            <img *ngIf="selectedStudent.photo" 
+                 [src]="serverBaseUrl + selectedStudent.photo" 
+                 [alt]="selectedStudent.firstName + ' ' + selectedStudent.lastName"
+                 class="student-photo-large"
+                 onerror="this.style.display='none'">
+            <span class="avatar-icon-large avatar-initials" *ngIf="!selectedStudent.photo">{{ getInitials(selectedStudent) }}</span>
+          </div>
+          <button
+            *ngIf="canUploadStudentPhoto()"
+            type="button"
+            class="btn-passport-upload-modal"
+            (click)="openPassportPhotoPicker(selectedStudent, $event)"
+            [disabled]="loading">
+            📷 Upload photo
+          </button>
         </div>
         <div class="modal-title">
           <h2 id="student-modal-title">{{ selectedStudent.firstName }} {{ selectedStudent.lastName }}</h2>
@@ -354,4 +383,13 @@
       </div>
     </div>
   </div>
+
+  <input
+    #passportPhotoFile
+    type="file"
+    accept="image/*"
+    class="passport-file-input-hidden"
+    (change)="onPassportPhotoFileSelected($event)"
+    aria-hidden="true"
+    tabindex="-1">
 </div>

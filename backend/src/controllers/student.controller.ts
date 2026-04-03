@@ -672,7 +672,7 @@ export const updateStudent = async (req: AuthRequest, res: Response) => {
       if (student.photo) {
         const fs = require('fs');
         const path = require('path');
-        const oldPhotoPath = path.join(__dirname, '../../', student.photo.replace(/^\//, ''));
+        const oldPhotoPath = path.join(__dirname, '../../../', student.photo.replace(/^\//, ''));
         try {
           if (fs.existsSync(oldPhotoPath)) {
             fs.unlinkSync(oldPhotoPath);
@@ -981,12 +981,17 @@ export const generateStudentIdCard = async (req: AuthRequest, res: Response) => 
       issuedAt: new Date().toISOString()
     };
 
-    const qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrPayload));
+    const qrImageBuffer = await QRCode.toBuffer(JSON.stringify(qrPayload), {
+      type: 'png',
+      margin: 1,
+      width: 256,
+      errorCorrectionLevel: 'M'
+    });
 
     const pdfBuffer = await createStudentIdCardPDF({
       student,
       settings: settings || null,
-      qrDataUrl,
+      qrImageBuffer,
       photoPath: student.photo
     });
 
@@ -1081,7 +1086,7 @@ export const generateClassStudentIdCardsPDF = async (req: AuthRequest, res: Resp
     const items: {
       student: Student;
       settings: Settings | null;
-      qrDataUrl: string;
+      qrImageBuffer: Buffer;
       photoPath?: string | null;
     }[] = [];
 
@@ -1094,11 +1099,16 @@ export const generateClassStudentIdCardsPDF = async (req: AuthRequest, res: Resp
         studentType: student.studentType,
         issuedAt: new Date().toISOString()
       };
-      const qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrPayload));
+      const qrImageBuffer = await QRCode.toBuffer(JSON.stringify(qrPayload), {
+        type: 'png',
+        margin: 1,
+        width: 256,
+        errorCorrectionLevel: 'M'
+      });
       items.push({
         student,
         settings: settings || null,
-        qrDataUrl,
+        qrImageBuffer,
         photoPath: student.photo
       });
     }

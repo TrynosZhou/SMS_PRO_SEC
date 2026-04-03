@@ -12,8 +12,16 @@ import { Settings } from '../entities/Settings';
 interface StudentIdCardData {
   student: Student;
   settings: Settings | null;
-  qrDataUrl: string;
+  /** PNG bytes for the QR code (prefer over data URLs; avoids blank renders from bad base64 parsing). */
+  qrImageBuffer: Buffer;
   photoPath?: string | null;
+}
+
+/** Project-root-relative path (same as upload.ts / static /uploads/students). */
+function resolveProjectRootFile(relativePath: string): string {
+  const normalized = relativePath.replace(/^\//, '');
+  // dist/utils → .. → dist → .. → backend → .. → repo root (matches upload multer + server static)
+  return path.join(__dirname, '../../..', normalized);
 }
 
 function loadStudentPhoto(photoPath?: string | null): Buffer | null {
@@ -23,11 +31,12 @@ function loadStudentPhoto(photoPath?: string | null): Buffer | null {
 
   try {
     const normalizedPath = photoPath.replace(/^\//, '');
-    const absolutePath = path.join(__dirname, '../../', normalizedPath);
+    const absolutePath = resolveProjectRootFile(normalizedPath);
 
     if (fs.existsSync(absolutePath)) {
       return fs.readFileSync(absolutePath);
     }
+    console.warn('Student ID card: photo file not found:', absolutePath);
   } catch (error) {
     console.error('Failed to load student photo for ID card:', error);
   }
@@ -47,7 +56,7 @@ function loadSchoolLogo(logo?: string | null): Buffer | null {
 
     // Stored as relative/local path (e.g. /uploads/...)
     const normalizedPath = String(logo).replace(/^\//, '');
-    const absolutePath = path.join(__dirname, '../../', normalizedPath);
+    const absolutePath = resolveProjectRootFile(normalizedPath);
     if (fs.existsSync(absolutePath)) {
       return fs.readFileSync(absolutePath);
     }
@@ -114,13 +123,25 @@ function removeWhiteBackgroundFromLogo(imageBuffer: Buffer, whitenessThreshold =
 }
 
 /**
+ * Re-encode QR PNG so PDFKit reliably rasterizes it (some qrcode PNG chunks confuse pdfkit.image).
+ */
+function normalizeQrPngForPdf(buffer: Buffer): Buffer {
+  try {
+    const png = PNG.sync.read(buffer);
+    return PNG.sync.write(png);
+  } catch (error) {
+    console.warn('Could not normalize QR PNG for PDF, using original buffer:', error);
+    return buffer;
+  }
+}
+
+/**
  * Draw one ID card on the current PDF page (350×220, landscape-style card).
  */
 export function drawStudentIdCardPage(doc: PDFDoc, data: StudentIdCardData): void {
-  const { student, settings, qrDataUrl, photoPath } = data;
+  const { student, settings, qrImageBuffer, photoPath } = data;
 
   const schoolName = settings?.schoolName || 'School Management System';
-      const schoolAddress = settings?.schoolAddress ? String(settings.schoolAddress).trim() : '';
       const schoolPhone = settings?.schoolPhone ? String(settings.schoolPhone).trim() : '';
 
       // Background
@@ -134,87 +155,79 @@ export function drawStudentIdCardPage(doc: PDFDoc, data: StudentIdCardData): voi
         .strokeColor('#1F4B99')
         .stroke();
 
-      // Header bar - increased height to accommodate longer addresses
-      const headerHeight = 50; // Increased from 36 to 50
+      // Header bar: school name + landline only (address omitted on ID cards)
+      const headerHeight = 44;
       doc.rect(10, 10, doc.page.width - 20, headerHeight)
         .fillColor('#1F4B99')
         .fill();
 
-      // School logo (logo 1) - keep small so it never overlaps the centered title.
+      // School logo (Settings "logo 1" / schoolLogo) — left and right; compact so title stays centered.
       const logoBuffer = loadSchoolLogo(settings?.schoolLogo);
+      const logoPadding = 8;
+      const maxLogoWidth = 36;
+      const maxLogoHeight = headerHeight - logoPadding * 2;
+      /** Horizontal space to reserve on each side for logo + gap (matches logo box width + padding). */
+      const sideReserve = logoPadding + maxLogoWidth + 6;
+
+      const addLogoWithAspectRatio = (
+        imageBuffer: Buffer,
+        startX: number,
+        startY: number,
+        maxWidth: number,
+        maxHeight: number
+      ) => {
+        try {
+          const dimensions = sizeOf(imageBuffer);
+          const imgWidth = dimensions.width || maxWidth;
+          const imgHeight = dimensions.height || maxHeight;
+
+          const scaleX = maxWidth / imgWidth;
+          const scaleY = maxHeight / imgHeight;
+          const scale = Math.min(scaleX, scaleY);
+
+          const finalWidth = imgWidth * scale;
+          const finalHeight = imgHeight * scale;
+
+          const centeredX = startX + (maxWidth - finalWidth) / 2;
+          const centeredY = startY + (maxHeight - finalHeight) / 2;
+
+          doc.image(imageBuffer, centeredX, centeredY, { width: finalWidth, height: finalHeight });
+        } catch (error) {
+          doc.image(imageBuffer, startX, startY, { width: maxWidth });
+        }
+      };
+
       if (logoBuffer) {
         const logoWithTransparency = removeWhiteBackgroundFromLogo(logoBuffer);
-        const logoPadding = 8;
-        const maxLogoWidth = 36; // Keep it compact for the 350x220 card
-        const maxLogoHeight = headerHeight - (logoPadding * 2);
-
-        const addLogoWithAspectRatio = (
-          imageBuffer: Buffer,
-          startX: number,
-          startY: number,
-          maxWidth: number,
-          maxHeight: number
-        ) => {
-          try {
-            const dimensions = sizeOf(imageBuffer);
-            const imgWidth = dimensions.width || maxWidth;
-            const imgHeight = dimensions.height || maxHeight;
-
-            const scaleX = maxWidth / imgWidth;
-            const scaleY = maxHeight / imgHeight;
-            const scale = Math.min(scaleX, scaleY);
-
-            const finalWidth = imgWidth * scale;
-            const finalHeight = imgHeight * scale;
-
-            const centeredX = startX + (maxWidth - finalWidth) / 2;
-            const centeredY = startY + (maxHeight - finalHeight) / 2;
-
-            doc.image(imageBuffer, centeredX, centeredY, { width: finalWidth, height: finalHeight });
-          } catch (error) {
-            // Fallback: draw with width only (pdfkit keeps aspect ratio)
-            doc.image(imageBuffer, startX, startY, { width: maxWidth });
-            // If this fails too, it will throw and be caught by outer try/catch.
-          }
-        };
-
-        const logoBoxX = 10 + logoPadding;
+        const headerInnerWidth = doc.page.width - 20;
+        const logoBoxXLeft = 10 + logoPadding;
+        const logoBoxXRight = 10 + headerInnerWidth - logoPadding - maxLogoWidth;
         const logoBoxY = 10 + logoPadding;
-        addLogoWithAspectRatio(logoWithTransparency, logoBoxX, logoBoxY, maxLogoWidth, maxLogoHeight);
+        addLogoWithAspectRatio(logoWithTransparency, logoBoxXLeft, logoBoxY, maxLogoWidth, maxLogoHeight);
+        addLogoWithAspectRatio(logoWithTransparency, logoBoxXRight, logoBoxY, maxLogoWidth, maxLogoHeight);
       }
 
       // School name - displayed only once at the top (large, bold)
       doc.fontSize(16).font('Helvetica-Bold').fillColor('#FFFFFF');
-      // Reserve space on the left for the logo.
-      const reservedLeftForLogo = 44; // logo width + padding
-      doc.text(schoolName, 15 + reservedLeftForLogo, 18, { 
-        width: doc.page.width - 30 - reservedLeftForLogo,
+
+      doc.text(schoolName, 10 + sideReserve, 18, {
+        width: doc.page.width - 20 - 2 * sideReserve,
         align: 'center'
       });
 
-      // Address and phone - positioned below school name, ensuring no duplicate school name
-      // Only show address and phone, not school name again
-      if (schoolAddress || schoolPhone) {
+      // Landline only (school address is not shown on student ID cards)
+      if (schoolPhone) {
         doc.fontSize(8).font('Helvetica').fillColor('#E7ECF6');
-        // Ensure school name is not accidentally included in address or phone
-        let contactLine = [schoolAddress, schoolPhone].filter(Boolean).join(' | ');
-        // Remove any accidental school name from contact line
-        contactLine = contactLine.replace(new RegExp(schoolName, 'gi'), '').trim();
-        // Clean up any double separators
-        contactLine = contactLine.replace(/\s*\|\s*\|\s*/g, ' | ').replace(/^\s*\|\s*|\s*\|\s*$/g, '');
-        
-        // Position address text lower to allow for wrapping, with more space from bottom
-        // Start at Y=36 to give room for school name above
-        if (contactLine) {
-          doc.text(contactLine, 15 + reservedLeftForLogo, 36, { 
-            width: doc.page.width - 30 - reservedLeftForLogo, 
-            align: 'center' 
-          });
-        }
+        const contactLine = /^landline\s*:/i.test(schoolPhone)
+          ? schoolPhone
+          : `Landline: ${schoolPhone}`;
+        doc.text(contactLine, 10 + sideReserve, 34, {
+          width: doc.page.width - 20 - 2 * sideReserve,
+          align: 'center'
+        });
       }
 
-      // Student information panel - adjusted Y position to account for taller header
-      const infoBoxY = 70; // Increased from 56 to 70 (10 + headerHeight + 10 spacing)
+      const infoBoxY = 10 + headerHeight + 8;
       doc.roundedRect(18, infoBoxY, 200, 120, 10)
         .fillColor('#FFFFFF')
         .fill()
@@ -269,7 +282,6 @@ export function drawStudentIdCardPage(doc: PDFDoc, data: StudentIdCardData): voi
       }
 
       // QR Code and validity panel
-      const qrBuffer = Buffer.from(qrDataUrl.split(',')[1], 'base64');
       const qrSize = 78;
       const qrX = doc.page.width - qrSize - 28;
       const qrY = infoBoxY + 16;
@@ -281,7 +293,15 @@ export function drawStudentIdCardPage(doc: PDFDoc, data: StudentIdCardData): voi
         .lineWidth(1)
         .stroke();
 
-      doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize });
+      if (qrImageBuffer && qrImageBuffer.length > 0) {
+        try {
+          // PNG only — embedding as JPEG caused green chroma artifacts in many PDF viewers.
+          const qrPng = normalizeQrPngForPdf(qrImageBuffer);
+          doc.image(qrPng, qrX, qrY, { width: qrSize, height: qrSize });
+        } catch (error) {
+          console.error('Failed to embed QR image on student ID card:', error);
+        }
+      }
 
       doc.fontSize(8).font('Helvetica').fillColor('#1F4B99');
       doc.text('Scan QR for verification', qrX - 4, qrY + qrSize + 2, { width: qrSize + 8, align: 'center' });
@@ -299,7 +319,7 @@ export function drawStudentIdCardPage(doc: PDFDoc, data: StudentIdCardData): voi
 export async function createStudentIdCardPDF(data: StudentIdCardData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ size: [350, 220], margin: 16 });
+      const doc = new PDFDocument({ size: [350, 220], margin: 0 });
       const buffers: Buffer[] = [];
 
       doc.on('data', buffers.push.bind(buffers));
@@ -321,7 +341,7 @@ export async function createClassStudentIdCardsPDF(items: StudentIdCardData[]): 
   }
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ size: [350, 220], margin: 16 });
+      const doc = new PDFDocument({ size: [350, 220], margin: 0 });
       const buffers: Buffer[] = [];
 
       doc.on('data', buffers.push.bind(buffers));

@@ -46,6 +46,8 @@ export interface TimetableSlot {
   room?: string;
   isBreak: boolean;
   isManuallyEdited: boolean;
+  /** When true, the lesson cannot be moved until unlocked (manual adjustments). */
+  isLocked?: boolean;
   teacher?: { id: string; firstName: string; lastName: string; teacherId: string };
   class?: { id: string; name: string; form?: string };
   subject?: { id: string; name: string; code: string };

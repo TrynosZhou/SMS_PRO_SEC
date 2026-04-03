@@ -189,6 +189,18 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
     this.filterTeachers();
   }
 
+  hasActiveFilters(): boolean {
+    return !!(this.searchQuery?.trim() || this.filterStatus !== 'all');
+  }
+
+  trackByTeacherId(_index: number, teacher: any): string {
+    return teacher?.id ?? String(_index);
+  }
+
+  getVisibleCount(): number {
+    return this.filteredTeachers?.length ?? 0;
+  }
+
   // Statistics
   getAccountsWithAccount(): number {
     return this.teachers.filter(t => t.hasAccount).length;

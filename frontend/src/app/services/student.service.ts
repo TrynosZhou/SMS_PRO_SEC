@@ -83,7 +83,9 @@ export class StudentService {
   }
 
   getStudentIdCard(id: string): Observable<Blob> {
-    return this.http.get(`${this.apiUrl}/students/${id}/id-card`, {
+    // Cache-bust so a new passport photo shows immediately after upload (avoid stale PDF).
+    const url = `${this.apiUrl}/students/${encodeURIComponent(id)}/id-card?_=${Date.now()}`;
+    return this.http.get(url, {
       responseType: 'blob',
       observe: 'response'
     }).pipe(

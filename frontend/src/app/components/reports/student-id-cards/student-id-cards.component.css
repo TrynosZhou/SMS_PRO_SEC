@@ -222,24 +222,36 @@
 .id-card-top-band {
   background: #1e3a8a;
   color: white;
-  padding: 10px 16px;
-  text-align: center;
+  padding: 8px 10px;
+}
+
+.top-band-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .top-band-logo {
+  flex: 0 0 40px;
   display: flex;
   justify-content: center;
-  margin-bottom: 2px;
+  align-items: center;
+}
+
+.top-band-center {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
 }
 
 .top-band-school-logo {
-  width: 44px; /* reduced to fit nicely in the header */
-  height: 44px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
 }
 
 .school-name-header {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   margin-bottom: 4px;
   font-family: Arial, sans-serif;
@@ -360,22 +372,31 @@
 }
 
 .qr-code-placeholder {
-  width: 60px;
-  height: 60px;
+  width: 72px;
+  height: 72px;
   background: white;
   border: 2px solid #1f2937;
-  border-radius: 4px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 4px;
+  box-sizing: border-box;
 }
 
-.qr-code {
-  font-size: 10px;
-  font-weight: 700;
-  color: #1f2937;
-  font-family: Arial, sans-serif;
-  letter-spacing: 1px;
+.qr-code-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #ffffff;
+  image-rendering: auto;
+}
+
+.qr-code-loading {
+  font-size: 18px;
+  color: #9ca3af;
+  line-height: 1;
 }
 
 .qr-label {

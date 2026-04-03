@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { toDataURL, type QRCodeToDataURLOptions } from 'qrcode';
 import { StudentService } from '../../../services/student.service';
 import { ClassService } from '../../../services/class.service';
 import { SettingsService } from '../../../services/settings.service';
@@ -18,7 +19,6 @@ export class StudentIdCardsComponent implements OnInit {
   error = '';
   schoolName = '';
   schoolLogo: string | null = null;
-  schoolAddress = '';
   schoolPhone = '';
   schoolEmail = '';
   currentYear = '';
@@ -42,7 +42,6 @@ export class StudentIdCardsComponent implements OnInit {
       next: (data: any) => {
         this.schoolName = data.schoolName || 'School';
         this.schoolLogo = data.schoolLogo || null;
-        this.schoolAddress = data.schoolAddress || '';
         this.schoolPhone = data.schoolPhone || '';
         this.schoolEmail = data.schoolEmail || '';
         if (data.academicYear) {
@@ -196,9 +195,8 @@ export class StudentIdCardsComponent implements OnInit {
         this.students.forEach((student: any) => {
           student.photoLoaded = false;
           student.photoLoadError = false;
-          // Pre-compute photo URL to avoid multiple calls in template
+          student.qrDataUrl = null as string | null;
           student.photoUrl = this.getStudentPhotoUrl(student);
-          // Debug: Log photo information for students with photos
           if (student.photo) {
             console.log(`Student ${student.firstName} ${student.lastName}:`, {
               photoPath: student.photo,
@@ -206,7 +204,9 @@ export class StudentIdCardsComponent implements OnInit {
             });
           }
         });
-        this.loading = false;
+        void this.attachQrCodesToStudents(this.students).finally(() => {
+          this.loading = false;
+        });
       },
       error: (err: any) => {
         this.error = 'Failed to load students';
@@ -272,6 +272,41 @@ export class StudentIdCardsComponent implements OnInit {
   private sanitizeFileName(name: string): string {
     const s = String(name || 'class').trim() || 'class';
     return s.replace(/[^a-zA-Z0-9-_]+/g, '_').replace(/^_|_$/g, '') || 'class';
+  }
+
+  /** Same payload shape as backend ID-card PDF (scannable matrix on the grid preview). */
+  private async attachQrCodesToStudents(students: any[]): Promise<void> {
+    const opts: QRCodeToDataURLOptions = {
+      errorCorrectionLevel: 'M',
+      type: 'image/png',
+      margin: 1,
+      width: 200,
+      color: { dark: '#000000', light: '#ffffff' }
+    };
+    await Promise.all(
+      students.map(async (student) => {
+        try {
+          const className =
+            this.selectedClassName ||
+            student.class?.name ||
+            student.class?.form ||
+            student.classEntity?.name ||
+            null;
+          const payload = {
+            studentId: student.id,
+            studentNumber: student.studentNumber,
+            name: `${student.firstName} ${student.lastName}`.trim(),
+            class: className,
+            studentType: student.studentType,
+            issuedAt: new Date().toISOString()
+          };
+          student.qrDataUrl = await toDataURL(JSON.stringify(payload), opts);
+        } catch (e) {
+          console.error('Failed to generate preview QR for student', student?.id, e);
+          student.qrDataUrl = null;
+        }
+      })
+    );
   }
 }
 

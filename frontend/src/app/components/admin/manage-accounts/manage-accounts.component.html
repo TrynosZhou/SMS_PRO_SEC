@@ -1,33 +1,34 @@
-<div class="container">
-  <!-- Header Section -->
-  <div class="page-header">
-    <div class="header-content">
-      <h1>
-        <span class="icon">👤</span>
-        Manage Teacher Accounts
-      </h1>
-      <p class="subtitle">Create and manage user accounts for teachers in the system</p>
+<div class="container um-page">
+  <header class="um-hero">
+    <div class="um-hero-text">
+      <h1 class="um-title">User management</h1>
+      <p class="um-lead">
+        Link staff profiles to logins, create manual accounts for any role, reset passwords, and track how many teachers still need accounts.
+      </p>
     </div>
-    <button class="btn btn-icon" routerLink="/teachers/manage/add-new" title="Add New Teacher">
-      ➕ Add Teacher
-    </button>
-  </div>
+    <div class="um-hero-actions">
+      <button type="button" class="um-btn um-btn-ghost" (click)="loadTeachers()" [disabled]="loading" title="Reload list">
+        <span class="um-spinner" *ngIf="loading" aria-hidden="true"></span>
+        {{ loading ? 'Refreshing…' : '↻ Refresh' }}
+      </button>
+      <a class="um-btn um-btn-primary" routerLink="/teachers/manage/add-new">＋ Add teacher</a>
+    </div>
+  </header>
 
-  <!-- Alert Messages -->
-  <div class="alert alert-success" *ngIf="success" [@fadeInOut]>
-    <span class="alert-icon">✓</span>
+  <div class="um-alert um-alert-success" *ngIf="success" [@fadeInOut] role="status">
+    <span class="um-alert-ico" aria-hidden="true">✓</span>
     <span [innerHTML]="success"></span>
   </div>
-  <div class="alert alert-error" *ngIf="error" [@fadeInOut]>
-    <span class="alert-icon">✕</span>
+  <div class="um-alert um-alert-error" *ngIf="error" [@fadeInOut] role="alert">
+    <span class="um-alert-ico" aria-hidden="true">!</span>
     <span>{{ error }}</span>
   </div>
 
   <!-- Manual User Account Creation -->
-  <div class="manual-account-card" *ngIf="canCreateManualAccounts()" [@fadeInUp]>
-    <div class="manual-account-header">
+  <div class="manual-account-card um-surface" *ngIf="canCreateManualAccounts()" [@fadeInUp]>
+    <div class="manual-account-header um-section-head">
       <div>
-        <h2>Create User Account</h2>
+        <h2>Create user account</h2>
         <p>Create login credentials for administrators, accountants, parents, students, or teachers. For teachers, only username and password are required (email is not needed).</p>
       </div>
       <div class="manual-account-meta">
@@ -126,7 +127,7 @@
   </div>
 
   <!-- Demo Account Notice -->
-  <div class="demo-notice-card" *ngIf="isAdmin() && isDemoUser()" [@fadeInUp]>
+  <div class="demo-notice-card um-surface" *ngIf="isAdmin() && isDemoUser()" [@fadeInUp]>
     <div class="demo-notice-content">
       <span class="demo-notice-icon">🔒</span>
       <div>
@@ -137,8 +138,7 @@
   </div>
 
   <!-- Admin Password Change Section -->
-  <!-- Show password change section for admin/superadmin users (not demo) -->
-  <div class="admin-password-section" *ngIf="(isAdmin() || getCurrentAdminInfo()) && !isDemoUser()" [@fadeInUp]>
+  <div class="admin-password-section um-surface" *ngIf="(isAdmin() || getCurrentAdminInfo()) && !isDemoUser()" [@fadeInUp]>
     <div class="password-section-header" (click)="togglePasswordChangeSection()">
       <div class="password-section-title">
         <span class="password-icon">🔐</span>
@@ -263,83 +263,72 @@
     </div>
   </div>
 
-  <!-- Statistics Cards -->
-  <div class="stats-container" *ngIf="!loading && teachers.length > 0">
-    <div class="stat-card">
+  <!-- Statistics -->
+  <div class="stats-container um-kpis" *ngIf="!loading && teachers.length > 0">
+    <div class="stat-card um-kpi">
       <div class="stat-icon total">👥</div>
       <div class="stat-content">
-        <div class="stat-value">{{ teachers.length }}</div>
-        <div class="stat-label">Total Teachers</div>
+        <div class="stat-value um-tabular">{{ teachers.length }}</div>
+        <div class="stat-label">Total teachers</div>
       </div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card um-kpi um-kpi-accent">
       <div class="stat-icon active">✓</div>
       <div class="stat-content">
-        <div class="stat-value">{{ getAccountsWithAccount() }}</div>
-        <div class="stat-label">With Accounts</div>
+        <div class="stat-value um-tabular">{{ getAccountsWithAccount() }}</div>
+        <div class="stat-label">With login</div>
       </div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card um-kpi">
       <div class="stat-icon pending">⚠️</div>
       <div class="stat-content">
-        <div class="stat-value">{{ getAccountsWithoutAccount() }}</div>
-        <div class="stat-label">Without Accounts</div>
+        <div class="stat-value um-tabular">{{ getAccountsWithoutAccount() }}</div>
+        <div class="stat-label">Needs account</div>
       </div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card um-kpi">
       <div class="stat-icon percentage">📊</div>
       <div class="stat-content">
-        <div class="stat-value">{{ getAccountPercentage() }}%</div>
-        <div class="stat-label">Account Coverage</div>
+        <div class="stat-value um-tabular">{{ getAccountPercentage() }}%</div>
+        <div class="stat-label">Coverage</div>
       </div>
     </div>
   </div>
 
-  <!-- Search and Filter Section -->
-  <div class="search-filter-section" *ngIf="!loading && teachers.length > 0">
-    <div class="search-wrapper">
-      <span class="search-icon">🔍</span>
-      <input 
-        type="text" 
-        class="search-input" 
-        placeholder="Search by name, employee number, or status..."
+  <!-- Toolbar -->
+  <div class="search-filter-section um-toolbar" *ngIf="!loading && teachers.length > 0">
+    <div class="um-search">
+      <span class="um-search-ico" aria-hidden="true">🔍</span>
+      <input
+        type="search"
+        class="search-input um-search-input"
+        placeholder="Name, employee ID, email, or status…"
         [(ngModel)]="searchQuery"
-        (input)="filterTeachers()">
-      <button class="clear-search" *ngIf="searchQuery" (click)="clearSearch()" title="Clear search">
-        ✕
-      </button>
+        (input)="filterTeachers()"
+      />
+      <button type="button" class="um-search-clear" *ngIf="searchQuery" (click)="clearSearch()" title="Clear search">×</button>
     </div>
-    <div class="filter-options">
-      <button 
-        class="filter-btn" 
-        [class.active]="filterStatus === 'all'"
-        (click)="setFilter('all')">
-        All ({{ teachers.length }})
-      </button>
-      <button 
-        class="filter-btn" 
-        [class.active]="filterStatus === 'with-account'"
-        (click)="setFilter('with-account')">
-        With Account ({{ getAccountsWithAccount() }})
-      </button>
-      <button 
-        class="filter-btn" 
-        [class.active]="filterStatus === 'without-account'"
-        (click)="setFilter('without-account')">
-        Without Account ({{ getAccountsWithoutAccount() }})
-      </button>
+    <div class="um-toolbar-row">
+      <span class="um-field-label">Account</span>
+      <div class="um-seg" role="group" aria-label="Filter by account">
+        <button type="button" class="um-seg-btn" [class.active]="filterStatus === 'all'" (click)="setFilter('all')">All · {{ teachers.length }}</button>
+        <button type="button" class="um-seg-btn" [class.active]="filterStatus === 'with-account'" (click)="setFilter('with-account')">With login · {{ getAccountsWithAccount() }}</button>
+        <button type="button" class="um-seg-btn" [class.active]="filterStatus === 'without-account'" (click)="setFilter('without-account')">Needs account · {{ getAccountsWithoutAccount() }}</button>
+      </div>
+      <button type="button" class="um-btn um-btn-ghost um-btn-sm" *ngIf="hasActiveFilters()" (click)="clearFilters()">Reset filters</button>
     </div>
+    <p class="um-toolbar-hint" *ngIf="getVisibleCount() !== teachers.length || hasActiveFilters()">
+      Showing <strong class="um-tabular">{{ getVisibleCount() }}</strong> of <strong class="um-tabular">{{ teachers.length }}</strong> teachers
+    </p>
   </div>
 
-  <!-- Loading State -->
-  <div *ngIf="loading && teachers.length === 0" class="loading-container">
-    <div class="spinner"></div>
-    <p>Loading teachers...</p>
+  <div class="um-skeleton-card" *ngIf="loading && teachers.length === 0" aria-busy="true">
+    <div class="um-sh-row" *ngFor="let _ of [1, 2, 3, 4, 5, 6]"></div>
   </div>
 
   <!-- Teachers Table -->
-  <div *ngIf="!loading" class="table-container">
-    <div *ngIf="filteredTeachers.length > 0">
+  <div *ngIf="!loading" class="table-container um-table-card">
+    <div class="um-table-scroll" *ngIf="filteredTeachers.length > 0">
       <table class="teachers-table">
         <thead>
           <tr>
@@ -351,7 +340,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let teacher of filteredTeachers" [@fadeInUp]>
+          <tr *ngFor="let teacher of filteredTeachers; trackBy: trackByTeacherId" [@fadeInUp]>
             <td>
               <div class="employee-number">
                 <span class="employee-icon">🆔</span>
