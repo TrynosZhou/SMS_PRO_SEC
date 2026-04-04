@@ -96,3 +96,21 @@ export function calculateTeachingPeriodTimes(
 
   return out;
 }
+
+/**
+ * 1-based teaching period index `p` where period `p` and `p + 1` are **not** wall-clock contiguous
+ * (a configured break sits between them). Double lessons must not use `(p, p+1)` for such `p`.
+ */
+export function teachingPeriodIndicesFollowedByConfiguredBreak(config: TimetableConfig): Set<number> {
+  const times = calculateTeachingPeriodTimes(config);
+  const out = new Set<number>();
+  const n = config.periodsPerDay || 0;
+  for (let p = 1; p < n; p++) {
+    const endCur = timeStrToMinutes(times[p - 1].endTime);
+    const startNext = timeStrToMinutes(times[p].startTime);
+    if (startNext > endCur) {
+      out.add(p);
+    }
+  }
+  return out;
+}

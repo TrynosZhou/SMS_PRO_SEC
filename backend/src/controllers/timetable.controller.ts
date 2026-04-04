@@ -10,9 +10,13 @@ import { Settings } from '../entities/Settings';
 import { AuthRequest } from '../middleware/auth';
 import { In, Not } from 'typeorm';
 import { createTimetablePDF } from '../utils/timetablePdfGenerator';
-import { calculateTeachingPeriodTimes } from '../utils/timetablePeriodTimes';
+import {
+  calculateTeachingPeriodTimes,
+  teachingPeriodIndicesFollowedByConfiguredBreak,
+} from '../utils/timetablePeriodTimes';
 import { mergeSubjectLessonsPerWeekForActiveConfig } from '../utils/timetableMergeSubjectLessons';
 import { mergeJunctionClassesIntoTeachers } from '../utils/teacherClassLinker';
+import { contractGenerationKey, loadDoubleMapForGeneration } from '../utils/teacherContractLesson';
 
 /** Fisher–Yates shuffle (copy) — used to randomize slot placement order. */
 function shuffleArray<T>(items: T[]): T[] {
@@ -120,6 +124,17 @@ export const mergeSubjectLessonsInActiveConfig = async (req: AuthRequest, res: R
     });
   }
 };
+
+/** Only one version may be active; used after generate and by the manual activate endpoint. */
+async function setSingleActiveTimetableVersion(versionId: string): Promise<void> {
+  const versionRepository = AppDataSource.getRepository(TimetableVersion);
+  await versionRepository
+    .createQueryBuilder()
+    .update(TimetableVersion)
+    .set({ isActive: false })
+    .execute();
+  await versionRepository.update({ id: versionId }, { isActive: true });
+}
 
 // Generate timetable
 export const generateTimetable = async (req: AuthRequest, res: Response) => {
@@ -252,7 +267,15 @@ export const generateTimetable = async (req: AuthRequest, res: Response) => {
       
       // Generate timetable slots
       console.log('[generateTimetable] Generating timetable slots...');
-      const slots = await generateTimetableSlots(config, teachers, classes, subjects, version.id);
+      const contractDoubleByTriple = await loadDoubleMapForGeneration(teachers.map((t) => t.id));
+      const slots = await generateTimetableSlots(
+        config,
+        teachers,
+        classes,
+        subjects,
+        version.id,
+        contractDoubleByTriple
+      );
       console.log(`[generateTimetable] Generated ${slots.length} slots`);
 
       if (slots.length === 0) {
@@ -275,6 +298,9 @@ export const generateTimetable = async (req: AuthRequest, res: Response) => {
       const slotRepository = AppDataSource.getRepository(TimetableSlot);
       await slotRepository.save(slots);
       console.log('[generateTimetable] Slots saved successfully');
+
+      await setSingleActiveTimetableVersion(version.id);
+      console.log('[generateTimetable] New version is now active; all others deactivated');
 
       // Fetch the complete version with slots
       const completeVersion = await versionRepository.findOne({
@@ -350,7 +376,8 @@ async function generateTimetableSlots(
   teachers: Teacher[],
   classes: Class[],
   subjects: Subject[],
-  versionId: string
+  versionId: string,
+  contractDoubleByTriple: Map<string, boolean> = new Map()
 ): Promise<TimetableSlot[]> {
   const slots: TimetableSlot[] = [];
   const daysOfWeek = [...(config.daysOfWeek || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])];
@@ -361,6 +388,8 @@ async function generateTimetableSlots(
     class: Class;
     subject: Subject;
     lessonsPerWeek: number;
+    /** When true, periods are placed in same-day pairs (p, p+1) with no break between p and p+1. */
+    isPairedDouble: boolean;
   }> = [];
 
   console.log('[generateTimetableSlots] Building teacher-class-subject assignments...');
@@ -420,16 +449,24 @@ async function generateTimetableSlots(
       if (eligibleTeachers.length > 0) {
         // Use first eligible teacher (can be enhanced to distribute evenly)
         const teacher = eligibleTeachers[0];
-        const lessonsPerWeek = config.lessonsPerWeek?.[subject.id] || 3; // Default 3 lessons per week
+        const baseLpw = config.lessonsPerWeek?.[subject.id] || 3;
+        const isDouble =
+          contractDoubleByTriple.get(
+            contractGenerationKey(teacher.id, classEntity.id, subject.id)
+          ) === true;
+        const lessonsPerWeek = Math.min(100, Math.max(1, baseLpw * (isDouble ? 2 : 1)));
 
         assignments.push({
           teacher,
           class: classEntity,
           subject,
-          lessonsPerWeek
+          lessonsPerWeek,
+          isPairedDouble: isDouble,
         });
 
-        console.log(`[generateTimetableSlots] ✓ Assignment: ${teacher.firstName} ${teacher.lastName} -> ${classEntity.name} -> ${subject.name} (${lessonsPerWeek} lessons/week)`);
+        console.log(
+          `[generateTimetableSlots] ✓ Assignment: ${teacher.firstName} ${teacher.lastName} -> ${classEntity.name} -> ${subject.name} (${lessonsPerWeek} periods/week${isDouble ? ', double' : ''})`
+        );
       } else {
         console.warn(`[generateTimetableSlots] ✗ No eligible teacher found for ${classEntity.name} - ${subject.name}`);
         console.warn(`  Requirements: Teacher must be assigned to ${classEntity.name} AND teach ${subject.name}`);
@@ -514,6 +551,8 @@ async function generateTimetableSlots(
 
   // Calculate time slots
   const timeSlots = calculateTeachingPeriodTimes(config);
+  /** Period indices p where (p, p+1) is split by a configured break — invalid for double blocks. */
+  const breakBetweenTeachingPeriods = teachingPeriodIndicesFollowedByConfiguredBreak(config);
 
   // Distribute assignments across the week using a more systematic approach
   // Sort assignments by lessons per week (descending) to prioritize subjects with more lessons
@@ -530,6 +569,101 @@ async function generateTimetableSlots(
 
     /** Prefer different period indices across the week for this class+subject (stops “same column every day”). */
     const periodsUsedThisAssignment = new Set<number>();
+
+    const tryPlaceDoubleLesson = (relaxDayCap: boolean): boolean => {
+      if (assignment.lessonsPerWeek - lessonsPlaced < 2) {
+        return false;
+      }
+      const candidates: { day: string; p: number }[] = [];
+      for (const day of daysOfWeek) {
+        const usedDay = dayDistribution.get(day) || 0;
+        if (!relaxDayCap && usedDay + 2 > lessonsPerDay) {
+          continue;
+        }
+        for (let p = 1; p < config.periodsPerDay; p++) {
+          if (breakBetweenTeachingPeriods.has(p)) {
+            continue;
+          }
+          candidates.push({ day, p });
+        }
+      }
+      const preferred = candidates.filter(
+        (c) => !periodsUsedThisAssignment.has(c.p) && !periodsUsedThisAssignment.has(c.p + 1)
+      );
+      const fallback = candidates.filter(
+        (c) => periodsUsedThisAssignment.has(c.p) || periodsUsedThisAssignment.has(c.p + 1)
+      );
+      const ordered = [...shuffleArray(preferred), ...shuffleArray(fallback)];
+
+      for (const { day, p } of ordered) {
+        const key1 = `${day}-${p}`;
+        const key2 = `${day}-${p + 1}`;
+        if (
+          teacherSchedule.get(assignment.teacher.id)?.has(key1) ||
+          teacherSchedule.get(assignment.teacher.id)?.has(key2) ||
+          classSchedule.get(assignment.class.id)?.has(key1) ||
+          classSchedule.get(assignment.class.id)?.has(key2)
+        ) {
+          continue;
+        }
+
+        const existingTc = slots.filter(
+          (s) =>
+            s.dayOfWeek === day &&
+            s.teacherId === assignment.teacher.id &&
+            s.classId === assignment.class.id &&
+            !s.isBreak
+        );
+        if (existingTc.length > 0) {
+          continue;
+        }
+
+        if (teacherClassDayRuleViolated(existingTc, p)) {
+          continue;
+        }
+        const probe = new TimetableSlot();
+        probe.periodNumber = p;
+        probe.isBreak = false;
+        if (teacherClassDayRuleViolated([...existingTc, probe], p + 1)) {
+          continue;
+        }
+
+        const ts1 = timeSlots[p - 1];
+        const ts2 = timeSlots[p];
+        if (!ts1 || !ts2) {
+          continue;
+        }
+
+        teacherSchedule.get(assignment.teacher.id)!.add(key1);
+        teacherSchedule.get(assignment.teacher.id)!.add(key2);
+        classSchedule.get(assignment.class.id)!.add(key1);
+        classSchedule.get(assignment.class.id)!.add(key2);
+
+        const pushSlot = (periodNum: number, ts: { startTime: string; endTime: string }) => {
+          const slot = new TimetableSlot();
+          slot.versionId = versionId;
+          slot.teacherId = assignment.teacher.id;
+          slot.classId = assignment.class.id;
+          slot.subjectId = assignment.subject.id;
+          slot.dayOfWeek = day;
+          slot.periodNumber = periodNum;
+          slot.startTime = ts.startTime;
+          slot.endTime = ts.endTime;
+          slot.isBreak = false;
+          slot.isManuallyEdited = false;
+          slots.push(slot);
+        };
+        pushSlot(p, ts1);
+        pushSlot(p + 1, ts2);
+
+        lessonsPlaced += 2;
+        dayDistribution.set(day, (dayDistribution.get(day) || 0) + 2);
+        periodsUsedThisAssignment.add(p);
+        periodsUsedThisAssignment.add(p + 1);
+        return true;
+      }
+      return false;
+    };
 
     const tryPlaceOneLesson = (relaxDayCap: boolean): boolean => {
       const candidates: { day: string; period: number }[] = [];
@@ -597,69 +731,159 @@ async function generateTimetableSlots(
       return false;
     };
 
-    while (lessonsPlaced < assignment.lessonsPerWeek && attempts < maxAttempts) {
-      attempts++;
+    if (assignment.isPairedDouble) {
+      while (lessonsPlaced < assignment.lessonsPerWeek && attempts < maxAttempts) {
+        attempts++;
 
-      if (tryPlaceOneLesson(false)) {
-        continue;
+        if (tryPlaceDoubleLesson(false)) {
+          continue;
+        }
+        if (tryPlaceDoubleLesson(true)) {
+          continue;
+        }
+
+        if (assignment.lessonsPerWeek - lessonsPlaced < 2) {
+          break;
+        }
+
+        const day = daysOfWeek[Math.floor(Math.random() * daysOfWeek.length)];
+        const maxP = Math.max(1, config.periodsPerDay - 1);
+        const p = 1 + Math.floor(Math.random() * maxP);
+        if (breakBetweenTeachingPeriods.has(p)) {
+          continue;
+        }
+
+        const key1 = `${day}-${p}`;
+        const key2 = `${day}-${p + 1}`;
+        if (
+          teacherSchedule.get(assignment.teacher.id)?.has(key1) ||
+          teacherSchedule.get(assignment.teacher.id)?.has(key2) ||
+          classSchedule.get(assignment.class.id)?.has(key1) ||
+          classSchedule.get(assignment.class.id)?.has(key2)
+        ) {
+          continue;
+        }
+
+        const existingTcFb = slots.filter(
+          (s) =>
+            s.dayOfWeek === day &&
+            s.teacherId === assignment.teacher.id &&
+            s.classId === assignment.class.id &&
+            !s.isBreak
+        );
+        if (existingTcFb.length > 0) {
+          continue;
+        }
+
+        const probeFb = new TimetableSlot();
+        probeFb.periodNumber = p;
+        probeFb.isBreak = false;
+        if (teacherClassDayRuleViolated(existingTcFb, p) || teacherClassDayRuleViolated([...existingTcFb, probeFb], p + 1)) {
+          continue;
+        }
+
+        const tsA = timeSlots[p - 1];
+        const tsB = timeSlots[p];
+        if (!tsA || !tsB) {
+          continue;
+        }
+
+        teacherSchedule.get(assignment.teacher.id)!.add(key1);
+        teacherSchedule.get(assignment.teacher.id)!.add(key2);
+        classSchedule.get(assignment.class.id)!.add(key1);
+        classSchedule.get(assignment.class.id)!.add(key2);
+
+        const pushPairSlot = (periodNum: number, ts: { startTime: string; endTime: string }) => {
+          const slot = new TimetableSlot();
+          slot.versionId = versionId;
+          slot.teacherId = assignment.teacher.id;
+          slot.classId = assignment.class.id;
+          slot.subjectId = assignment.subject.id;
+          slot.dayOfWeek = day;
+          slot.periodNumber = periodNum;
+          slot.startTime = ts.startTime;
+          slot.endTime = ts.endTime;
+          slot.isBreak = false;
+          slot.isManuallyEdited = false;
+          slots.push(slot);
+        };
+        pushPairSlot(p, tsA);
+        pushPairSlot(p + 1, tsB);
+
+        lessonsPlaced += 2;
+        dayDistribution.set(day, (dayDistribution.get(day) || 0) + 2);
+        periodsUsedThisAssignment.add(p);
+        periodsUsedThisAssignment.add(p + 1);
       }
-      if (tryPlaceOneLesson(true)) {
-        continue;
+    } else {
+      while (lessonsPlaced < assignment.lessonsPerWeek && attempts < maxAttempts) {
+        attempts++;
+
+        if (tryPlaceOneLesson(false)) {
+          continue;
+        }
+        if (tryPlaceOneLesson(true)) {
+          continue;
+        }
+
+        const day = daysOfWeek[Math.floor(Math.random() * daysOfWeek.length)];
+        const period = Math.floor(Math.random() * config.periodsPerDay) + 1;
+        const slotKey = `${day}-${period}`;
+
+        if (
+          teacherSchedule.get(assignment.teacher.id)?.has(slotKey) ||
+          classSchedule.get(assignment.class.id)?.has(slotKey)
+        ) {
+          continue;
+        }
+
+        const existingTcFallback = slots.filter(
+          (s) =>
+            s.dayOfWeek === day &&
+            s.teacherId === assignment.teacher.id &&
+            s.classId === assignment.class.id &&
+            !s.isBreak
+        );
+        if (teacherClassDayRuleViolated(existingTcFallback, period)) {
+          continue;
+        }
+
+        const timeSlot = timeSlots[period - 1];
+        if (!timeSlot) {
+          console.error(`[generateTimetableSlots] No time slot found for period ${period}`);
+          continue;
+        }
+
+        teacherSchedule.get(assignment.teacher.id)!.add(slotKey);
+        classSchedule.get(assignment.class.id)!.add(slotKey);
+
+        const slot = new TimetableSlot();
+        slot.versionId = versionId;
+        slot.teacherId = assignment.teacher.id;
+        slot.classId = assignment.class.id;
+        slot.subjectId = assignment.subject.id;
+        slot.dayOfWeek = day;
+        slot.periodNumber = period;
+        slot.startTime = timeSlot.startTime;
+        slot.endTime = timeSlot.endTime;
+        slot.isBreak = false;
+        slot.isManuallyEdited = false;
+
+        slots.push(slot);
+        lessonsPlaced++;
+        dayDistribution.set(day, (dayDistribution.get(day) || 0) + 1);
+        periodsUsedThisAssignment.add(period);
       }
-
-      const day = daysOfWeek[Math.floor(Math.random() * daysOfWeek.length)];
-      const period = Math.floor(Math.random() * config.periodsPerDay) + 1;
-      const slotKey = `${day}-${period}`;
-
-      if (
-        teacherSchedule.get(assignment.teacher.id)?.has(slotKey) ||
-        classSchedule.get(assignment.class.id)?.has(slotKey)
-      ) {
-        continue;
-      }
-
-      const existingTcFallback = slots.filter(
-        (s) =>
-          s.dayOfWeek === day &&
-          s.teacherId === assignment.teacher.id &&
-          s.classId === assignment.class.id &&
-          !s.isBreak
-      );
-      if (teacherClassDayRuleViolated(existingTcFallback, period)) {
-        continue;
-      }
-
-      const timeSlot = timeSlots[period - 1];
-      if (!timeSlot) {
-        console.error(`[generateTimetableSlots] No time slot found for period ${period}`);
-        continue;
-      }
-
-      teacherSchedule.get(assignment.teacher.id)!.add(slotKey);
-      classSchedule.get(assignment.class.id)!.add(slotKey);
-
-      const slot = new TimetableSlot();
-      slot.versionId = versionId;
-      slot.teacherId = assignment.teacher.id;
-      slot.classId = assignment.class.id;
-      slot.subjectId = assignment.subject.id;
-      slot.dayOfWeek = day;
-      slot.periodNumber = period;
-      slot.startTime = timeSlot.startTime;
-      slot.endTime = timeSlot.endTime;
-      slot.isBreak = false;
-      slot.isManuallyEdited = false;
-
-      slots.push(slot);
-      lessonsPlaced++;
-      dayDistribution.set(day, (dayDistribution.get(day) || 0) + 1);
-      periodsUsedThisAssignment.add(period);
     }
 
     if (lessonsPlaced < assignment.lessonsPerWeek) {
-      console.warn(`[generateTimetableSlots] Could not place all lessons for ${assignment.teacher.firstName} ${assignment.teacher.lastName} - ${assignment.class.name} - ${assignment.subject.name}. Placed ${lessonsPlaced}/${assignment.lessonsPerWeek}`);
+      console.warn(
+        `[generateTimetableSlots] Could not place all lessons for ${assignment.teacher.firstName} ${assignment.teacher.lastName} - ${assignment.class.name} - ${assignment.subject.name}. Placed ${lessonsPlaced}/${assignment.lessonsPerWeek}${assignment.isPairedDouble ? ' (paired double periods)' : ''}`
+      );
     } else {
-      console.log(`[generateTimetableSlots] Successfully placed ${lessonsPlaced} lessons for ${assignment.teacher.firstName} ${assignment.teacher.lastName} - ${assignment.class.name} - ${assignment.subject.name}`);
+      console.log(
+        `[generateTimetableSlots] Successfully placed ${lessonsPlaced} lessons for ${assignment.teacher.firstName} ${assignment.teacher.lastName} - ${assignment.class.name} - ${assignment.subject.name}${assignment.isPairedDouble ? ' (paired doubles — no break between pair)' : ''}`
+      );
     }
   }
 
@@ -900,15 +1124,7 @@ export const activateTimetableVersion = async (req: AuthRequest, res: Response) 
       return res.status(404).json({ message: 'Timetable version not found' });
     }
 
-    // Deactivate all versions using query builder (TypeORM doesn't allow empty criteria in update)
-    await versionRepository
-      .createQueryBuilder()
-      .update(TimetableVersion)
-      .set({ isActive: false })
-      .execute();
-    
-    // Activate the selected version
-    await versionRepository.update({ id: versionId }, { isActive: true });
+    await setSingleActiveTimetableVersion(versionId);
 
     const version = await versionRepository.findOne({
       where: { id: versionId },

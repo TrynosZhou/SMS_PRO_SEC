@@ -563,20 +563,6 @@ export class TeacherListComponent implements OnInit {
     this.loadTeachers();
   }
 
-  /** List table: primary subject(s) or qualification */
-  getSubjectsDisplay(teacher: any): string {
-    if (teacher?.subjects?.length) {
-      if (teacher.subjects.length <= 2) {
-        return teacher.subjects.map((s: any) => s.name).join(', ');
-      }
-      return `${teacher.subjects.length} subjects`;
-    }
-    if (teacher?.qualification?.trim()) {
-      return teacher.qualification.trim();
-    }
-    return '—';
-  }
-
   isTeacherActive(teacher: any): boolean {
     return teacher?.isActive !== false;
   }

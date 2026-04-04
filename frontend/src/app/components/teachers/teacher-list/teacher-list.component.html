@@ -229,7 +229,6 @@
             <th class="col-lastname" scope="col">Last name</th>
             <th class="col-gender" scope="col">Gender</th>
             <th class="col-marital-status" scope="col">Marital status</th>
-            <th class="col-subject" scope="col">Subject</th>
             <th class="col-actions" scope="col">Actions</th>
           </tr>
         </thead>
@@ -258,9 +257,6 @@
                 {{ getMaritalStatusDisplay(teacher) }}
               </span>
               <span *ngIf="!isFemaleTeacher(teacher) && !isMaleTeacher(teacher)">—</span>
-            </td>
-            <td class="col-subject">
-              <span class="clickable-value col-subject-text" (click)="openFieldEdit(teacher, 'subjectIds', $event)" title="Click to edit subjects">{{ getSubjectsDisplay(teacher) }}</span>
             </td>
             <td class="col-actions">
               <div class="action-buttons">

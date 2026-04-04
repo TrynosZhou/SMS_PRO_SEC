@@ -476,7 +476,7 @@
 
 .teachers-data-table {
   width: 100%;
-  min-width: 64rem;
+  min-width: 52rem;
   max-width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
@@ -496,8 +496,7 @@
 }
 
 /* Wider headers/cells: allow wrap so labels never bleed into the next column */
-.teachers-data-table thead th.col-marital-status,
-.teachers-data-table thead th.col-subject {
+.teachers-data-table thead th.col-marital-status {
   white-space: normal;
   line-height: 1.3;
   hyphens: auto;
@@ -514,6 +513,16 @@
 }
 
 /* Staff / teacher IDs must stay on one line (avoid mid-ID breaks from break-word). */
+.teachers-data-table thead th.col-staff-id,
+.teachers-data-table tbody td.col-staff-id {
+  padding-right: 1.25rem;
+}
+
+.teachers-data-table thead th.col-firstname,
+.teachers-data-table tbody td.col-firstname {
+  padding-left: 0.75rem;
+}
+
 .teachers-data-table tbody td.col-staff-id {
   white-space: nowrap;
   overflow-wrap: normal;
@@ -530,23 +539,23 @@
 
 /* Column widths — must sum to 100% with table-layout: fixed (avoids overlap) */
 .col-staff-id {
-  width: 11%;
-  min-width: 7.25rem;
+  width: 17%;
+  min-width: 11.5rem;
 }
 .col-firstname {
-  width: 11%;
+  width: 13%;
   min-width: 0;
 }
 .col-lastname {
-  width: 11%;
+  width: 13%;
   min-width: 0;
 }
 .col-gender {
-  width: 8%;
+  width: 10%;
   min-width: 4.75rem;
 }
 .col-marital-status {
-  width: 14%;
+  width: 19%;
   min-width: 9.75rem;
 }
 .teachers-data-table tbody td.col-marital-status {
@@ -554,23 +563,10 @@
   line-height: 1.35;
   padding-right: 12px;
 }
-.col-subject {
-  width: 27%;
-  min-width: 7rem;
-  padding-left: 4px;
-}
 .col-actions {
-  width: 18%;
+  width: 28%;
   min-width: 7.25rem;
   white-space: nowrap;
-}
-
-.teachers-data-table .col-subject-text {
-  display: block;
-  max-width: 100%;
-  line-height: 1.35;
-  word-break: break-word;
-  overflow-wrap: break-word;
 }
 
 .col-actions .action-buttons {

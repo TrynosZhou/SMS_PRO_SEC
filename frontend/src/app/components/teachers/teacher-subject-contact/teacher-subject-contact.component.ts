@@ -7,12 +7,16 @@ import { TimetableService } from '../../../services/timetable.service';
 export interface SubjectAssignmentRow {
   subjectId: string | null;
   subjectName: string;
+  /** Syllabus code from subjects.code (e.g. 0478, 9618) */
   subjectCode: string | null;
   shortTitle: string | null;
+  subjectCategory?: 'O_LEVEL' | 'A_LEVEL' | null;
   classId: string;
   className: string;
   classForm: string | null;
   lessonsPerWeek: number;
+  isDoublePeriod?: boolean;
+  weeklyPeriodLoad?: number;
   placeholder?: boolean;
 }
 
@@ -37,6 +41,14 @@ export class TeacherSubjectContactComponent implements OnInit {
     shortName: string;
     qualification?: string | null;
   } | null = null;
+  /** Subjects on the teacher profile — only these appear in the lesson modal (with class overlap). */
+  teacherSubjectsAllocated: Array<{
+    id: string;
+    name: string;
+    code?: string | null;
+    shortTitle?: string | null;
+    category?: string | null;
+  }> = [];
   rows: SubjectAssignmentRow[] = [];
   assignedClasses: AssignedClassRef[] = [];
   totalWeeklyLessons = 0;
@@ -47,6 +59,13 @@ export class TeacherSubjectContactComponent implements OnInit {
   /** Route param or loaded teacher UUID — used for API calls. */
   get apiTeacherKey(): string {
     return this.teacher?.id || this.teacherId;
+  }
+
+  /** Opens Assign classes with this teacher auto-selected (`AssignClassesComponent` reads `teacherId`). */
+  readonly assignClassesRoute = ['/teachers/manage/assign-classes'] as const;
+
+  get assignClassesTeacherQuery(): { teacherId: string } {
+    return { teacherId: this.apiTeacherKey };
   }
 
   allClasses: Array<{ id: string; name: string; form?: string | null }> = [];
@@ -62,11 +81,24 @@ export class TeacherSubjectContactComponent implements OnInit {
   lessonsMap: Record<string, number> = {};
   /** Periods per week for the selected subject (writes to Timetable → Configuration). */
   modalLessonsPerWeek = 3;
-  modalSubjects: Array<{ id: string; name: string }> = [];
+  /** Each session counts as 1 period (single) or 2 periods (double) toward load and generation. */
+  modalLessonLength: 'single' | 'double' = 'single';
+  modalSubjects: Array<{
+    id: string;
+    name: string;
+    code?: string | null;
+    category?: string | null;
+  }> = [];
   loadingModalSubjects = false;
   modalSaving = false;
   modalError = '';
+  /** Shown under the subject dropdown when there are no selectable options. */
+  modalSubjectHelp = '';
   private editOriginal: { classId: string; subjectId: string } | null = null;
+
+  get modalIsDoublePeriod(): boolean {
+    return this.modalLessonLength === 'double';
+  }
 
   constructor(
     private route: ActivatedRoute,
@@ -111,6 +143,7 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.teacherService.getTeacherSubjectAssignment(this.teacherId).subscribe({
       next: (data) => {
         this.teacher = data?.teacher || null;
+        this.teacherSubjectsAllocated = Array.isArray(data?.teacherSubjects) ? data.teacherSubjects : [];
         this.rows = data?.rows || [];
         this.assignedClasses = data?.assignedClasses || [];
         this.totalWeeklyLessons = data?.totalWeeklyLessons ?? 0;
@@ -149,19 +182,56 @@ export class TeacherSubjectContactComponent implements OnInit {
     return `${this.teacher.firstName || ''} ${this.teacher.lastName || ''}`.trim();
   }
 
+  /** Primary cell: syllabus code from Subject → Code (e.g. 0478, 9618); never prefer short title when showing syllabus. */
   subjectCell(r: SubjectAssignmentRow): string {
     if (r.placeholder || r.subjectId == null) {
       return '—';
-    }
-    const st = (r.shortTitle || '').trim();
-    if (st) {
-      return st;
     }
     const code = (r.subjectCode || '').trim();
     if (code) {
       return code;
     }
     return r.subjectName || '—';
+  }
+
+  subjectCategoryLabel(r: SubjectAssignmentRow): string {
+    const c = r.subjectCategory;
+    if (c === 'O_LEVEL') {
+      return 'O Level';
+    }
+    if (c === 'A_LEVEL') {
+      return 'A Level';
+    }
+    return '';
+  }
+
+  /** Second line under syllabus code: full name and level when useful. */
+  subjectSecondaryLine(r: SubjectAssignmentRow): string {
+    if (r.placeholder || !r.subjectId) {
+      return '';
+    }
+    const primary = this.subjectCell(r);
+    const name = (r.subjectName || '').trim();
+    const cat = this.subjectCategoryLabel(r);
+    const bits: string[] = [];
+    if (name && primary !== name) {
+      bits.push(name);
+    }
+    if (cat) {
+      bits.push(cat);
+    }
+    return bits.join(' · ');
+  }
+
+  modalSubjectOptionLabel(s: { name: string; code?: string | null; category?: string | null }): string {
+    const code = (s.code || '').trim();
+    const cat =
+      s.category === 'A_LEVEL' ? 'A Level' : s.category === 'O_LEVEL' ? 'O Level' : '';
+    const nm = (s.name || '').trim() || '—';
+    if (code) {
+      return cat ? `${code} — ${nm} (${cat})` : `${code} — ${nm}`;
+    }
+    return cat ? `${nm} (${cat})` : nm;
   }
 
   classCell(r: SubjectAssignmentRow): string {
@@ -196,8 +266,24 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.selectedRow = r;
   }
 
+  /** Double-click a data row to open the same edit modal as the Edit lesson button. */
+  onContractRowDblClick(r: SubjectAssignmentRow, ev: Event): void {
+    ev.stopPropagation();
+    if (r.placeholder || !r.subjectId) {
+      this.selectContractRow(r, ev);
+      return;
+    }
+    this.selectedRow = r;
+    this.openEditLesson();
+  }
+
   canEditOrRemove(): boolean {
     return Boolean(this.selectedRow && !this.selectedRow.placeholder && this.selectedRow.subjectId);
+  }
+
+  openNewLessonFromHint(ev: Event): void {
+    ev.stopPropagation();
+    this.openNewLesson();
   }
 
   openNewLesson(): void {
@@ -208,6 +294,7 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.modalSubjects = [];
     this.modalError = '';
     this.modalLessonsPerWeek = 3;
+    this.modalLessonLength = 'single';
     this.timetableService.getConfig().subscribe({
       next: (c) => {
         this.lessonsMap = { ...(c.lessonsPerWeek || {}) };
@@ -234,6 +321,7 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.modalClassId = row.classId;
     this.modalSubjectId = sid;
     this.modalLessonsPerWeek = row.lessonsPerWeek;
+    this.modalLessonLength = row.isDoublePeriod === true ? 'double' : 'single';
     this.modalError = '';
     this.timetableService.getConfig().subscribe({
       next: (c) => {
@@ -253,12 +341,15 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.lessonModalOpen = false;
     this.modalSaving = false;
     this.modalError = '';
+    this.modalSubjectHelp = '';
     this.editOriginal = null;
   }
 
   onModalClassChange(): void {
     this.modalSubjectId = '';
     this.modalLessonsPerWeek = 3;
+    this.modalLessonLength = 'single';
+    this.modalSubjectHelp = '';
     this.loadSubjectsForModalClass(this.modalClassId);
   }
 
@@ -273,23 +364,72 @@ export class TeacherSubjectContactComponent implements OnInit {
   loadSubjectsForModalClass(classId: string): void {
     if (!classId) {
       this.modalSubjects = [];
+      this.modalSubjectHelp = '';
       return;
     }
     this.loadingModalSubjects = true;
+    this.modalSubjectHelp = '';
+    const teacherAllowed = new Set(this.teacherSubjectsAllocated.map((s) => s.id));
+    const metaById = new Map(this.teacherSubjectsAllocated.map((s) => [s.id, s]));
     this.classService.getClassById(classId).subscribe({
       next: (cls: any) => {
-        const subs = (cls?.subjects || []) as Array<{ id: string; name: string }>;
-        this.modalSubjects = [...subs].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const subs = (cls?.subjects || []) as Array<{
+          id: string;
+          name: string;
+          code?: string | null;
+          category?: string | null;
+          shortTitle?: string | null;
+        }>;
+        const merged = subs
+          .filter((s) => teacherAllowed.has(s.id))
+          .map((s) => {
+            const t = metaById.get(s.id);
+            const codeRaw = s.code != null && String(s.code).trim() !== '' ? s.code : t?.code;
+            const cat = s.category ?? t?.category;
+            return {
+              id: s.id,
+              name: s.name,
+              code: codeRaw ?? null,
+              category: cat ?? null,
+              shortTitle: t?.shortTitle ?? s.shortTitle ?? null,
+            };
+          })
+          .sort(
+            (a, b) =>
+              String(a.code || '').localeCompare(String(b.code || '')) ||
+              (a.name || '').localeCompare(b.name || '')
+          );
+        this.modalSubjects = merged;
         this.loadingModalSubjects = false;
         if (this.modalSubjectId && !this.modalSubjects.some((s) => s.id === this.modalSubjectId)) {
           this.modalSubjectId = '';
         }
+        this.setModalSubjectHelp(subs.length, merged.length, teacherAllowed.size);
       },
       error: () => {
         this.modalSubjects = [];
+        this.modalSubjectHelp = 'Could not load this class’s subjects.';
         this.loadingModalSubjects = false;
       },
     });
+  }
+
+  private setModalSubjectHelp(classSubjectCount: number, mergedCount: number, teacherSubjectCount: number): void {
+    if (mergedCount > 0) {
+      this.modalSubjectHelp = '';
+      return;
+    }
+    if (teacherSubjectCount === 0) {
+      this.modalSubjectHelp =
+        'This teacher has no subjects assigned yet. Add subjects on the teacher’s profile first; only those subjects can be linked here.';
+      return;
+    }
+    if (classSubjectCount === 0) {
+      this.modalSubjectHelp = 'This class has no subjects on file. Add subjects to the class first.';
+      return;
+    }
+    this.modalSubjectHelp =
+      'No overlap: this class shares no subjects with this teacher’s assigned subjects. Assign the subject to this teacher and ensure the class offers it.';
   }
 
   private mergeTimetableLessonsAndFinalize(successMessage: string): void {
@@ -335,7 +475,9 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.modalError = '';
 
     if (this.lessonModalMode === 'new') {
-      this.teacherService.assignTeacherClassSubject(tid, this.modalClassId, this.modalSubjectId).subscribe({
+      this.teacherService
+        .assignTeacherClassSubject(tid, this.modalClassId, this.modalSubjectId, this.modalIsDoublePeriod)
+        .subscribe({
         next: () => this.mergeTimetableLessonsAndFinalize('New lesson added.'),
         error: (err) => {
           this.modalSaving = false;
@@ -351,13 +493,23 @@ export class TeacherSubjectContactComponent implements OnInit {
       return;
     }
     if (old.classId === this.modalClassId && old.subjectId === this.modalSubjectId) {
-      this.mergeTimetableLessonsAndFinalize('Periods per week updated.');
+      this.teacherService
+        .assignTeacherClassSubject(tid, this.modalClassId, this.modalSubjectId, this.modalIsDoublePeriod)
+        .subscribe({
+          next: () => this.mergeTimetableLessonsAndFinalize('Lesson details updated.'),
+          error: (err) => {
+            this.modalSaving = false;
+            this.modalError = err.error?.message || 'Could not update lesson.';
+          },
+        });
       return;
     }
 
     this.teacherService.unassignTeacherClassSubject(tid, old.classId, old.subjectId).subscribe({
       next: () => {
-        this.teacherService.assignTeacherClassSubject(tid, this.modalClassId, this.modalSubjectId).subscribe({
+        this.teacherService
+          .assignTeacherClassSubject(tid, this.modalClassId, this.modalSubjectId, this.modalIsDoublePeriod)
+          .subscribe({
           next: () => this.mergeTimetableLessonsAndFinalize('Lesson updated.'),
           error: (err) => {
             this.modalSaving = false;

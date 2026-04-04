@@ -15,6 +15,13 @@ import { buildPaginationResponse, parsePaginationParams } from '../utils/paginat
 import { TeacherClass } from '../entities/TeacherClass';
 import { formatTeacherTitleName } from '../utils/teacherDisplayName';
 import { normalizeTeacherMaritalStatus } from '../utils/normalizeTeacherMaritalStatus';
+import {
+  upsertTeacherContractLesson,
+  deleteTeacherContractLesson,
+  loadDoubleMapForTeacherClassesSubjects,
+  contractClassSubjectKey,
+  parseRequestDoublePeriod,
+} from '../utils/teacherContractLesson';
 
 export const registerTeacher = async (req: AuthRequest, res: Response) => {
   try {
@@ -962,6 +969,7 @@ export const assignTeacherClassSubject = async (req: AuthRequest, res: Response)
 
     const { id } = req.params;
     const { classId, subjectId } = req.body;
+    const isDoublePeriod = parseRequestDoublePeriod(req.body);
 
     if (!classId || !subjectId) {
       return res.status(400).json({ message: 'classId and subjectId are required' });
@@ -1046,6 +1054,17 @@ export const assignTeacherClassSubject = async (req: AuthRequest, res: Response)
       console.warn('[assignTeacherClassSubject] Junction sync:', linkError?.message || linkError);
     }
 
+    try {
+      await upsertTeacherContractLesson(
+        teacherRow.id,
+        classEntity.id,
+        subjectEntity.id,
+        isDoublePeriod
+      );
+    } catch (contractErr: any) {
+      console.warn('[assignTeacherClassSubject] Contract lesson (single/double):', contractErr?.message || contractErr);
+    }
+
     const updated = await teacherRepository.findOne({
       where: { id: teacherRow.id },
       relations: ['classes', 'subjects'],
@@ -1106,11 +1125,13 @@ export const unassignTeacherClassSubject = async (req: AuthRequest, res: Respons
     const assignedClassIds = assignedClasses.map((c) => c.id);
     const classSubjectIdsByClassId = await buildClassSubjectIdsMap(assignedClassIds);
     const lessonsPerWeek = await loadActiveLessonsPerWeek();
+    const doubleMapUnassign = await loadDoubleMapForTeacherClassesSubjects(teacherRow.id);
     const oldRows = buildTeacherAssignmentRows(
       assignedClasses,
       teacherRow.subjects || [],
       classSubjectIdsByClassId,
-      lessonsPerWeek
+      lessonsPerWeek,
+      doubleMapUnassign
     );
     const nonPh = oldRows.filter((r) => !r.placeholder);
     const target = nonPh.find(
@@ -1175,6 +1196,12 @@ export const unassignTeacherClassSubject = async (req: AuthRequest, res: Respons
       console.warn('[unassignTeacherClassSubject] Junction sync:', linkError?.message || linkError);
     }
 
+    try {
+      await deleteTeacherContractLesson(teacherRow.id, String(classId), String(subjectId));
+    } catch (contractErr: any) {
+      console.warn('[unassignTeacherClassSubject] Contract lesson:', contractErr?.message || contractErr);
+    }
+
     res.json({
       message: 'Class–subject assignment removed from this teacher.',
     });
@@ -1196,12 +1223,19 @@ type AssignedClassRef = {
 type TeacherAssignmentRow = {
   subjectId: string | null;
   subjectName: string;
+  /** Syllabus / qualification code (e.g. 0478, 9618) — stored in subjects.code */
   subjectCode: string | null;
   shortTitle: string | null;
+  subjectCategory: 'O_LEVEL' | 'A_LEVEL' | null;
   classId: string;
   className: string;
   classForm: string | null;
+  /** Sessions per week from timetable configuration (subject-wide). */
   lessonsPerWeek: number;
+  /** Double periods count ×2 toward load and generation. */
+  isDoublePeriod: boolean;
+  /** Period-weighted load: lessonsPerWeek × (isDoublePeriod ? 2 : 1). */
+  weeklyPeriodLoad: number;
   placeholder?: boolean;
 };
 
@@ -1285,7 +1319,8 @@ function buildTeacherAssignmentRows(
   assignedClasses: AssignedClassRef[],
   teacherSubjects: NonNullable<Teacher['subjects']>,
   classSubjectIdsByClassId: Map<string, Set<string>>,
-  lessonsPerWeek: Record<string, number>
+  lessonsPerWeek: Record<string, number>,
+  doubleByClassSubject: Map<string, boolean> = new Map()
 ): TeacherAssignmentRow[] {
   const rows: TeacherAssignmentRow[] = [];
   const tSubjects = teacherSubjects || [];
@@ -1295,15 +1330,20 @@ function buildTeacherAssignmentRows(
       if (!allowed.has(subj.id)) {
         continue;
       }
+      const isDoublePeriod = doubleByClassSubject.get(contractClassSubjectKey(ce.id, subj.id)) === true;
+      const baseLpw = lessonsPerWeek[subj.id] ?? 3;
       rows.push({
         subjectId: subj.id,
         subjectName: subj.name,
         subjectCode: subj.code ?? null,
         shortTitle: subj.shortTitle ?? null,
+        subjectCategory: subj.category === 'A_LEVEL' || subj.category === 'O_LEVEL' ? subj.category : null,
         classId: ce.id,
         className: ce.name,
         classForm: ce.classForm,
-        lessonsPerWeek: lessonsPerWeek[subj.id] ?? 3,
+        lessonsPerWeek: baseLpw,
+        isDoublePeriod,
+        weeklyPeriodLoad: baseLpw * (isDoublePeriod ? 2 : 1),
         placeholder: false,
       });
     }
@@ -1316,10 +1356,13 @@ function buildTeacherAssignmentRows(
         subjectName: '—',
         subjectCode: null,
         shortTitle: null,
+        subjectCategory: null,
         classId: ce.id,
         className: ce.name,
         classForm: ce.classForm,
         lessonsPerWeek: 0,
+        isDoublePeriod: false,
+        weeklyPeriodLoad: 0,
         placeholder: true,
       });
     }
@@ -1375,28 +1418,32 @@ export const getSubjectAssignmentSummary = async (req: AuthRequest, res: Respons
     const classSubjectIdsByClassId = await buildClassSubjectIdsMap(allClassIds);
     const lessonsPerWeek = await loadActiveLessonsPerWeek();
 
-    const payload = mergedPerTeacher.map(({ teacher: t, assigned }) => {
-      const rows = buildTeacherAssignmentRows(
-        assigned,
-        t.subjects || [],
-        classSubjectIdsByClassId,
-        lessonsPerWeek
-      );
-      const weeklyLessons = rows
-        .filter((r) => !r.placeholder)
-        .reduce((sum, r) => sum + r.lessonsPerWeek, 0);
-      return {
-        id: t.id,
-        teacherId: t.teacherId,
-        firstName: t.firstName,
-        lastName: t.lastName,
-        shortName: teacherShortNameLabel(t),
-        weeklyLessons,
-        assignmentCount: rows.length,
-        assignedClassCount: assigned.length,
-        isActive: t.isActive,
-      };
-    });
+    const payload = await Promise.all(
+      mergedPerTeacher.map(async ({ teacher: t, assigned }) => {
+        const doubleMap = await loadDoubleMapForTeacherClassesSubjects(t.id);
+        const rows = buildTeacherAssignmentRows(
+          assigned,
+          t.subjects || [],
+          classSubjectIdsByClassId,
+          lessonsPerWeek,
+          doubleMap
+        );
+        const weeklyLessons = rows
+          .filter((r) => !r.placeholder)
+          .reduce((sum, r) => sum + r.weeklyPeriodLoad, 0);
+        return {
+          id: t.id,
+          teacherId: t.teacherId,
+          firstName: t.firstName,
+          lastName: t.lastName,
+          shortName: teacherShortNameLabel(t),
+          weeklyLessons,
+          assignmentCount: rows.length,
+          assignedClassCount: assigned.length,
+          isActive: t.isActive,
+        };
+      })
+    );
 
     res.json({ teachers: payload });
   } catch (error: any) {
@@ -1448,15 +1495,30 @@ export const getTeacherSubjectAssignmentDetail = async (req: AuthRequest, res: R
     const classIds = assignedClasses.map((c) => c.id);
     const classSubjectIdsByClassId = await buildClassSubjectIdsMap(classIds);
     const lessonsPerWeek = await loadActiveLessonsPerWeek();
+    const doubleMapDetail = await loadDoubleMapForTeacherClassesSubjects(teacher.id);
     const rows = buildTeacherAssignmentRows(
       assignedClasses,
       teacher.subjects || [],
       classSubjectIdsByClassId,
-      lessonsPerWeek
+      lessonsPerWeek,
+      doubleMapDetail
     );
     const totalWeeklyLessons = rows
       .filter((r) => !r.placeholder)
-      .reduce((s, r) => s + r.lessonsPerWeek, 0);
+      .reduce((s, r) => s + r.weeklyPeriodLoad, 0);
+
+    const teacherSubjects = (teacher.subjects || [])
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code ?? null,
+        shortTitle: s.shortTitle ?? null,
+        category: s.category === 'A_LEVEL' || s.category === 'O_LEVEL' ? s.category : null,
+      }))
+      .sort(
+        (a, b) =>
+          String(a.code || '').localeCompare(String(b.code || '')) || a.name.localeCompare(b.name)
+      );
 
     res.json({
       teacher: {
@@ -1468,6 +1530,7 @@ export const getTeacherSubjectAssignmentDetail = async (req: AuthRequest, res: R
         qualification: teacher.qualification,
       },
       assignedClasses,
+      teacherSubjects,
       rows,
       totalWeeklyLessons,
     });
@@ -1541,6 +1604,7 @@ export const getTeacherLoad = async (req: AuthRequest, res: Response) => {
 
     const lessonsPerWeekForLoad = await loadActiveLessonsPerWeek();
     const teacherSubjectList = teacher.subjects || [];
+    const loadDoubleMap = await loadDoubleMapForTeacherClassesSubjects(teacher.id);
 
     // Get student count for each class + subjects this teacher teaches in that class
     const { Student } = await import('../entities/Student');
@@ -1551,13 +1615,19 @@ export const getTeacherLoad = async (req: AuthRequest, res: Response) => {
         const allowedIds = classSubjectIdsByClassId.get(classEntity.id) || new Set<string>();
         const subjectsHere = teacherSubjectList
           .filter((s) => allowedIds.has(s.id))
-          .map((s) => ({
-            id: s.id,
-            name: s.name,
-            code: s.code,
-            shortTitle: s.shortTitle ?? null,
-            lessonsPerWeek: lessonsPerWeekForLoad[s.id] ?? 3,
-          }));
+          .map((s) => {
+            const baseLpw = lessonsPerWeekForLoad[s.id] ?? 3;
+            const isDouble = loadDoubleMap.get(contractClassSubjectKey(classEntity.id, s.id)) === true;
+            return {
+              id: s.id,
+              name: s.name,
+              code: s.code,
+              shortTitle: s.shortTitle ?? null,
+              lessonsPerWeek: baseLpw,
+              isDoublePeriod: isDouble,
+              weeklyPeriodLoad: baseLpw * (isDouble ? 2 : 1),
+            };
+          });
 
         try {
           const studentCount = await studentRepository.count({

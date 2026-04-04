@@ -43,9 +43,18 @@ export class TeacherService {
     return this.http.put(`${this.apiUrl}/teachers/${id}/classes`, { classIds });
   }
 
-  /** Link teacher to teach one subject in one class (updates teacher, class, and subject relations). */
-  assignTeacherClassSubject(teacherId: string, classId: string, subjectId: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/teachers/${teacherId}/class-subject`, { classId, subjectId });
+  /** Link a teacher to teach one subject in one class (updates teacher, class, and subject relations). */
+  assignTeacherClassSubject(
+    teacherId: string,
+    classId: string,
+    subjectId: string,
+    isDoublePeriod = false
+  ): Observable<any> {
+    return this.http.post(`${this.apiUrl}/teachers/${teacherId}/class-subject`, {
+      classId,
+      subjectId,
+      isDoublePeriod,
+    });
   }
 
   unassignTeacherClassSubject(teacherId: string, classId: string, subjectId: string): Observable<any> {

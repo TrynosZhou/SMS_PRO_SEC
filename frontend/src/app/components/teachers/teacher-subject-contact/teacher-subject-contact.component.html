@@ -24,15 +24,18 @@
   <div class="tsc-panel" *ngIf="!loading && !error">
     <p class="tsc-hint">
       <strong>Assigned classes</strong> (from class assignments and the teacher–class register) are listed below.
-      Select a row to <strong>edit</strong> or <strong>remove</strong> a lesson. Use <strong>New lesson</strong> to link another class and subject to this teacher (same as Assign Classes).
+      Select a row to <strong>edit</strong> or <strong>remove</strong> a lesson, or <strong>double-click</strong> a lesson row to open edit.
+      Use <strong>New lesson</strong> to link another class and subject to this teacher (same as Assign Classes).
       <strong>Lessons / week</strong> comes from <strong>Timetable → Configuration</strong>.
+      <strong>Period weight</strong> is Single (×1) or Double (×2) toward this teacher’s total load and timetable generation.
+      The first column shows the subject <strong>syllabus code</strong> from each subject’s Code field (e.g. 0478, 9618), then the full name and level when needed.
     </p>
     <div class="tsc-class-chips" *ngIf="assignedClasses.length">
       <span class="tsc-chips-label">Classes taught:</span>
       <span class="tsc-chip" *ngFor="let c of assignedClasses">{{ classChipLabel(c) }}</span>
     </div>
     <p class="tsc-total" *ngIf="rows.length">
-      Total scheduled weekly lessons (sum of rows): <strong>{{ totalWeeklyLessons }}</strong>
+      Total period-weighted weekly load (lessons × single/double): <strong>{{ totalWeeklyLessons }}</strong>
     </p>
     <nav class="tsc-lesson-actions" aria-label="Lesson contract actions">
       <button type="button" class="tsc-lbtn tsc-lbtn-primary" (click)="openNewLesson()">New lesson</button>
@@ -48,11 +51,11 @@
       <table class="tsc-table">
         <thead>
           <tr>
-            <th scope="col">Subject</th>
+            <th scope="col">Syllabus / subject</th>
             <th scope="col">Teacher</th>
             <th scope="col">Class</th>
             <th scope="col" class="tsc-num">Lessons / week</th>
-            <th scope="col" class="tsc-num">Periods</th>
+            <th scope="col" class="tsc-num">Weight</th>
           </tr>
         </thead>
         <tbody>
@@ -60,19 +63,35 @@
             *ngFor="let r of rows"
             [class.tsc-row-placeholder]="r.placeholder"
             [class.tsc-row-selected]="isRowSelected(r)"
+            [attr.title]="!r.placeholder && r.subjectId ? 'Double-click to edit this lesson' : null"
             (click)="selectContractRow(r, $event)"
+            (dblclick)="onContractRowDblClick(r, $event)"
           >
             <td>
               <span class="tsc-subj">{{ subjectCell(r) }}</span>
-              <span class="tsc-placeholder-hint" *ngIf="r.placeholder">Link subjects with New lesson or Assign Classes</span>
-              <span class="tsc-subj-full" *ngIf="!r.placeholder && subjectCell(r) !== r.subjectName">{{
-                r.subjectName
-              }}</span>
+              <span class="tsc-placeholder-hint" *ngIf="r.placeholder">
+                Link subjects with
+                <button type="button" class="tsc-hint-link" (click)="openNewLessonFromHint($event)">New lesson</button>
+                or
+                <a
+                  class="tsc-hint-link"
+                  [routerLink]="assignClassesRoute"
+                  [queryParams]="assignClassesTeacherQuery"
+                  (click)="$event.stopPropagation()"
+                  >Assign classes</a
+                >.
+              </span>
+              <span class="tsc-subj-full" *ngIf="!r.placeholder && subjectSecondaryLine(r)">{{ subjectSecondaryLine(r) }}</span>
             </td>
             <td>{{ displayTeacherName() }}</td>
             <td>{{ classCell(r) }}</td>
             <td class="tsc-num">{{ r.lessonsPerWeek }}</td>
-            <td class="tsc-num tsc-muted">1</td>
+            <td class="tsc-num">
+              <span class="tsc-weight" *ngIf="!r.placeholder" [class.tsc-weight-dbl]="r.isDoublePeriod === true">
+                {{ r.isDoublePeriod === true ? '×2' : '×1' }}
+              </span>
+              <span class="tsc-muted" *ngIf="r.placeholder">—</span>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -80,7 +99,15 @@
 
     <div class="tsc-empty" *ngIf="!rows.length && !assignedClasses.length">
       <p>No class assignments found for this teacher.</p>
-      <p class="tsc-muted">Use <strong>New lesson</strong> or <strong>Assign Classes</strong> to link classes and subjects.</p>
+      <p class="tsc-muted tsc-empty-actions">
+        Use
+        <button type="button" class="tsc-hint-link" (click)="openNewLesson()">New lesson</button>
+        or
+        <a class="tsc-hint-link" [routerLink]="assignClassesRoute" [queryParams]="assignClassesTeacherQuery"
+          >Assign classes</a
+        >
+        to link classes and subjects.
+      </p>
     </div>
   </div>
 </div>
@@ -92,8 +119,10 @@
       {{ lessonModalMode === 'new' ? 'New lesson' : 'Edit lesson' }}
     </h2>
     <p class="tsc-modal-sub">
-      Choose class, subject, and periods per week for {{ displayTeacherName() }}’s contract. Periods are stored in the
-      active <strong>Timetable → Configuration</strong> for this subject (school-wide).
+      Set class, subject, sessions per week, and whether each session is a <strong>single</strong> or
+      <strong>double</strong> period. Sessions/week updates <strong>Timetable → Configuration</strong> (school-wide for
+      that subject). Single/Double applies to this teacher in this class only and counts ×1 or ×2 toward load and
+      generated timetables.
     </p>
 
     <div class="alert alert-danger" *ngIf="modalError">{{ modalError }}</div>
@@ -123,24 +152,41 @@
         [disabled]="modalSaving || !modalClassId || loadingModalSubjects"
       >
         <option value="">— Select subject —</option>
-        <option *ngFor="let s of modalSubjects" [ngValue]="s.id">{{ s.name }}</option>
+        <option *ngFor="let s of modalSubjects" [ngValue]="s.id">{{ modalSubjectOptionLabel(s) }}</option>
       </select>
-      <p class="tsc-field-hint" *ngIf="modalClassId && !loadingModalSubjects && modalSubjects.length === 0">
-        This class has no subjects on file. Add subjects to the class first.
+      <p class="tsc-field-hint muted" *ngIf="modalClassId && !loadingModalSubjects && modalSubjectHelp">
+        {{ modalSubjectHelp }}
       </p>
     </div>
-    <div class="tsc-field">
-      <label for="tsc-modal-lpw">Periods per week</label>
-      <input
-        id="tsc-modal-lpw"
-        type="number"
-        class="form-control"
-        min="1"
-        max="50"
-        [(ngModel)]="modalLessonsPerWeek"
-        [disabled]="modalSaving"
-      />
-      <p class="tsc-field-hint muted">Updates the same value as under Timetable → Configuration for this subject.</p>
+    <div class="tsc-field tsc-field-lessons-row">
+      <div class="tsc-lessons-week-block">
+        <label for="tsc-modal-lpw">Lessons / week</label>
+        <input
+          id="tsc-modal-lpw"
+          type="number"
+          class="form-control"
+          min="1"
+          max="50"
+          [(ngModel)]="modalLessonsPerWeek"
+          [disabled]="modalSaving"
+        />
+      </div>
+      <div class="tsc-lessons-length-block">
+        <label for="tsc-modal-length">Period type</label>
+        <select
+          id="tsc-modal-length"
+          class="form-control"
+          [(ngModel)]="modalLessonLength"
+          [disabled]="modalSaving"
+        >
+          <option [ngValue]="'single'">Single (×1 load)</option>
+          <option [ngValue]="'double'">Double (×2 load)</option>
+        </select>
+      </div>
+      <p class="tsc-field-hint muted tsc-lessons-hint-full">
+        Lessons/week matches Timetable → Configuration for the subject. Double multiplies this teacher’s scheduled
+        periods for this class.
+      </p>
     </div>
 
     <div class="tsc-modal-actions">
