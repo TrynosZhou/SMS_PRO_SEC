@@ -1,5 +1,81 @@
 import { AppDataSource } from '../config/database';
+import { In } from 'typeorm';
 import { TeacherClass } from '../entities/TeacherClass';
+import { Teacher } from '../entities/Teacher';
+import { Class } from '../entities/Class';
+
+/**
+ * Keep TypeORM ManyToMany (`teachers_classes_classes`) identical to the junction rows we just wrote.
+ * The UI and some flows merge both sources; timetable generation used to read only M2M and missed `teacher_classes`-only links.
+ */
+async function syncTeacherManyToManyClasses(teacherId: string, classIds: string[]): Promise<void> {
+  try {
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+    const classRepository = AppDataSource.getRepository(Class);
+    const teacher = await teacherRepository.findOne({ where: { id: teacherId } });
+    if (!teacher) {
+      return;
+    }
+    teacher.classes =
+      classIds.length > 0 ? await classRepository.find({ where: { id: In(classIds) } }) : [];
+    await teacherRepository.save(teacher);
+  } catch (e: any) {
+    console.warn('[TeacherClassLinker] Could not sync Teacher.classes M2M after junction update:', e?.message || e);
+  }
+}
+
+/**
+ * Merge classes from `teacher_classes` into each teacher's `classes` array (in-memory).
+ * Use before timetable generation so assignments match the teacher subject contact page.
+ */
+export async function mergeJunctionClassesIntoTeachers(teachers: Teacher[]): Promise<void> {
+  if (!teachers.length) {
+    return;
+  }
+  try {
+    const teacherClassRepository = AppDataSource.getRepository(TeacherClass);
+    await teacherClassRepository.count();
+  } catch {
+    return;
+  }
+
+  const teacherIds = teachers.map((t) => t.id);
+  const repo = AppDataSource.getRepository(TeacherClass);
+  const links = await repo
+    .createQueryBuilder('tc')
+    .innerJoinAndSelect('tc.class', 'class')
+    .where('tc.teacherId IN (:...ids)', { ids: teacherIds })
+    .getMany();
+
+  const extrasByTeacher = new Map<string, Class[]>();
+  for (const link of links) {
+    if (!link.class) {
+      continue;
+    }
+    const arr = extrasByTeacher.get(link.teacherId) ?? [];
+    arr.push(link.class);
+    extrasByTeacher.set(link.teacherId, arr);
+  }
+
+  for (const teacher of teachers) {
+    const extras = extrasByTeacher.get(teacher.id) ?? [];
+    if (!extras.length) {
+      continue;
+    }
+    const byId = new Map<string, Class>();
+    for (const c of teacher.classes ?? []) {
+      if (c?.id) {
+        byId.set(c.id, c);
+      }
+    }
+    for (const c of extras) {
+      if (c?.id && !byId.has(c.id)) {
+        byId.set(c.id, c);
+      }
+    }
+    teacher.classes = Array.from(byId.values());
+  }
+}
 
 /**
  * Link a teacher to multiple classes using the junction table
@@ -30,6 +106,7 @@ export async function linkTeacherToClasses(teacherId: string, classIds: string[]
     // If no classIds provided, we're done (all links removed)
     if (!classIds || classIds.length === 0) {
       console.log(`[TeacherClassLinker] Removed all class links for teacher ${teacherId}`);
+      await syncTeacherManyToManyClasses(teacherId, []);
       return;
     }
 
@@ -50,6 +127,7 @@ export async function linkTeacherToClasses(teacherId: string, classIds: string[]
     }
 
     console.log(`[TeacherClassLinker] Linked teacher ${teacherId} to ${classIds.length} classes`);
+    await syncTeacherManyToManyClasses(teacherId, classIds);
   } catch (error: any) {
     console.error('[TeacherClassLinker] Error in linkTeacherToClasses:', error.message);
     // Don't throw - allow the operation to continue without junction table

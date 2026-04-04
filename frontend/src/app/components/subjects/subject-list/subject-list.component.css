@@ -281,6 +281,7 @@
 
 .skeleton-code { width: 70%; }
 .skeleton-name { width: 80%; }
+.skeleton-short { width: 50%; }
 .skeleton-count { width: 40%; }
 .skeleton-status { width: 50%; }
 .skeleton-actions { width: 70%; }
@@ -369,6 +370,16 @@
   font-weight: 600;
   color: #2c3e50;
   font-size: 16px;
+}
+
+.subject-short .short-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: #e8f5e9;
+  color: #1b5e20;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
 }
 
 .subject-category .category-badge {

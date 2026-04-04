@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { TeacherService } from '../../../services/teacher.service';
 import { ClassService } from '../../../services/class.service';
+import { SubjectService } from '../../../services/subject.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { teachersManageNav } from '../teachers-manage-navigation';
 
@@ -24,10 +25,17 @@ export class AssignClassesComponent implements OnInit {
   error = '';
   success = '';
   submitting = false;
+  linking = false;
+
+  /** Single class + subject link (admin picks teacher, class, subject). */
+  linkClassId = '';
+  linkSubjectId = '';
+  subjects: any[] = [];
 
   constructor(
     private teacherService: TeacherService,
     private classService: ClassService,
+    private subjectService: SubjectService,
     public router: Router,
     private route: ActivatedRoute
   ) { }
@@ -35,6 +43,7 @@ export class AssignClassesComponent implements OnInit {
   ngOnInit() {
     this.loadTeachers();
     this.loadClasses();
+    this.loadSubjects();
 
     // If opened from "Assign Class" button (teacherId query param), auto-select that teacher.
     this.route.queryParams.subscribe((params: any) => {
@@ -55,12 +64,28 @@ export class AssignClassesComponent implements OnInit {
     this.router.navigateByUrl(teachersManageNav(this.router).list);
   }
 
+  loadSubjects(): void {
+    this.subjectService.getSubjects().subscribe({
+      next: (data: any) => {
+        const list = Array.isArray(data) ? data : data?.data || [];
+        this.subjects = [...list].sort((a: any, b: any) =>
+          (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+        );
+      },
+      error: (err: any) => {
+        console.error('Error loading subjects:', err);
+        this.subjects = [];
+      },
+    });
+  }
+
   loadTeachers() {
     this.loading = true;
     this.error = '';
     this.teacherService.getTeachers().subscribe({
       next: (data: any) => {
-        this.teachers = (data || []).filter((t: any) => t.isActive !== false);
+        const raw = Array.isArray(data) ? data : data?.data || [];
+        this.teachers = raw.filter((t: any) => t.isActive !== false);
         this.filteredTeachers = [...this.teachers];
         this.loading = false;
 
@@ -112,6 +137,8 @@ export class AssignClassesComponent implements OnInit {
     this.selectedClassIds = [];
     this.teacherClasses = [];
     this.teacherLoad = null;
+    this.linkClassId = '';
+    this.linkSubjectId = '';
     this.error = '';
     this.success = '';
     this.loadTeacherClasses();
@@ -201,10 +228,58 @@ export class AssignClassesComponent implements OnInit {
     this.selectedClassIds = [];
     this.teacherClasses = [];
     this.teacherLoad = null;
+    this.linkClassId = '';
+    this.linkSubjectId = '';
     this.teacherSearchQuery = '';
     this.classSearchQuery = '';
     this.error = '';
     this.success = '';
+  }
+
+  applyClassSubjectLink(): void {
+    if (!this.selectedTeacher?.id) {
+      this.error = 'Please select a teacher first';
+      return;
+    }
+    if (!this.linkClassId) {
+      this.error = 'Please choose a class';
+      return;
+    }
+    if (!this.linkSubjectId) {
+      this.error = 'Please choose a subject';
+      return;
+    }
+
+    this.linking = true;
+    this.error = '';
+    this.success = '';
+
+    this.teacherService
+      .assignTeacherClassSubject(this.selectedTeacher.id, this.linkClassId, this.linkSubjectId)
+      .subscribe({
+        next: (res: any) => {
+          this.linking = false;
+          this.success = res?.message || 'Assignment saved';
+          this.loadTeacherClasses();
+          this.loadTeacherLoad();
+          if (res?.teacher) {
+            const t = res.teacher;
+            const inList = this.teachers.find((x: any) => x.id === t.id);
+            if (inList) {
+              Object.assign(inList, {
+                subjects: t.subjects,
+                classes: t.classes,
+              });
+            }
+          }
+          setTimeout(() => (this.success = ''), 6000);
+        },
+        error: (err: any) => {
+          this.linking = false;
+          this.error = err?.error?.message || err?.message || 'Failed to save assignment';
+          setTimeout(() => (this.error = ''), 7000);
+        },
+      });
   }
 
   saveAssignment() {

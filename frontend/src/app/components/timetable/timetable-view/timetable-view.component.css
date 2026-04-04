@@ -77,6 +77,13 @@
   text-align: right;
 }
 
+.generation-progress-sub {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #37474f;
+  line-height: 1.45;
+}
+
 .generation-progress-track {
   height: 22px;
   background: #bbdefb;
@@ -698,91 +705,143 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
+/* Summary header: logo + titles grouped at top left (like class timetable sheets) */
+.tt-preview-summary-section .tt-sheet-head {
+  align-items: flex-start;
+}
+
+.tt-preview-summary-section .tt-sheet-head-main {
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+}
+
 .tt-consolidated-table {
-  min-width: 960px;
-  table-layout: fixed;
+  /* auto layout + max-content width so period columns keep readable width (fixed + 100% squeezed headers) */
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
 }
 
 .tt-consolidated-corner {
-  width: 100px;
-  min-width: 88px;
-  max-width: 120px;
+  width: 62px;
+  min-width: 56px;
+  max-width: 76px;
   vertical-align: middle;
+  font-size: 9px !important;
+  padding: 4px 2px !important;
 }
 
 .tt-consolidated-day-head {
   background: #34495e !important;
   color: #fff !important;
   font-weight: 800;
-  font-size: 11px;
-  padding: 8px 4px !important;
+  font-size: 10px;
+  padding: 4px 2px !important;
   text-align: center;
   border: 1px solid #000 !important;
 }
 
 .tt-consolidated-table .tt-teacher-th-period {
-  min-width: 52px;
-  max-width: 64px;
-  padding: 8px 4px !important;
+  /* Summary sheet: period numbers only in header (matches printed school summary). */
+  min-width: 18px;
+  max-width: none;
+  padding: 3px 2px !important;
   vertical-align: middle;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.tt-consolidated-table .tt-teacher-th-period .tt-teacher-ptime {
+  display: none;
 }
 
 .tt-consolidated-table .tt-teacher-pnum {
-  font-size: 13px;
+  font-size: 9px;
+  font-weight: 800;
 }
 
 .tt-consolidated-table .tt-teacher-ptime {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .tt-consolidated-table .tt-teacher-ptime .tt-ptime-line {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .tt-consolidated-table .tt-teacher-th-break {
-  width: 34px;
-  min-width: 30px;
-  max-width: 40px;
-  padding: 6px 3px !important;
+  width: 11px;
+  min-width: 9px;
+  max-width: 14px;
+  padding: 2px 1px !important;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.tt-consolidated-table .tt-break-th-times-only .tt-ptime-line {
+  font-size: 6px;
+  font-weight: 700;
+}
+
+.tt-consolidated-table .tt-break-banner-merged {
+  min-height: 70px;
+  font-size: clamp(7px, 1.2vmin, 10px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #111827;
+  padding: 6px 2px;
+}
+
+.tt-consolidated-table .tt-break-td-merged.tt-consolidated-break-merged {
+  width: 11px;
+  min-width: 9px;
+  max-width: 14px;
+  box-sizing: border-box;
 }
 
 .tt-consolidated-table .tt-teacher-break-v {
-  font-size: 9px;
-  max-height: 100px;
+  font-size: 8px;
+  max-height: 88px;
+  line-height: 1.05;
+  white-space: nowrap;
 }
 
 .tt-consolidated-table .tt-teacher-break-time {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .tt-consolidated-table .tt-teacher-break-time .tt-ptime-line {
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .tt-consolidated-teacher-name {
   background: #ecf0f1 !important;
   font-weight: 800;
-  font-size: 10px;
+  font-size: 9px;
   color: #2c3e50 !important;
   text-align: left !important;
-  padding: 6px 8px !important;
+  padding: 3px 4px !important;
   vertical-align: middle;
   border: 1px solid #000 !important;
 }
 
 .tt-consolidated-period-cell {
-  min-height: 28px;
-  padding: 3px 2px !important;
+  min-height: 15px;
+  min-width: 20px;
+  padding: 1px 1px !important;
   vertical-align: middle !important;
+  box-sizing: border-box;
 }
 
 .tt-consolidated-class-code {
   display: block;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
   color: #2c3e50;
   text-align: center;
@@ -790,10 +849,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding: 1px 0;
 }
 
 .tt-consolidated-table .tt-teacher-td-break {
-  padding: 2px !important;
+  padding: 1px !important;
 }
 
 /* —— Teacher timetable preview (print-style: days = rows, periods = columns) —— */
@@ -857,6 +917,19 @@
 .tt-sheet-head-actions-class {
   max-width: 200px;
   text-align: right;
+}
+
+/* Teacher & class previews: logo + school lines side-by-side on the left (same as summary PDF/preview) */
+.tt-preview-teachers .tt-sheet-head,
+.tt-preview-classes .tt-sheet-head {
+  align-items: flex-start;
+}
+
+.tt-preview-teachers .tt-sheet-head-main,
+.tt-preview-classes .tt-sheet-head-main {
+  text-align: left;
+  flex: 1;
+  min-width: 0;
 }
 
 .tt-class-teacher-line {
@@ -957,17 +1030,31 @@
 
 .tt-teacher-table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin-bottom: 10px;
+  max-width: 100%;
+}
+
+/* html2canvas: uncap width/scroll clipping so all period columns (e.g. after lunch) are captured */
+.tt-teacher-sheet.tt-exporting-pdf {
+  max-width: none !important;
+  width: max-content !important;
+}
+
+.tt-teacher-sheet.tt-exporting-pdf .tt-teacher-table-scroll {
+  overflow: visible !important;
+  max-width: none !important;
 }
 
 .tt-teacher-table {
-  width: 100%;
+  /* Let columns grow to fit period times; scroll horizontally inside .tt-teacher-table-scroll */
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 11px;
   color: #000;
-  min-width: 640px;
 }
 
 .tt-teacher-table th,
@@ -991,10 +1078,12 @@
   background: #2c3e50 !important;
   color: #fff !important;
   font-weight: 700;
-  min-width: 56px;
-  max-width: 80px;
+  min-width: 74px;
+  max-width: none;
   padding-top: 6px !important;
   padding-bottom: 6px !important;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .tt-teacher-pnum {
@@ -1008,39 +1097,87 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  margin-top: 6px;
+  gap: 2px;
+  margin-top: 5px;
   font-weight: 600;
   opacity: 0.98;
-  line-height: 1.25;
+  line-height: 1.2;
+  max-width: 100%;
 }
 
 .tt-teacher-ptime .tt-ptime-line {
   display: block;
-  font-size: 12px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .tt-teacher-th-break {
-  width: 28px;
-  min-width: 24px;
-  max-width: 36px;
+  width: 36px;
+  min-width: 32px;
+  max-width: 44px;
   background: #6b7280 !important;
   color: #fff !important;
-  padding: 4px 2px !important;
+  padding: 4px 3px !important;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.tt-break-th-times-only {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 0 !important;
+  min-height: 40px;
+  width: 100%;
+}
+
+.tt-break-td-merged {
+  padding: 0 !important;
+  vertical-align: middle !important;
+  background: #f3f4f6 !important;
+  border: 1px solid #bdc3c7 !important;
+  overflow: visible;
+}
+
+.tt-break-banner-merged {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 180px;
+  height: 100%;
+  padding: 12px 5px;
+  font-size: clamp(12px, 2.4vmin, 17px);
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: 0.14em;
+  /* Horizontal text + rotation: html2canvas mangles writing-mode vertical-rl + rotate(180deg). */
+  writing-mode: horizontal-tb;
+  transform: rotate(-90deg);
+  transform-origin: center center;
+  white-space: nowrap;
+  text-transform: uppercase;
+  margin: 0 auto;
+  line-height: 1;
 }
 
 .tt-teacher-break-v {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  writing-mode: horizontal-tb;
+  transform: rotate(-90deg);
+  transform-origin: center center;
   font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   margin: 0 auto;
   max-height: 120px;
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .tt-teacher-break-time {
@@ -1055,9 +1192,11 @@
 
 .tt-teacher-break-time .tt-ptime-line {
   display: block;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .tt-teacher-day {
@@ -1069,8 +1208,10 @@
 
 .tt-teacher-td-period {
   min-height: 52px;
+  min-width: 56px;
   vertical-align: top;
   padding: 5px 4px !important;
+  box-sizing: border-box;
 }
 
 .tt-teacher-td-break {
@@ -1082,10 +1223,13 @@
   font-size: 8px;
   font-weight: 700;
   color: #4b5563;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  writing-mode: horizontal-tb;
+  transform: rotate(-90deg);
+  transform-origin: center center;
   margin: 0 auto;
   max-height: 100px;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .tt-teacher-lesson {

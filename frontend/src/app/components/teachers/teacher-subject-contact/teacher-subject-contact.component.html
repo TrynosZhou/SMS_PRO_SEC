@@ -1,0 +1,155 @@
+<div class="tsc-wrap">
+  <header class="tsc-head">
+    <button type="button" class="btn btn-link tsc-back" (click)="back()">
+      ← Back to teachers
+    </button>
+    <div class="tsc-title-block" *ngIf="teacher as t">
+      <span class="tsc-ico" aria-hidden="true">🎓</span>
+      <div>
+        <h1 class="tsc-title">{{ displayTeacherName() }}</h1>
+        <p class="tsc-short">{{ t.shortName }} · {{ t.teacherId }}</p>
+        <p class="tsc-qual" *ngIf="t.qualification">{{ t.qualification }}</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="alert alert-success" *ngIf="success">{{ success }}</div>
+  <div class="alert alert-danger" *ngIf="error">{{ error }}</div>
+
+  <div class="tsc-loading" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Loading assignments…</p>
+  </div>
+
+  <div class="tsc-panel" *ngIf="!loading && !error">
+    <p class="tsc-hint">
+      <strong>Assigned classes</strong> (from class assignments and the teacher–class register) are listed below.
+      Select a row to <strong>edit</strong> or <strong>remove</strong> a lesson. Use <strong>New lesson</strong> to link another class and subject to this teacher (same as Assign Classes).
+      <strong>Lessons / week</strong> comes from <strong>Timetable → Configuration</strong>.
+    </p>
+    <div class="tsc-class-chips" *ngIf="assignedClasses.length">
+      <span class="tsc-chips-label">Classes taught:</span>
+      <span class="tsc-chip" *ngFor="let c of assignedClasses">{{ classChipLabel(c) }}</span>
+    </div>
+    <p class="tsc-total" *ngIf="rows.length">
+      Total scheduled weekly lessons (sum of rows): <strong>{{ totalWeeklyLessons }}</strong>
+    </p>
+    <nav class="tsc-lesson-actions" aria-label="Lesson contract actions">
+      <button type="button" class="tsc-lbtn tsc-lbtn-primary" (click)="openNewLesson()">New lesson</button>
+      <button type="button" class="tsc-lbtn" (click)="openEditLesson()" [disabled]="!canEditOrRemove()">
+        Edit lesson
+      </button>
+      <button type="button" class="tsc-lbtn" (click)="removeLesson()" [disabled]="!canEditOrRemove() || loading">
+        Remove
+      </button>
+    </nav>
+
+    <div class="tsc-table-wrap" *ngIf="rows.length">
+      <table class="tsc-table">
+        <thead>
+          <tr>
+            <th scope="col">Subject</th>
+            <th scope="col">Teacher</th>
+            <th scope="col">Class</th>
+            <th scope="col" class="tsc-num">Lessons / week</th>
+            <th scope="col" class="tsc-num">Periods</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            *ngFor="let r of rows"
+            [class.tsc-row-placeholder]="r.placeholder"
+            [class.tsc-row-selected]="isRowSelected(r)"
+            (click)="selectContractRow(r, $event)"
+          >
+            <td>
+              <span class="tsc-subj">{{ subjectCell(r) }}</span>
+              <span class="tsc-placeholder-hint" *ngIf="r.placeholder">Link subjects with New lesson or Assign Classes</span>
+              <span class="tsc-subj-full" *ngIf="!r.placeholder && subjectCell(r) !== r.subjectName">{{
+                r.subjectName
+              }}</span>
+            </td>
+            <td>{{ displayTeacherName() }}</td>
+            <td>{{ classCell(r) }}</td>
+            <td class="tsc-num">{{ r.lessonsPerWeek }}</td>
+            <td class="tsc-num tsc-muted">1</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tsc-empty" *ngIf="!rows.length && !assignedClasses.length">
+      <p>No class assignments found for this teacher.</p>
+      <p class="tsc-muted">Use <strong>New lesson</strong> or <strong>Assign Classes</strong> to link classes and subjects.</p>
+    </div>
+  </div>
+</div>
+
+<div class="tsc-modal-backdrop" *ngIf="lessonModalOpen" (click)="closeLessonModal()"></div>
+<div class="tsc-modal" *ngIf="lessonModalOpen" role="dialog" aria-modal="true" [attr.aria-labelledby]="'tsc-lesson-title'">
+  <div class="tsc-modal-inner" (click)="$event.stopPropagation()">
+    <h2 id="tsc-lesson-title" class="tsc-modal-title">
+      {{ lessonModalMode === 'new' ? 'New lesson' : 'Edit lesson' }}
+    </h2>
+    <p class="tsc-modal-sub">
+      Choose class, subject, and periods per week for {{ displayTeacherName() }}’s contract. Periods are stored in the
+      active <strong>Timetable → Configuration</strong> for this subject (school-wide).
+    </p>
+
+    <div class="alert alert-danger" *ngIf="modalError">{{ modalError }}</div>
+
+    <div class="tsc-field">
+      <label for="tsc-modal-class">Class</label>
+      <select
+        id="tsc-modal-class"
+        class="form-control"
+        [(ngModel)]="modalClassId"
+        (ngModelChange)="onModalClassChange()"
+        [disabled]="modalSaving"
+      >
+        <option value="">— Select class —</option>
+        <option *ngFor="let c of allClasses" [ngValue]="c.id">
+          {{ c.name }}{{ c.form != null && c.form !== '' ? ' (' + c.form + ')' : '' }}
+        </option>
+      </select>
+    </div>
+    <div class="tsc-field">
+      <label for="tsc-modal-subject">Subject</label>
+      <select
+        id="tsc-modal-subject"
+        class="form-control"
+        [(ngModel)]="modalSubjectId"
+        (ngModelChange)="onModalSubjectPicked()"
+        [disabled]="modalSaving || !modalClassId || loadingModalSubjects"
+      >
+        <option value="">— Select subject —</option>
+        <option *ngFor="let s of modalSubjects" [ngValue]="s.id">{{ s.name }}</option>
+      </select>
+      <p class="tsc-field-hint" *ngIf="modalClassId && !loadingModalSubjects && modalSubjects.length === 0">
+        This class has no subjects on file. Add subjects to the class first.
+      </p>
+    </div>
+    <div class="tsc-field">
+      <label for="tsc-modal-lpw">Periods per week</label>
+      <input
+        id="tsc-modal-lpw"
+        type="number"
+        class="form-control"
+        min="1"
+        max="50"
+        [(ngModel)]="modalLessonsPerWeek"
+        [disabled]="modalSaving"
+      />
+      <p class="tsc-field-hint muted">Updates the same value as under Timetable → Configuration for this subject.</p>
+    </div>
+
+    <div class="tsc-modal-actions">
+      <button type="button" class="btn btn-secondary" (click)="closeLessonModal()" [disabled]="modalSaving">
+        Cancel
+      </button>
+      <button type="button" class="btn btn-primary" (click)="saveLesson()" [disabled]="modalSaving">
+        {{ modalSaving ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </div>
+</div>

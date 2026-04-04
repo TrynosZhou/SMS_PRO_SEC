@@ -5,7 +5,9 @@
         <span class="icon">📋</span>
         Assign Classes to Teachers
       </h1>
-      <p class="subtitle">Allocate classes to teachers and view their workload</p>
+      <p class="subtitle">
+        Choose a teacher, assign whole classes in bulk, or pick one class and one subject so that teacher must teach that subject in that class (required for timetables).
+      </p>
     </div>
     <div class="header-actions">
       <button type="button" class="btn btn-secondary" (click)="goToTeachersList()">
@@ -113,6 +115,55 @@
         </div>
       </div>
 
+      <!-- Teacher + class + subject (single link) -->
+      <div class="class-subject-link-section">
+        <h3>Assign subject in a class</h3>
+        <p class="section-intro">
+          Select the class and the subject this teacher must teach there. The system will link the teacher to the class,
+          add the subject to the teacher’s profile, and add the subject to the class offering if it is not already there.
+        </p>
+        <div class="link-form-row">
+          <div class="form-field">
+            <label for="linkClassSelect">Class</label>
+            <select
+              id="linkClassSelect"
+              name="linkClassSelect"
+              class="form-select"
+              [(ngModel)]="linkClassId">
+              <option value="">— Select class —</option>
+              <option *ngFor="let cls of availableClasses" [value]="cls.id">
+                {{ cls.name }}<span *ngIf="cls.form"> ({{ cls.form }})</span>
+              </option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="linkSubjectSelect">Subject</label>
+            <select
+              id="linkSubjectSelect"
+              name="linkSubjectSelect"
+              class="form-select"
+              [(ngModel)]="linkSubjectId">
+              <option value="">— Select subject —</option>
+              <option *ngFor="let sub of subjects" [value]="sub.id">
+                {{ sub.name }}<span *ngIf="sub.code"> — {{ sub.code }}</span>
+              </option>
+            </select>
+          </div>
+          <div class="form-field form-field-action">
+            <label class="label-spacer">&nbsp;</label>
+            <button
+              type="button"
+              class="btn btn-accent"
+              (click)="applyClassSubjectLink()"
+              [disabled]="linking || !linkClassId || !linkSubjectId">
+              <span *ngIf="!linking">➕ Apply link</span>
+              <span *ngIf="linking" class="spinner-inline"></span>
+              <span *ngIf="linking"> Saving…</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Current Classes -->
       <div class="current-classes-section" *ngIf="teacherClasses.length > 0">
         <h3>Currently Assigned Classes</h3>
@@ -127,9 +178,10 @@
         </div>
       </div>
 
-      <!-- Class Selection -->
+      <!-- Class Selection (bulk) -->
       <div class="class-selection-section">
-        <h3>Select Classes to Assign</h3>
+        <h3>Bulk assign classes</h3>
+        <p class="section-intro muted">Tick every class this teacher should be linked to. Use “Assign subject in a class” above for each subject they teach in each class.</p>
         <div class="search-box">
           <input 
             type="text" 

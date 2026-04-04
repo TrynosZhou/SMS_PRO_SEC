@@ -157,6 +157,9 @@
                 *ngIf="!cellSlot(row.id, day, p)"
                 class="tta-slot-empty"
                 [class.tta-slot-empty--phantom]="activeMoveSlot()"
+                (dragover)="onDragOver($event, row.id, day, p)"
+                (dragleave)="onDragLeaveCell($event)"
+                (drop)="onDrop(row.id, day, p, $event)"
               >
                 &nbsp;
               </div>

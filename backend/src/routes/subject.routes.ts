@@ -21,6 +21,13 @@ function categoryForResponse(raw: string | null | undefined): SubjectCategory {
 /**
  * Parse category from request body. Accepts O_LEVEL, A_LEVEL, and legacy IGCSE / AS_A_LEVEL.
  */
+function normalizeShortTitle(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  return s.slice(0, 40);
+}
+
 function parseCategoryFromBody(raw: unknown, mode: 'create' | 'update'): SubjectCategory | 'INVALID' {
   if (mode === 'create' && (raw === undefined || raw === null || raw === '')) {
     return 'O_LEVEL';
@@ -132,7 +139,13 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
         const name = (subject.name || '').toLowerCase();
         const code = (subject.code || '').toLowerCase();
         const description = (subject.description || '').toLowerCase();
-        return name.includes(searchQuery) || code.includes(searchQuery) || description.includes(searchQuery);
+        const shortT = (subject.shortTitle || '').toLowerCase();
+        return (
+          name.includes(searchQuery) ||
+          code.includes(searchQuery) ||
+          description.includes(searchQuery) ||
+          shortT.includes(searchQuery)
+        );
       });
     }
     
@@ -175,7 +188,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
 router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DEMO_USER), async (req, res) => {
   try {
-    const { name, code, description, category } = req.body;
+    const { name, code, description, category, shortTitle } = req.body;
     const subjectRepository = AppDataSource.getRepository(Subject);
     
     // Validate required fields
@@ -200,11 +213,12 @@ router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, Us
       return res.status(400).json({ message: 'Subject code already exists' });
     }
 
-    const subject = subjectRepository.create({ 
-      name: name.trim(), 
-      code: normalizedCode, 
+    const subject = subjectRepository.create({
+      name: name.trim(),
+      code: normalizedCode,
       description,
-      category: parsedCat as SubjectCategory
+      shortTitle: normalizeShortTitle(shortTitle),
+      category: parsedCat as SubjectCategory,
     });
     await subjectRepository.save(subject);
     res.status(201).json({ message: 'Subject created successfully', subject });
@@ -219,7 +233,7 @@ router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, Us
 router.put('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DEMO_USER), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, code, description, isActive, category } = req.body;
+    const { name, code, description, isActive, category, shortTitle } = req.body;
     const subjectRepository = AppDataSource.getRepository(Subject);
 
     const subject = await subjectRepository.findOne({ where: { id } });
@@ -256,6 +270,9 @@ router.put('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, 
         return res.status(400).json({ message: 'Invalid subject category. Allowed values: O Level, A Level' });
       }
       subject.category = parsedCat;
+    }
+    if (shortTitle !== undefined) {
+      subject.shortTitle = normalizeShortTitle(shortTitle);
     }
 
     await subjectRepository.save(subject);

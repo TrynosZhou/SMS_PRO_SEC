@@ -143,6 +143,62 @@ export class AllocateClassComponent implements OnInit {
     return classLoad?.studentCount || 0;
   }
 
+  /** Rows for "currently assigned" — prefer API load (includes subjects per class). */
+  get assignedClassesRows(): any[] {
+    const fromLoad = this.teacherLoad?.load?.classes;
+    if (fromLoad?.length) {
+      return fromLoad;
+    }
+    return this.teacherClasses.map((c: any) => {
+      const full = this.availableClasses.find((x: any) => x.id === c.id) || c;
+      return {
+        ...c,
+        studentCount: this.getStudentCountForClass(c.id),
+        subjects: this.subjectsOverlapForClass(full),
+      };
+    });
+  }
+
+  /** Subjects the teacher teaches that also exist on the class timetable. */
+  subjectsOverlapForClass(classObj: any): any[] {
+    const ts = this.teacher?.subjects;
+    const cs = classObj?.subjects;
+    if (!ts?.length || !cs?.length) {
+      return [];
+    }
+    const cids = new Set(cs.map((s: any) => s.id));
+    return ts
+      .filter((s: any) => cids.has(s.id))
+      .map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code,
+        shortTitle: s.shortTitle,
+      }));
+  }
+
+  /** One-line hint for the allocation checkbox list. */
+  formatSubjectsForAllocation(cls: any): string {
+    const list = this.subjectsOverlapForClass(
+      this.availableClasses.find((x: any) => x.id === cls.id) || cls
+    );
+    if (!list.length) {
+      return '';
+    }
+    return (
+      'Teaches here: ' +
+      list
+        .map((s: any) => (s.shortTitle || s.code || s.name || '').trim())
+        .filter(Boolean)
+        .join(', ')
+    );
+  }
+
+  subjectChipLabel(s: any): string {
+    const t = (s?.shortTitle || s?.code || s?.name || '').trim();
+    return t || 'Subject';
+  }
+
   saveAssignment(): void {
     if (!this.teacherId) return;
     this.submitting = true;

@@ -18,6 +18,10 @@ export class Subject {
   @Column()
   code: string;
 
+  /** Short label for timetables (e.g. Eng, Math, CS). Class timetables prefer this over full name. */
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  shortTitle: string | null;
+
   @Column({ type: 'varchar', default: 'O_LEVEL' })
   category: SubjectCategory;
 

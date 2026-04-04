@@ -32,7 +32,7 @@
       <input 
         type="text" 
         class="search-input" 
-        placeholder="Search subjects by code, name, or description..."
+        placeholder="Search by code, name, short title, or description..."
         [(ngModel)]="searchTerm"
         (input)="onSearchInput()">
       <button class="search-clear" *ngIf="searchTerm" (click)="clearSearch()" aria-label="Clear search">×</button>
@@ -62,6 +62,7 @@
       <div class="skeleton-row">
         <div class="skeleton-cell skeleton-code"></div>
         <div class="skeleton-cell skeleton-name"></div>
+        <div class="skeleton-cell skeleton-short"></div>
         <div class="skeleton-cell skeleton-count"></div>
         <div class="skeleton-cell skeleton-count"></div>
         <div class="skeleton-cell skeleton-status"></div>
@@ -83,6 +84,7 @@
             <span>Subject Name</span>
             <span class="sort-icon" *ngIf="sortColumn === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
           </th>
+          <th>Short</th>
           <th>Syllabus category</th>
           <th (click)="sortByColumn('teachers')" class="sortable">
             <span>Teachers</span>
@@ -103,6 +105,9 @@
           </td>
           <td class="subject-name">
             <span class="name-text">{{ subject.name }}</span>
+          </td>
+          <td class="subject-short">
+            <span class="short-badge">{{ subject.shortTitle?.trim() || '—' }}</span>
           </td>
           <td class="subject-category">
             <span class="category-badge" [class.o-level]="normalizedCategory(subject.category) === 'O_LEVEL'" [class.a-level]="normalizedCategory(subject.category) === 'A_LEVEL'">

@@ -277,6 +277,116 @@
   font-weight: 500;
 }
 
+.class-subject-link-section {
+  margin-bottom: 28px;
+  padding: 22px;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  border-radius: 14px;
+  border: 2px solid #c7d2fe;
+}
+
+.class-subject-link-section h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #312e81;
+}
+
+.section-intro {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #4338ca;
+  max-width: 900px;
+}
+
+.section-intro.muted {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.link-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) auto;
+  gap: 16px;
+  align-items: end;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.label-spacer {
+  visibility: hidden;
+}
+
+.form-select {
+  padding: 12px 14px;
+  border: 2px solid #c7d2fe;
+  border-radius: 10px;
+  font-size: 15px;
+  background: #fff;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.form-field-action .btn {
+  min-height: 48px;
+  white-space: nowrap;
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.45);
+}
+
+.btn-accent:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.5);
+}
+
+.btn-accent:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.spinner-inline {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .link-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .current-classes-section {
   margin-bottom: 32px;
   padding: 20px;

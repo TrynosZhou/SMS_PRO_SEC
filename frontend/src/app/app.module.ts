@@ -15,6 +15,8 @@ import { TeacherListComponent } from './components/teachers/teacher-list/teacher
 import { TeacherFormComponent } from './components/teachers/teacher-form/teacher-form.component';
 import { AssignClassesComponent } from './components/teachers/assign-classes/assign-classes.component';
 import { AllocateClassComponent } from './components/teachers/allocate-class/allocate-class.component';
+import { TeacherSubjectAssignmentComponent } from './components/teachers/teacher-subject-assignment/teacher-subject-assignment.component';
+import { TeacherSubjectContactComponent } from './components/teachers/teacher-subject-contact/teacher-subject-contact.component';
 import { TeachersManageComponent } from './components/teachers/teachers-manage/teachers-manage.component';
 import { ExamListComponent } from './components/exams/exam-list/exam-list.component';
 import { ExamsManageComponent } from './components/exams/exams-manage/exams-manage.component';
@@ -86,6 +88,7 @@ import { TimetableConfigComponent } from './components/timetable/timetable-confi
 import { TimetableViewComponent } from './components/timetable/timetable-view/timetable-view.component';
 import { TimetableManageComponent } from './components/timetable/timetable-manage/timetable-manage.component';
 import { TimetableManualAdjustmentsComponent } from './components/timetable/timetable-manual-adjustments/timetable-manual-adjustments.component';
+import { TimetableViewTimetableComponent } from './components/timetable/timetable-view-timetable/timetable-view-timetable.component';
 import { StudentDashboardComponent } from './components/student/student-dashboard/student-dashboard.component';
 import { StudentReportCardComponent } from './components/student/student-report-card/student-report-card.component';
 import { StudentInvoiceStatementComponent } from './components/student/student-invoice-statement/student-invoice-statement.component';
@@ -113,6 +116,8 @@ import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-prev
     TeacherFormComponent,
     AssignClassesComponent,
     AllocateClassComponent,
+    TeacherSubjectAssignmentComponent,
+    TeacherSubjectContactComponent,
     TeachersManageComponent,
     ExamListComponent,
     ExamsManageComponent,
@@ -182,6 +187,7 @@ import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-prev
     TimetableManageComponent,
     TimetableManualAdjustmentsComponent,
     TimetableConfigComponent,
+    TimetableViewTimetableComponent,
     TimetableViewComponent,
     StudentDashboardComponent,
     StudentReportCardComponent,

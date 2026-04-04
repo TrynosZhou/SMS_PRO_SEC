@@ -10,6 +10,7 @@ export type TeacherQuickEditField =
   | 'firstName'
   | 'lastName'
   | 'gender'
+  | 'maritalStatus'
   | 'phoneNumber'
   | 'address'
   | 'dateOfBirth'
@@ -226,6 +227,34 @@ export class TeacherListComponent implements OnInit {
         ];
         this.fieldEditValue = (teacher.gender || '').trim();
         break;
+      case 'maritalStatus':
+        this.fieldEditLabel = 'Marital status';
+        this.fieldEditInputMode = 'select';
+        if (this.isFemaleTeacher(teacher)) {
+          this.fieldEditSelectOptions = [
+            { value: '', label: '— Not set —' },
+            { value: 'married', label: 'Married' },
+            { value: 'single', label: 'Single' },
+            { value: 'divorced', label: 'Divorced' },
+            { value: 'widowed', label: 'Widowed' }
+          ];
+          const raw = (teacher.maritalStatus || '').trim().toLowerCase();
+          this.fieldEditValue = ['married', 'single', 'divorced', 'widowed'].includes(raw) ? raw : '';
+        } else if (this.isMaleTeacher(teacher)) {
+          this.fieldEditSelectOptions = [
+            { value: '', label: '— Not set —' },
+            { value: 'married', label: 'Married' },
+            { value: 'single', label: 'Single' },
+            { value: 'divorced', label: 'Divorced' },
+            { value: 'widower', label: 'Widower' }
+          ];
+          const raw = (teacher.maritalStatus || '').trim().toLowerCase();
+          this.fieldEditValue = ['married', 'single', 'divorced', 'widower'].includes(raw) ? raw : '';
+        } else {
+          this.fieldEditSelectOptions = [{ value: '', label: '— Set gender first —' }];
+          this.fieldEditValue = '';
+        }
+        break;
       case 'phoneNumber':
         this.fieldEditLabel = 'Phone number';
         this.fieldEditInputMode = 'tel';
@@ -350,6 +379,9 @@ export class TeacherListComponent implements OnInit {
         break;
       case 'gender':
         payload['gender'] = this.fieldEditValue.trim() || null;
+        break;
+      case 'maritalStatus':
+        payload['maritalStatus'] = this.fieldEditValue.trim() || null;
         break;
       case 'phoneNumber': {
         const trimmed = this.fieldEditValue.trim();
@@ -554,5 +586,34 @@ export class TeacherListComponent implements OnInit {
     const f = (teacher?.firstName || '').trim().charAt(0).toUpperCase();
     const l = (teacher?.lastName || '').trim().charAt(0).toUpperCase();
     return (f + l).trim() || '?';
+  }
+
+  isFemaleTeacher(teacher: any): boolean {
+    const g = (teacher?.gender || '').trim().toLowerCase();
+    return g.startsWith('female');
+  }
+
+  isMaleTeacher(teacher: any): boolean {
+    const g = (teacher?.gender || '').trim().toLowerCase();
+    return g.startsWith('male');
+  }
+
+  /** Stored value → list/grid/modal label (female rows also drive Mrs/Miss/Ms on class timetables). */
+  getMaritalStatusDisplay(teacher: any): string {
+    if (!this.isFemaleTeacher(teacher) && !this.isMaleTeacher(teacher)) {
+      return '—';
+    }
+    const m = String(teacher?.maritalStatus || '').trim().toLowerCase();
+    const map: Record<string, string> = {
+      married: 'Married',
+      single: 'Single',
+      divorced: 'Divorced',
+      widowed: 'Widowed',
+      widower: 'Widower'
+    };
+    if (map[m]) {
+      return map[m];
+    }
+    return 'Not set';
   }
 }

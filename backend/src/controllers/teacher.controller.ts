@@ -14,6 +14,7 @@ import { calculateAge } from '../utils/ageUtils';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
 import { TeacherClass } from '../entities/TeacherClass';
 import { formatTeacherTitleName } from '../utils/teacherDisplayName';
+import { normalizeTeacherMaritalStatus } from '../utils/normalizeTeacherMaritalStatus';
 
 export const registerTeacher = async (req: AuthRequest, res: Response) => {
   try {
@@ -22,7 +23,8 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
       await AppDataSource.initialize();
     }
 
-    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds, gender } = req.body;
+    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds, gender, maritalStatus } =
+      req.body;
     
     // Validate required fields
     if (!firstName || !lastName) {
@@ -62,6 +64,8 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Teacher age must be between 20 and 65 years' });
     }
 
+    const gTrim = gender !== undefined && gender !== null && String(gender).trim() ? String(gender).trim() : null;
+
     const teacherData: Partial<Teacher> = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -69,7 +73,8 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
       phoneNumber: trimmedPhoneNumber,
       address: address?.trim() || null,
       qualification: qualification?.trim() || null,
-      gender: gender !== undefined && gender !== null && String(gender).trim() ? String(gender).trim() : null
+      gender: gTrim,
+      maritalStatus: normalizeTeacherMaritalStatus(gTrim, maritalStatus)
     };
 
     // Only include dateOfBirth if it's provided
@@ -460,7 +465,12 @@ export const getCurrentTeacher = async (req: AuthRequest, res: Response) => {
       const teacherResponse: any = {
         ...teacher,
         fullName: `${teacher.lastName || ''} ${teacher.firstName || ''}`.trim() || 'Teacher',
-        formattedTitleName: formatTeacherTitleName(teacher.firstName, teacher.lastName, teacher.gender)
+        formattedTitleName: formatTeacherTitleName(
+          teacher.firstName,
+          teacher.lastName,
+          teacher.gender,
+          teacher.maritalStatus
+        )
       };
       
       res.json(teacherResponse);
@@ -563,8 +573,19 @@ export const updateTeacher = async (req: AuthRequest, res: Response) => {
     }
 
     const { id } = req.params;
-    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds, isActive, gender } = req.body;
-    
+    const {
+      firstName,
+      lastName,
+      phoneNumber,
+      address,
+      dateOfBirth,
+      qualification,
+      subjectIds,
+      isActive,
+      gender,
+      maritalStatus
+    } = req.body;
+
     const teacherRepository = AppDataSource.getRepository(Teacher);
     const teacher = await teacherRepository.findOne({
       where: { id },
@@ -599,6 +620,11 @@ export const updateTeacher = async (req: AuthRequest, res: Response) => {
       const g = gender === null || gender === '' ? null : String(gender).trim();
       teacher.gender = g || null;
     }
+    if (maritalStatus !== undefined) {
+      teacher.maritalStatus = normalizeTeacherMaritalStatus(teacher.gender, maritalStatus);
+    }
+
+    teacher.maritalStatus = normalizeTeacherMaritalStatus(teacher.gender, teacher.maritalStatus);
 
     // Update teaching subjects if provided
     if (subjectIds !== undefined) {
@@ -925,6 +951,532 @@ export const assignClassesToTeacher = async (req: AuthRequest, res: Response) =>
   }
 };
 
+/**
+ * Ensure teacher teaches `subjectId` in `classId`: links teacher↔class, teacher↔subject, class↔subject as needed (timetable setup).
+ */
+export const assignTeacherClassSubject = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { id } = req.params;
+    const { classId, subjectId } = req.body;
+
+    if (!classId || !subjectId) {
+      return res.status(400).json({ message: 'classId and subjectId are required' });
+    }
+
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    let teacherRow: Teacher | null = null;
+    if (uuidRegex.test(id)) {
+      teacherRow = await teacherRepository.findOne({
+        where: { id },
+        relations: ['classes', 'subjects'],
+      });
+    } else {
+      teacherRow = await teacherRepository.findOne({
+        where: { teacherId: id },
+        relations: ['classes', 'subjects'],
+      });
+    }
+
+    if (!teacherRow) {
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    const { Class } = await import('../entities/Class');
+    const { Subject } = await import('../entities/Subject');
+    const classRepository = AppDataSource.getRepository(Class);
+    const subjectRepository = AppDataSource.getRepository(Subject);
+
+    const classEntity = await classRepository.findOne({
+      where: { id: String(classId) },
+      relations: ['subjects'],
+    });
+    if (!classEntity) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    const subjectEntity = await subjectRepository.findOne({
+      where: { id: String(subjectId) },
+    });
+    if (!subjectEntity) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+
+    if (!teacherRow.classes) {
+      teacherRow.classes = [];
+    }
+    if (!teacherRow.subjects) {
+      teacherRow.subjects = [];
+    }
+    if (!classEntity.subjects) {
+      classEntity.subjects = [];
+    }
+
+    let changed = false;
+
+    if (!teacherRow.classes.some((c) => c.id === classEntity.id)) {
+      teacherRow.classes.push(classEntity);
+      changed = true;
+    }
+
+    if (!teacherRow.subjects.some((s) => s.id === subjectEntity.id)) {
+      teacherRow.subjects.push(subjectEntity);
+      changed = true;
+    }
+
+    if (!classEntity.subjects.some((s) => s.id === subjectEntity.id)) {
+      classEntity.subjects.push(subjectEntity);
+      changed = true;
+    }
+
+    await teacherRepository.save(teacherRow);
+    await classRepository.save(classEntity);
+
+    try {
+      await linkTeacherToClasses(
+        teacherRow.id,
+        teacherRow.classes.map((c) => c.id)
+      );
+    } catch (linkError: any) {
+      console.warn('[assignTeacherClassSubject] Junction sync:', linkError?.message || linkError);
+    }
+
+    const updated = await teacherRepository.findOne({
+      where: { id: teacherRow.id },
+      relations: ['classes', 'subjects'],
+    });
+
+    res.json({
+      message: changed
+        ? 'The teacher is now set to teach this subject in the selected class.'
+        : 'This teacher–class–subject link was already in place.',
+      teacher: updated,
+    });
+  } catch (error: any) {
+    console.error('[assignTeacherClassSubject]', error);
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message || 'Unknown error',
+    });
+  }
+};
+
+/**
+ * Remove one class–subject lesson from a teacher (updates M2M subjects/classes; keeps placeholder-only class assignments).
+ */
+export const unassignTeacherClassSubject = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { id } = req.params;
+    const { classId, subjectId } = req.body;
+
+    if (!classId || !subjectId) {
+      return res.status(400).json({ message: 'classId and subjectId are required' });
+    }
+
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    let teacherRow: Teacher | null = null;
+    if (uuidRegex.test(id)) {
+      teacherRow = await teacherRepository.findOne({
+        where: { id },
+        relations: ['classes', 'subjects'],
+      });
+    } else {
+      teacherRow = await teacherRepository.findOne({
+        where: { teacherId: id },
+        relations: ['classes', 'subjects'],
+      });
+    }
+
+    if (!teacherRow) {
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    const assignedClasses = await getTeacherAssignedClassesMerged(teacherRow.id, teacherRow);
+    const assignedClassIds = assignedClasses.map((c) => c.id);
+    const classSubjectIdsByClassId = await buildClassSubjectIdsMap(assignedClassIds);
+    const lessonsPerWeek = await loadActiveLessonsPerWeek();
+    const oldRows = buildTeacherAssignmentRows(
+      assignedClasses,
+      teacherRow.subjects || [],
+      classSubjectIdsByClassId,
+      lessonsPerWeek
+    );
+    const nonPh = oldRows.filter((r) => !r.placeholder);
+    const target = nonPh.find(
+      (r) => r.classId === String(classId) && r.subjectId === String(subjectId)
+    );
+    if (!target) {
+      return res.status(400).json({
+        message: 'This teacher has no such class–subject assignment to remove.',
+      });
+    }
+
+    const remainingRows = nonPh.filter(
+      (r) => !(r.classId === String(classId) && r.subjectId === String(subjectId))
+    );
+
+    const oldHadLessonByClass = new Set(nonPh.map((r) => r.classId));
+    const newHasLessonByClass = new Set(remainingRows.map((r) => r.classId));
+
+    const classIdsToKeep = new Set<string>();
+    for (const ref of assignedClasses) {
+      const cid = ref.id;
+      const had = oldHadLessonByClass.has(cid);
+      const hasAfter = newHasLessonByClass.has(cid);
+      const wasPlaceholderOnly = !had;
+      if (hasAfter || wasPlaceholderOnly) {
+        classIdsToKeep.add(cid);
+      }
+    }
+
+    const subjectIdsToKeep = new Set(
+      remainingRows.map((r) => r.subjectId).filter((x): x is string => Boolean(x))
+    );
+
+    const { Class } = await import('../entities/Class');
+    const { Subject } = await import('../entities/Subject');
+    const classRepository = AppDataSource.getRepository(Class);
+    const subjectRepository = AppDataSource.getRepository(Subject);
+
+    const classIdArr = Array.from(classIdsToKeep);
+    const subjectIdArr = Array.from(subjectIdsToKeep);
+
+    const newClasses =
+      classIdArr.length > 0
+        ? await classRepository.find({ where: { id: In(classIdArr) } })
+        : [];
+    const newSubjects =
+      subjectIdArr.length > 0
+        ? await subjectRepository.find({ where: { id: In(subjectIdArr) } })
+        : [];
+
+    teacherRow.classes = newClasses;
+    teacherRow.subjects = newSubjects;
+
+    await teacherRepository.save(teacherRow);
+
+    try {
+      await linkTeacherToClasses(
+        teacherRow.id,
+        (teacherRow.classes || []).map((c) => c.id)
+      );
+    } catch (linkError: any) {
+      console.warn('[unassignTeacherClassSubject] Junction sync:', linkError?.message || linkError);
+    }
+
+    res.json({
+      message: 'Class–subject assignment removed from this teacher.',
+    });
+  } catch (error: any) {
+    console.error('[unassignTeacherClassSubject]', error);
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message || 'Unknown error',
+    });
+  }
+};
+
+type AssignedClassRef = {
+  id: string;
+  name: string;
+  classForm: string | null;
+};
+
+type TeacherAssignmentRow = {
+  subjectId: string | null;
+  subjectName: string;
+  subjectCode: string | null;
+  shortTitle: string | null;
+  classId: string;
+  className: string;
+  classForm: string | null;
+  lessonsPerWeek: number;
+  placeholder?: boolean;
+};
+
+function teacherShortNameLabel(teacher: Teacher): string {
+  const f = (teacher.firstName || '').trim();
+  if (f.length >= 2) {
+    return f.slice(0, 2);
+  }
+  if (f.length === 1) {
+    return (f + (teacher.lastName || '').trim().slice(0, 1)).slice(0, 2);
+  }
+  return (teacher.lastName || '').trim().slice(0, 2) || '—';
+}
+
+async function loadActiveLessonsPerWeek(): Promise<Record<string, number>> {
+  const { TimetableConfig } = await import('../entities/TimetableConfig');
+  const repo = AppDataSource.getRepository(TimetableConfig);
+  const cfg = await repo.findOne({ where: { isActive: true } });
+  const raw = cfg?.lessonsPerWeek;
+  return raw && typeof raw === 'object' ? (raw as Record<string, number>) : {};
+}
+
+/** Union of classes from ManyToMany and teacher_classes junction (active classes only). */
+async function getTeacherAssignedClassesMerged(
+  teacherUuid: string,
+  teacherEntity: Teacher
+): Promise<AssignedClassRef[]> {
+  const byId = new Map<string, AssignedClassRef>();
+  for (const c of teacherEntity.classes || []) {
+    if (c?.id) {
+      byId.set(c.id, {
+        id: c.id,
+        name: c.name,
+        classForm: c.form != null ? String(c.form) : null,
+      });
+    }
+  }
+  try {
+    const { TeacherClass } = await import('../entities/TeacherClass');
+    const repo = AppDataSource.getRepository(TeacherClass);
+    const links = await repo
+      .createQueryBuilder('tc')
+      .innerJoinAndSelect('tc.class', 'class')
+      .where('tc.teacherId = :tid', { tid: teacherUuid })
+      .andWhere('class.isActive = :act', { act: true })
+      .getMany();
+    for (const tc of links) {
+      const cl = tc.class;
+      if (cl?.id) {
+        byId.set(cl.id, {
+          id: cl.id,
+          name: cl.name,
+          classForm: cl.form != null ? String(cl.form) : null,
+        });
+      }
+    }
+  } catch (e: any) {
+    console.warn('[getTeacherAssignedClassesMerged] junction:', e?.message || e);
+  }
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function buildClassSubjectIdsMap(classIds: string[]): Promise<Map<string, Set<string>>> {
+  const map = new Map<string, Set<string>>();
+  if (!classIds.length) {
+    return map;
+  }
+  const { Class } = await import('../entities/Class');
+  const classRepository = AppDataSource.getRepository(Class);
+  const classes = await classRepository.find({
+    where: { id: In(classIds) },
+    relations: ['subjects'],
+  });
+  for (const c of classes) {
+    map.set(c.id, new Set((c.subjects || []).map((s) => s.id)));
+  }
+  return map;
+}
+
+function buildTeacherAssignmentRows(
+  assignedClasses: AssignedClassRef[],
+  teacherSubjects: NonNullable<Teacher['subjects']>,
+  classSubjectIdsByClassId: Map<string, Set<string>>,
+  lessonsPerWeek: Record<string, number>
+): TeacherAssignmentRow[] {
+  const rows: TeacherAssignmentRow[] = [];
+  const tSubjects = teacherSubjects || [];
+  for (const ce of assignedClasses) {
+    const allowed = classSubjectIdsByClassId.get(ce.id) || new Set<string>();
+    for (const subj of tSubjects) {
+      if (!allowed.has(subj.id)) {
+        continue;
+      }
+      rows.push({
+        subjectId: subj.id,
+        subjectName: subj.name,
+        subjectCode: subj.code ?? null,
+        shortTitle: subj.shortTitle ?? null,
+        classId: ce.id,
+        className: ce.name,
+        classForm: ce.classForm,
+        lessonsPerWeek: lessonsPerWeek[subj.id] ?? 3,
+        placeholder: false,
+      });
+    }
+  }
+  const classIdsWithRows = new Set(rows.map((r) => r.classId));
+  for (const ce of assignedClasses) {
+    if (!classIdsWithRows.has(ce.id)) {
+      rows.push({
+        subjectId: null,
+        subjectName: '—',
+        subjectCode: null,
+        shortTitle: null,
+        classId: ce.id,
+        className: ce.name,
+        classForm: ce.classForm,
+        lessonsPerWeek: 0,
+        placeholder: true,
+      });
+    }
+  }
+  rows.sort(
+    (a, b) =>
+      a.className.localeCompare(b.className) || a.subjectName.localeCompare(b.subjectName)
+  );
+  return rows;
+}
+
+/** List all teachers with weekly lesson totals and assignment counts (Teacher Subject Assignment hub). */
+export const getSubjectAssignmentSummary = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    if (isDemoUser(req)) {
+      await ensureDemoDataAvailable();
+    }
+
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+    let teachers: Teacher[] = [];
+    try {
+      teachers = await teacherRepository
+        .createQueryBuilder('teacher')
+        .leftJoinAndSelect('teacher.subjects', 'subjects')
+        .leftJoinAndSelect('teacher.classes', 'classes')
+        .orderBy('teacher.lastName', 'ASC')
+        .addOrderBy('teacher.firstName', 'ASC')
+        .getMany();
+    } catch (relationError: any) {
+      console.error('[getSubjectAssignmentSummary] Error loading teachers:', relationError.message);
+      teachers = await teacherRepository.find({ order: { lastName: 'ASC', firstName: 'ASC' } });
+      teachers = teachers.map((t: any) => ({
+        ...t,
+        classes: [],
+        subjects: [],
+      }));
+    }
+
+    const mergedPerTeacher = await Promise.all(
+      teachers.map(async (t) => ({
+        teacher: t,
+        assigned: await getTeacherAssignedClassesMerged(t.id, t),
+      }))
+    );
+
+    const allClassIds = [
+      ...new Set(mergedPerTeacher.flatMap((x) => x.assigned.map((c) => c.id))),
+    ];
+    const classSubjectIdsByClassId = await buildClassSubjectIdsMap(allClassIds);
+    const lessonsPerWeek = await loadActiveLessonsPerWeek();
+
+    const payload = mergedPerTeacher.map(({ teacher: t, assigned }) => {
+      const rows = buildTeacherAssignmentRows(
+        assigned,
+        t.subjects || [],
+        classSubjectIdsByClassId,
+        lessonsPerWeek
+      );
+      const weeklyLessons = rows
+        .filter((r) => !r.placeholder)
+        .reduce((sum, r) => sum + r.lessonsPerWeek, 0);
+      return {
+        id: t.id,
+        teacherId: t.teacherId,
+        firstName: t.firstName,
+        lastName: t.lastName,
+        shortName: teacherShortNameLabel(t),
+        weeklyLessons,
+        assignmentCount: rows.length,
+        assignedClassCount: assigned.length,
+        isActive: t.isActive,
+      };
+    });
+
+    res.json({ teachers: payload });
+  } catch (error: any) {
+    console.error('[getSubjectAssignmentSummary]', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
+/** Subject–class rows for one teacher (Contract / contact view). */
+export const getTeacherSubjectAssignmentDetail = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { id } = req.params;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+
+    let teacher: Teacher | null = null;
+    try {
+      if (uuidRegex.test(id)) {
+        teacher = await teacherRepository.findOne({
+          where: { id },
+          relations: ['classes', 'subjects'],
+        });
+      } else {
+        teacher = await teacherRepository.findOne({
+          where: { teacherId: id },
+          relations: ['classes', 'subjects'],
+        });
+      }
+    } catch (e: any) {
+      console.warn('[getTeacherSubjectAssignmentDetail] relation load:', e?.message);
+      teacher = uuidRegex.test(id)
+        ? await teacherRepository.findOne({ where: { id } })
+        : await teacherRepository.findOne({ where: { teacherId: id } });
+      if (teacher) {
+        (teacher as any).classes = (teacher as any).classes || [];
+        (teacher as any).subjects = (teacher as any).subjects || [];
+      }
+    }
+
+    if (!teacher) {
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    const assignedClasses = await getTeacherAssignedClassesMerged(teacher.id, teacher);
+    const classIds = assignedClasses.map((c) => c.id);
+    const classSubjectIdsByClassId = await buildClassSubjectIdsMap(classIds);
+    const lessonsPerWeek = await loadActiveLessonsPerWeek();
+    const rows = buildTeacherAssignmentRows(
+      assignedClasses,
+      teacher.subjects || [],
+      classSubjectIdsByClassId,
+      lessonsPerWeek
+    );
+    const totalWeeklyLessons = rows
+      .filter((r) => !r.placeholder)
+      .reduce((s, r) => s + r.lessonsPerWeek, 0);
+
+    res.json({
+      teacher: {
+        id: teacher.id,
+        teacherId: teacher.teacherId,
+        firstName: teacher.firstName,
+        lastName: teacher.lastName,
+        shortName: teacherShortNameLabel(teacher),
+        qualification: teacher.qualification,
+      },
+      assignedClasses,
+      rows,
+      totalWeeklyLessons,
+    });
+  } catch (error: any) {
+    console.error('[getTeacherSubjectAssignmentDetail]', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+};
+
 // Get teacher load information
 export const getTeacherLoad = async (req: AuthRequest, res: Response) => {
   try {
@@ -977,21 +1529,46 @@ export const getTeacherLoad = async (req: AuthRequest, res: Response) => {
       (teacher as any).subjects = [];
     }
 
-    // Get student count for each class
+    const classIds = (teacher.classes || []).map((c) => c.id);
+    let classSubjectIdsByClassId = new Map<string, Set<string>>();
+    if (classIds.length > 0) {
+      try {
+        classSubjectIdsByClassId = await buildClassSubjectIdsMap(classIds);
+      } catch (e: any) {
+        console.warn('[getTeacherLoad] Could not load class subjects for overlap:', e?.message || e);
+      }
+    }
+
+    const lessonsPerWeekForLoad = await loadActiveLessonsPerWeek();
+    const teacherSubjectList = teacher.subjects || [];
+
+    // Get student count for each class + subjects this teacher teaches in that class
     const { Student } = await import('../entities/Student');
     const studentRepository = AppDataSource.getRepository(Student);
-    
+
     const classLoads = await Promise.all(
       (teacher.classes || []).map(async (classEntity) => {
+        const allowedIds = classSubjectIdsByClassId.get(classEntity.id) || new Set<string>();
+        const subjectsHere = teacherSubjectList
+          .filter((s) => allowedIds.has(s.id))
+          .map((s) => ({
+            id: s.id,
+            name: s.name,
+            code: s.code,
+            shortTitle: s.shortTitle ?? null,
+            lessonsPerWeek: lessonsPerWeekForLoad[s.id] ?? 3,
+          }));
+
         try {
           const studentCount = await studentRepository.count({
-            where: { classId: classEntity.id, isActive: true }
+            where: { classId: classEntity.id, isActive: true },
           });
           return {
             id: classEntity.id,
             name: classEntity.name,
             form: classEntity.form,
-            studentCount
+            studentCount,
+            subjects: subjectsHere,
           };
         } catch (err: any) {
           console.error('[getTeacherLoad] Error counting students for class:', classEntity.id, err.message);
@@ -999,7 +1576,8 @@ export const getTeacherLoad = async (req: AuthRequest, res: Response) => {
             id: classEntity.id,
             name: classEntity.name,
             form: classEntity.form,
-            studentCount: 0
+            studentCount: 0,
+            subjects: subjectsHere,
           };
         }
       })

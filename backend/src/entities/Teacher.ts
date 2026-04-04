@@ -34,6 +34,13 @@ export class Teacher {
   @Column({ type: 'varchar', length: 20, nullable: true })
   gender: string | null;
 
+  /**
+   * Stored lowercase. Female: married | single | divorced | widowed (timetable Mrs / Miss / Ms).
+   * Male: married | single | divorced | widower (record-keeping; timetables still use Mr).
+   */
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  maritalStatus: string | null;
+
   @Column({ type: 'uuid', nullable: true })
   teachingSubjectId: string;
 

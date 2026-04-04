@@ -10,6 +10,9 @@ import { Settings } from '../entities/Settings';
 import { AuthRequest } from '../middleware/auth';
 import { In, Not } from 'typeorm';
 import { createTimetablePDF } from '../utils/timetablePdfGenerator';
+import { calculateTeachingPeriodTimes } from '../utils/timetablePeriodTimes';
+import { mergeSubjectLessonsPerWeekForActiveConfig } from '../utils/timetableMergeSubjectLessons';
+import { mergeJunctionClassesIntoTeachers } from '../utils/teacherClassLinker';
 
 /** Fisher–Yates shuffle (copy) — used to randomize slot placement order. */
 function shuffleArray<T>(items: T[]): T[] {
@@ -92,6 +95,32 @@ export const saveTimetableConfig = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/** Merge one subject's lessons/week into the active config (same data as Timetable → Configuration). */
+export const mergeSubjectLessonsInActiveConfig = async (req: AuthRequest, res: Response) => {
+  try {
+    const { subjectId, lessonsPerWeek } = req.body;
+    if (subjectId === undefined || subjectId === null || String(subjectId).trim() === '') {
+      return res.status(400).json({ message: 'subjectId is required' });
+    }
+
+    const config = await mergeSubjectLessonsPerWeekForActiveConfig(
+      String(subjectId),
+      lessonsPerWeek !== undefined && lessonsPerWeek !== null ? Number(lessonsPerWeek) : 3
+    );
+
+    res.json({
+      message: 'Lessons per week updated for this subject timetable configuration.',
+      config,
+    });
+  } catch (error: any) {
+    console.error('[mergeSubjectLessonsInActiveConfig]', error);
+    res.status(500).json({
+      message: 'Failed to update lessons per week',
+      error: error.message || 'Unknown error',
+    });
+  }
+};
+
 // Generate timetable
 export const generateTimetable = async (req: AuthRequest, res: Response) => {
   try {
@@ -128,29 +157,28 @@ export const generateTimetable = async (req: AuthRequest, res: Response) => {
 
     console.log('[generateTimetable] Found active configuration:', config.id);
 
-    // Get all active teachers, classes, and subjects
+    // All teachers, classes, and subjects (active or not) so one generate covers the whole school
     const teacherRepository = AppDataSource.getRepository(Teacher);
     const classRepository = AppDataSource.getRepository(Class);
     const subjectRepository = AppDataSource.getRepository(Subject);
 
-    // Load teachers with their class and subject assignments
     const teachers = await teacherRepository.find({
-      where: { isActive: true },
       relations: ['classes', 'subjects']
     });
 
-    // Load classes with their subjects and teachers
+    await mergeJunctionClassesIntoTeachers(teachers);
+
     const classes = await classRepository.find({
-      where: { isActive: true },
       relations: ['subjects', 'teachers']
     });
 
-    const subjects = await subjectRepository.find({
-      where: { isActive: true }
-    });
+    const subjects = await subjectRepository.find();
 
     if (teachers.length === 0 || classes.length === 0 || subjects.length === 0) {
-      return res.status(400).json({ message: 'Insufficient data to generate timetable. Please ensure there are active teachers, classes, and subjects.' });
+      return res.status(400).json({
+        message:
+          'Insufficient data to generate timetable. Add at least one teacher, one class, and one subject in the system.',
+      });
     }
 
     console.log(`[generateTimetable] Found ${teachers.length} teachers, ${classes.length} classes, ${subjects.length} subjects`);
@@ -301,6 +329,21 @@ export const generateTimetable = async (req: AuthRequest, res: Response) => {
   }
 };
 
+/** True if adding/moving a lesson to (day, period) would break the same-class-per-day rule for this teacher. */
+function teacherClassDayRuleViolated(
+  existingSameTeacherClassDay: TimetableSlot[],
+  proposedPeriod: number
+): boolean {
+  const teaching = existingSameTeacherClassDay.filter((s) => !s.isBreak);
+  if (teaching.length === 0) {
+    return false;
+  }
+  if (teaching.length >= 2) {
+    return true;
+  }
+  return Math.abs(teaching[0].periodNumber - proposedPeriod) !== 1;
+}
+
 // Helper function to generate timetable slots
 async function generateTimetableSlots(
   config: TimetableConfig,
@@ -357,11 +400,6 @@ async function generateTimetableSlots(
       // 1. Are assigned to this class (via ManyToMany or TeacherClass junction table)
       // 2. Teach this subject (via ManyToMany subjects relation)
       const eligibleTeachers = teachers.filter(teacher => {
-        if (!teacher.isActive) {
-          console.log(`[generateTimetableSlots] Teacher ${teacher.firstName} ${teacher.lastName} is not active`);
-          return false;
-        }
-        
         // Check if teacher teaches this subject
         const teachesSubject = teacher.subjects?.some(s => s.id === subject.id) || false;
         if (!teachesSubject) {
@@ -441,10 +479,10 @@ async function generateTimetableSlots(
     classes.forEach(classEntity => {
       if (classEntity.subjects && classEntity.subjects.length > 0) {
         classEntity.subjects.forEach(subject => {
-          const hasTeacher = teachers.some(teacher => 
-            teacher.isActive &&
-            teacher.subjects?.some(s => s.id === subject.id) &&
-            teacher.classes?.some(c => c.id === classEntity.id)
+          const hasTeacher = teachers.some(
+            (teacher) =>
+              teacher.subjects?.some((s) => s.id === subject.id) &&
+              teacher.classes?.some((c) => c.id === classEntity.id)
           );
           if (!hasTeacher) {
             mismatches.push(`No teacher found for ${classEntity.name} - ${subject.name}`);
@@ -468,14 +506,14 @@ async function generateTimetableSlots(
   // Create a conflict-free schedule
   const teacherSchedule: Map<string, Set<string>> = new Map(); // teacherId -> Set of "day-period"
   const classSchedule: Map<string, Set<string>> = new Map(); // classId -> Set of "day-period"
-  const teacherClassConsecutive: Map<string, number> = new Map(); // "teacherId-classId-day" -> consecutive count
+
 
   // Initialize schedules
   teachers.forEach(t => teacherSchedule.set(t.id, new Set()));
   classes.forEach(c => classSchedule.set(c.id, new Set()));
 
   // Calculate time slots
-  const timeSlots = calculateTimeSlots(config);
+  const timeSlots = calculateTeachingPeriodTimes(config);
 
   // Distribute assignments across the week using a more systematic approach
   // Sort assignments by lessons per week (descending) to prioritize subjects with more lessons
@@ -518,52 +556,25 @@ async function generateTimetableSlots(
           continue;
         }
 
+        const existingTc = slots.filter(
+          (s) =>
+            s.dayOfWeek === day &&
+            s.teacherId === assignment.teacher.id &&
+            s.classId === assignment.class.id &&
+            !s.isBreak
+        );
+        if (teacherClassDayRuleViolated(existingTc, period)) {
+          continue;
+        }
+
         const timeSlot = timeSlots[period - 1];
         if (!timeSlot) {
           console.error(`[generateTimetableSlots] No time slot found for period ${period}`);
           continue;
         }
 
-        const consecutiveKey = `${assignment.teacher.id}-${assignment.class.id}-${day}`;
-        const currentConsecutive = teacherClassConsecutive.get(consecutiveKey) || 0;
-
-        const prevPeriod = period - 1;
-        const hasPrevConsecutive =
-          prevPeriod > 0 &&
-          slots.some(
-            (s) =>
-              s.dayOfWeek === day &&
-              s.periodNumber === prevPeriod &&
-              s.teacherId === assignment.teacher.id &&
-              s.classId === assignment.class.id
-          );
-
-        const nextPeriod = period + 1;
-        const hasNextConsecutive =
-          nextPeriod <= config.periodsPerDay &&
-          slots.some(
-            (s) =>
-              s.dayOfWeek === day &&
-              s.periodNumber === nextPeriod &&
-              s.teacherId === assignment.teacher.id &&
-              s.classId === assignment.class.id
-          );
-
-        if (hasPrevConsecutive && currentConsecutive >= 2) {
-          continue;
-        }
-        if (hasNextConsecutive && currentConsecutive >= 1) {
-          continue;
-        }
-
         teacherSchedule.get(assignment.teacher.id)!.add(slotKey);
         classSchedule.get(assignment.class.id)!.add(slotKey);
-
-        if (hasPrevConsecutive) {
-          teacherClassConsecutive.set(consecutiveKey, currentConsecutive + 1);
-        } else {
-          teacherClassConsecutive.set(consecutiveKey, 1);
-        }
 
         const slot = new TimetableSlot();
         slot.versionId = versionId;
@@ -607,52 +618,25 @@ async function generateTimetableSlots(
         continue;
       }
 
+      const existingTcFallback = slots.filter(
+        (s) =>
+          s.dayOfWeek === day &&
+          s.teacherId === assignment.teacher.id &&
+          s.classId === assignment.class.id &&
+          !s.isBreak
+      );
+      if (teacherClassDayRuleViolated(existingTcFallback, period)) {
+        continue;
+      }
+
       const timeSlot = timeSlots[period - 1];
       if (!timeSlot) {
         console.error(`[generateTimetableSlots] No time slot found for period ${period}`);
         continue;
       }
 
-      const consecutiveKey = `${assignment.teacher.id}-${assignment.class.id}-${day}`;
-      const currentConsecutive = teacherClassConsecutive.get(consecutiveKey) || 0;
-
-      const prevPeriod = period - 1;
-      const hasPrevConsecutive =
-        prevPeriod > 0 &&
-        slots.some(
-          (s) =>
-            s.dayOfWeek === day &&
-            s.periodNumber === prevPeriod &&
-            s.teacherId === assignment.teacher.id &&
-            s.classId === assignment.class.id
-        );
-
-      const nextPeriod = period + 1;
-      const hasNextConsecutive =
-        nextPeriod <= config.periodsPerDay &&
-        slots.some(
-          (s) =>
-            s.dayOfWeek === day &&
-            s.periodNumber === nextPeriod &&
-            s.teacherId === assignment.teacher.id &&
-            s.classId === assignment.class.id
-        );
-
-      if (hasPrevConsecutive && currentConsecutive >= 2) {
-        continue;
-      }
-      if (hasNextConsecutive && currentConsecutive >= 1) {
-        continue;
-      }
-
       teacherSchedule.get(assignment.teacher.id)!.add(slotKey);
       classSchedule.get(assignment.class.id)!.add(slotKey);
-
-      if (hasPrevConsecutive) {
-        teacherClassConsecutive.set(consecutiveKey, currentConsecutive + 1);
-      } else {
-        teacherClassConsecutive.set(consecutiveKey, 1);
-      }
 
       const slot = new TimetableSlot();
       slot.versionId = versionId;
@@ -681,32 +665,6 @@ async function generateTimetableSlots(
 
   // Note: Break periods are not stored as slots to avoid database constraint issues
   // They are handled in the configuration and displayed in the UI/PDF based on config
-
-  return slots;
-}
-
-// Helper function to calculate time slots
-function calculateTimeSlots(config: TimetableConfig): Array<{ startTime: string; endTime: string }> {
-  const slots: Array<{ startTime: string; endTime: string }> = [];
-  const startHour = parseInt(config.schoolStartTime.split(':')[0]);
-  const startMinute = parseInt(config.schoolStartTime.split(':')[1]);
-  let currentHour = startHour;
-  let currentMinute = startMinute;
-
-  for (let i = 0; i < config.periodsPerDay; i++) {
-    const startTime = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
-    
-    // Add period duration
-    currentMinute += config.periodDurationMinutes;
-    while (currentMinute >= 60) {
-      currentMinute -= 60;
-      currentHour += 1;
-    }
-    
-    const endTime = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
-    
-    slots.push({ startTime, endTime });
-  }
 
   return slots;
 }
@@ -851,6 +809,22 @@ export const updateTimetableSlot = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({
           message: 'Conflict detected. This slot would create a scheduling conflict.',
           conflicts
+        });
+      }
+
+      const sameTeacherClassDay = await slotRepository.find({
+        where: {
+          versionId: slot.versionId,
+          teacherId: nextTeacherId,
+          classId: nextClassId,
+          dayOfWeek: nextDay,
+          id: Not(slotId),
+        },
+      });
+      if (teacherClassDayRuleViolated(sameTeacherClassDay, nextPeriod)) {
+        return res.status(400).json({
+          message:
+            'A teacher cannot meet the same class more than once per day unless it is a double lesson. Double lessons must be two consecutive periods.',
         });
       }
     }
@@ -1067,8 +1041,8 @@ export const generateConsolidatedTimetablePDF = async (req: AuthRequest, res: Re
       return res.status(404).json({ message: 'Timetable version not found' });
     }
 
-    const teachers = await teacherRepository.find({ where: { isActive: true } });
-    console.log(`[generateConsolidatedTimetablePDF] Found ${teachers.length} active teachers`);
+    const teachers = await teacherRepository.find();
+    console.log(`[generateConsolidatedTimetablePDF] Found ${teachers.length} teachers`);
 
     const settings = await settingsRepository.findOne({ where: {} });
     if (!settings) {

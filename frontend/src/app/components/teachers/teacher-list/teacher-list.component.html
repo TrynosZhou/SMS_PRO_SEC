@@ -171,6 +171,13 @@
             <span class="info-label">Teacher ID</span>
             <span class="info-value">{{ teacher.teacherId }}</span>
           </div>
+          <div class="info-item" *ngIf="isFemaleTeacher(teacher) || isMaleTeacher(teacher)">
+            <span class="info-label">Marital status</span>
+            <span
+              class="info-value clickable-value"
+              (click)="openFieldEdit(teacher, 'maritalStatus', $event)"
+              title="Click to edit">{{ getMaritalStatusDisplay(teacher) }}</span>
+          </div>
         </div>
         <div
           class="subjects-section editable-section"
@@ -220,7 +227,8 @@
             <th class="col-staff-id" scope="col">Staff ID</th>
             <th class="col-firstname" scope="col">First name</th>
             <th class="col-lastname" scope="col">Last name</th>
-            <th class="col-status" scope="col">Gender</th>
+            <th class="col-gender" scope="col">Gender</th>
+            <th class="col-marital-status" scope="col">Marital status</th>
             <th class="col-subject" scope="col">Subject</th>
             <th class="col-actions" scope="col">Actions</th>
           </tr>
@@ -234,10 +242,22 @@
             <td class="col-lastname">
               <span class="clickable-value" (click)="openFieldEdit(teacher, 'lastName', $event)" title="Click to edit">{{ teacher.lastName || '—' }}</span>
             </td>
-            <td class="col-status">
+            <td class="col-gender">
               <span class="clickable-value" (click)="openFieldEdit(teacher, 'gender', $event)" title="Click to edit gender">
                 {{ teacher.gender || '—' }}
               </span>
+            </td>
+            <td class="col-marital-status">
+              <span
+                *ngIf="isFemaleTeacher(teacher) || isMaleTeacher(teacher)"
+                class="clickable-value"
+                (click)="openFieldEdit(teacher, 'maritalStatus', $event)"
+                [title]="isFemaleTeacher(teacher)
+                  ? 'Click to edit — class timetables: Mrs / Miss / Ms by marital status'
+                  : 'Click to edit — for records (class timetables still show Mr for men)'">
+                {{ getMaritalStatusDisplay(teacher) }}
+              </span>
+              <span *ngIf="!isFemaleTeacher(teacher) && !isMaleTeacher(teacher)">—</span>
             </td>
             <td class="col-subject">
               <span class="clickable-value col-subject-text" (click)="openFieldEdit(teacher, 'subjectIds', $event)" title="Click to edit subjects">{{ getSubjectsDisplay(teacher) }}</span>
@@ -308,6 +328,13 @@
             <div class="detail-item detail-field">
               <span class="detail-label">Date of Birth</span>
               <span class="detail-value clickable-value" (click)="openFieldEdit(selectedTeacher, 'dateOfBirth', $event)" title="Click to edit">{{ selectedTeacher.dateOfBirth ? (selectedTeacher.dateOfBirth | date:'mediumDate') : '—' }}</span>
+            </div>
+            <div class="detail-item detail-field" *ngIf="isFemaleTeacher(selectedTeacher)">
+              <span class="detail-label">Marital status</span>
+              <span
+                class="detail-value clickable-value"
+                (click)="openFieldEdit(selectedTeacher, 'maritalStatus', $event)"
+                title="Click to edit — married: Mrs; single: Miss; divorced/widowed: Ms on class timetables">{{ getMaritalStatusDisplay(selectedTeacher) }}</span>
             </div>
             <div class="detail-item detail-field detail-item-span">
               <span class="detail-label">Qualification</span>

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getTimetableConfig,
   saveTimetableConfig,
+  mergeSubjectLessonsInActiveConfig,
   generateTimetable,
   getTimetableVersions,
   getTimetableSlots,
@@ -17,6 +18,7 @@ import { authenticate } from '../middleware/auth';
 const router = Router();
 
 // Configuration routes
+router.post('/config/merge-subject-lessons', authenticate, mergeSubjectLessonsInActiveConfig);
 router.get('/config', authenticate, getTimetableConfig);
 router.post('/config', authenticate, saveTimetableConfig);
 

@@ -95,6 +95,32 @@
               </div>
             </div>
 
+            <!-- Short title (class timetables) -->
+            <div class="form-group" [class.has-error]="isFieldInvalid('shortTitle')">
+              <label for="shortTitle">
+                Short
+                <span class="field-hint">Optional — shown on class timetables (e.g. Eng, Math, CS)</span>
+              </label>
+              <div class="input-wrapper">
+                <input
+                  type="text"
+                  id="shortTitle"
+                  [(ngModel)]="subject.shortTitle"
+                  name="shortTitle"
+                  [class.invalid]="isFieldInvalid('shortTitle')"
+                  placeholder="e.g. Eng, Math"
+                  (blur)="validateField('shortTitle')"
+                  (input)="onFieldChange('shortTitle')"
+                  maxlength="40"
+                  autocomplete="off"
+                />
+                <span class="char-counter" *ngIf="subject.shortTitle">{{ subject.shortTitle.length }}/40</span>
+              </div>
+              <div class="field-error" *ngIf="isFieldInvalid('shortTitle')">
+                {{ getFieldError('shortTitle') }}
+              </div>
+            </div>
+
             <!-- Subject Category -->
             <div class="form-group">
               <label for="category">
@@ -175,7 +201,7 @@
         </div>
 
         <!-- Preview Section -->
-        <div class="form-section preview-section" *ngIf="subject.name || subject.code">
+        <div class="form-section preview-section" *ngIf="subject.name || subject.code || subject.shortTitle">
           <div class="section-header">
             <h2>
               <span class="section-icon">👁️</span>
@@ -191,6 +217,10 @@
             <div class="preview-item">
               <span class="preview-label">Subject Code:</span>
               <span class="preview-value code-badge">{{ subject.code || 'Not set' }}</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Short:</span>
+              <span class="preview-value">{{ subject.shortTitle?.trim() || '—' }}</span>
             </div>
             <div class="preview-item">
               <span class="preview-label">Category:</span>

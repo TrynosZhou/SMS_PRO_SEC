@@ -10,6 +10,8 @@ import {
 } from '../../../services/timetable.service';
 import { TeacherService } from '../../../services/teacher.service';
 import { ClassService } from '../../../services/class.service';
+import { TimetablePreviewBuilderService } from '../timetable-preview-builder.service';
+import { formatClassTimetableTeacherLabel } from '../../../utils/teacher-timetable-label.util';
 
 /** Class-based colors (dense timetable style — same class keeps the same color). */
 const CLASS_COLOR_PALETTE = [
@@ -116,7 +118,8 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     private timetableService: TimetableService,
     private teacherService: TeacherService,
     private classService: ClassService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private previewBuilder: TimetablePreviewBuilderService
   ) {}
 
   @HostListener('document:click', ['$event'])
@@ -405,7 +408,7 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
   /** Primary line: class (by teacher) or subject (by class), wall-chart style. */
   cardPrimaryLabel(slot: TimetableSlot): string {
     if (this.viewKind === 'class') {
-      const a = this.subjectAbbrev(slot);
+      const a = this.previewBuilder.subjectLabelClassTimetable(slot);
       return a.length > 8 ? a.slice(0, 8) : a;
     }
     const raw = (slot.class?.name || slot.class?.form || '').trim();
@@ -422,7 +425,7 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
       if (!t) {
         return '—';
       }
-      return abbrevTeacherRowLabel(`${t.firstName || ''} ${t.lastName || ''}`.trim());
+      return formatClassTimetableTeacherLabel(t.firstName, t.lastName, t.gender, t.maritalStatus);
     }
     return this.subjectAbbrev(slot);
   }
@@ -609,8 +612,12 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
   }
 
   onDragEnd(): void {
-    this.dragSlot = null;
-    this.dragOverKey = null;
+    /** Defer clearing so `drop` always runs first in browsers where `dragend` can race. */
+    setTimeout(() => {
+      this.dragSlot = null;
+      this.dragOverKey = null;
+      this.cdr.detectChanges();
+    }, 0);
   }
 
   onDragLeaveCell(ev: DragEvent): void {
@@ -671,14 +678,21 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
 
   onDrop(rowId: string, day: string, period: number, ev: DragEvent): void {
     ev.preventDefault();
+    ev.stopPropagation();
     this.dragOverKey = null;
     const rawId = ev.dataTransfer?.getData('text/plain') || this.dragSlot?.id;
     const id = this.normId(rawId as string);
     if (!id) {
+      this.conflictMessage =
+        'Could not read the dragged lesson (try again or use click-to-move).';
+      this.cdr.detectChanges();
       return;
     }
     const slot = this.allSlots.find((s) => this.normId(s.id) === id);
     if (!slot) {
+      this.conflictMessage =
+        'That lesson is no longer on the grid — refresh the page or reload the timetable.';
+      this.cdr.detectChanges();
       return;
     }
     this.applyMoveToCell(slot, rowId, day, period);
@@ -743,6 +757,7 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     this.persistMove(slot, nextTeacherId, nextClassId, day, period);
   }
 
+  /** Autosave to API after every valid manual move (click-to-place or drag-drop). */
   private persistMove(
     slot: TimetableSlot,
     teacherId: string,
@@ -750,9 +765,27 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     day: string,
     period: number
   ): void {
+    if (this.saving) {
+      return;
+    }
     this.saving = true;
     this.conflictMessage = null;
     this.error = null;
+
+    const prev = {
+      teacherId: slot.teacherId,
+      classId: slot.classId,
+      dayOfWeek: slot.dayOfWeek,
+      periodNumber: slot.periodNumber,
+    };
+
+    slot.teacherId = teacherId;
+    slot.classId = classId;
+    slot.dayOfWeek = day;
+    slot.periodNumber = period;
+    this.refreshGridLayout();
+    this.cdr.detectChanges();
+
     this.timetableService
       .updateSlot(slot.id, {
         teacherId,
@@ -767,17 +800,23 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
           this.saving = false;
           this.liftedSlotId = null;
           this.dragOverKey = null;
-          this.success = 'Lesson moved successfully.';
+          this.success = 'Lesson saved in new slot.';
           this.refreshData();
           setTimeout(() => (this.success = null), 3500);
         },
         error: (err) => {
           this.saving = false;
+          slot.teacherId = prev.teacherId;
+          slot.classId = prev.classId;
+          slot.dayOfWeek = prev.dayOfWeek;
+          slot.periodNumber = prev.periodNumber;
+          this.refreshGridLayout();
           const msg = err.error?.message || err.message || 'Could not save the move.';
           this.conflictMessage = msg;
           if (err.error?.conflicts?.length) {
             this.conflictMessage += ' (Server detected a timetable conflict.)';
           }
+          this.cdr.detectChanges();
         },
       });
   }

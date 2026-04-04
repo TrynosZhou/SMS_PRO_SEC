@@ -22,6 +22,8 @@ import { syncStoredTeacherIdsWithSettingsPrefix } from './utils/syncStoredTeache
 import { ensureETaskTable } from './utils/ensureETaskTable';
 import { ensureETaskSubmissionTable } from './utils/ensureETaskSubmissionTable';
 import { ensureTeacherGenderColumn } from './utils/ensureTeacherGenderColumn';
+import { ensureTeacherMaritalStatusColumn } from './utils/ensureTeacherMaritalStatusColumn';
+import { ensureSubjectShortTitleColumn } from './utils/ensureSubjectShortTitleColumn';
 import { ensureSchoolMottoColumns } from './utils/ensureSchoolMottoColumns';
 import { ensureMessageAttachmentUrlColumn } from './utils/ensureMessageAttachmentUrlColumn';
 
@@ -278,8 +280,15 @@ async function bootstrap() {
 
     try {
       await ensureTeacherGenderColumn(AppDataSource);
+      await ensureTeacherMaritalStatusColumn(AppDataSource);
     } catch (tgErr: any) {
       console.warn('[Server] ensureTeacherGenderColumn:', tgErr?.message || tgErr);
+    }
+
+    try {
+      await ensureSubjectShortTitleColumn(AppDataSource);
+    } catch (stErr: any) {
+      console.warn('[Server] ensureSubjectShortTitleColumn:', stErr?.message || stErr);
     }
 
     try {

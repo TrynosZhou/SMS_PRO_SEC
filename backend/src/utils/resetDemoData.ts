@@ -168,11 +168,11 @@ export async function resetDemoDataForLogin() {
   
   // Create sample subjects
   const subjects = [
-    { name: 'Mathematics', code: 'MATH001', description: 'Mathematics - Demo' },
-    { name: 'English', code: 'ENG001', description: 'English Language - Demo' },
-    { name: 'Science', code: 'SCI001', description: 'General Science - Demo' },
-    { name: 'Kiswahili', code: 'SWA001', description: 'Kiswahili - Demo' },
-    { name: 'Social Studies', code: 'SOC001', description: 'Social Studies - Demo' }
+    { name: 'Mathematics', code: 'MATH001', shortTitle: 'Math', description: 'Mathematics - Demo' },
+    { name: 'English', code: 'ENG001', shortTitle: 'Eng', description: 'English Language - Demo' },
+    { name: 'Science', code: 'SCI001', shortTitle: 'Sci', description: 'General Science - Demo' },
+    { name: 'Kiswahili', code: 'SWA001', shortTitle: 'Swahili', description: 'Kiswahili - Demo' },
+    { name: 'Social Studies', code: 'SOC001', shortTitle: 'SocStud', description: 'Social Studies - Demo' },
   ];
   const createdSubjects = subjects.map(subj => subjectRepository.create(subj));
   await subjectRepository.save(createdSubjects);

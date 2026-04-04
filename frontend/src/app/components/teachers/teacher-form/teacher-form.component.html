@@ -67,7 +67,9 @@
             [class.error]="teacherForm.submitted && !teacher.lastName">
           <small class="form-hint">Teacher's last name</small>
         </div>
+      </div>
 
+      <div class="form-grid form-grid-gender-married">
         <div class="form-group">
           <label for="gender">Gender</label>
           <select
@@ -79,9 +81,49 @@
             <option value="Male">Male</option>
             <option value="Female">Female</option>
           </select>
-          <small class="form-hint">Used for formal greeting on the teacher dashboard (Mr / Mrs)</small>
+          <small class="form-hint">Used for titles on timetables (Mr / Mrs / Miss / Ms)</small>
         </div>
 
+        <div class="form-group form-group-married-column">
+          <label class="label-married">Married</label>
+          <ng-container *ngIf="isTeacherFemale">
+            <select
+              id="maritalStatus"
+              name="maritalStatus"
+              [(ngModel)]="teacher.maritalStatus"
+              class="form-input">
+              <option value="">— Select —</option>
+              <option value="married">Married</option>
+              <option value="single">Single</option>
+              <option value="divorced">Divorced</option>
+              <option value="widowed">Widowed</option>
+            </select>
+            <small class="form-hint">Choose marital status: timetables use Mrs / Miss / Ms from this (not set defaults to Ms).</small>
+          </ng-container>
+          <ng-container *ngIf="isTeacherMale">
+            <select
+              id="maritalStatusMale"
+              name="maritalStatusMale"
+              [(ngModel)]="teacher.maritalStatus"
+              class="form-input">
+              <option value="">— Select —</option>
+              <option value="married">Married</option>
+              <option value="single">Single</option>
+              <option value="divorced">Divorced</option>
+              <option value="widower">Widower</option>
+            </select>
+            <small class="form-hint">Choose marital status for records. Class timetables still show <strong>Mr</strong>.</small>
+          </ng-container>
+          <ng-container *ngIf="!isTeacherFemale && !isTeacherMale">
+            <select class="form-input" disabled aria-disabled="true">
+              <option value="">— Select gender first —</option>
+            </select>
+            <small class="form-hint">Select <strong>Gender</strong> to choose Married, Single, Divorced, or Widowed / Widower.</small>
+          </ng-container>
+        </div>
+      </div>
+
+      <div class="form-grid">
         <div class="form-group">
           <label for="dateOfBirth">Date of Birth</label>
           <input 

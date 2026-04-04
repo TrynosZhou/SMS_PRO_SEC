@@ -50,13 +50,23 @@
 
       <div class="current-classes-section" *ngIf="teacherClasses.length > 0">
         <h3>Currently Assigned Classes</h3>
-        <div class="classes-list">
-          <div *ngFor="let cls of teacherClasses" class="class-item assigned">
-            <span class="class-name">{{ cls.name }}</span>
-            <span class="class-form">{{ cls.form }}</span>
-            <span class="student-count" *ngIf="teacherLoad">
-              {{ getStudentCountForClass(cls.id) }} students
-            </span>
+        <p class="section-hint">Subjects shown are those this teacher is assigned to teach <em>and</em> that the class offers.</p>
+        <div class="classes-list classes-list-detailed">
+          <div *ngFor="let cls of assignedClassesRows" class="class-card assigned">
+            <div class="class-card-top">
+              <span class="class-name">{{ cls.name }}</span>
+              <span class="class-form" *ngIf="cls.form">{{ cls.form }}</span>
+              <span class="student-count" *ngIf="cls.studentCount != null && cls.studentCount !== undefined">
+                {{ cls.studentCount }} students
+              </span>
+            </div>
+            <div class="class-subjects-row" *ngIf="cls.subjects?.length">
+              <span class="subjects-label">Teaching:</span>
+              <span *ngFor="let s of cls.subjects" class="subject-chip">{{ subjectChipLabel(s) }}</span>
+            </div>
+            <div class="class-subjects-row none" *ngIf="!cls.subjects?.length">
+              <span class="subjects-none">No subject overlap yet — assign subjects to this teacher and/or add these subjects to the class.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -87,8 +97,13 @@
                 class="checkbox-input"
               />
               <span class="checkbox-custom"></span>
-              <span class="checkbox-text">{{ cls.name }} ({{ cls.form }})</span>
+              <span class="checkbox-text">
+                {{ cls.name }}<span *ngIf="cls.form"> ({{ cls.form }})</span>
+              </span>
             </label>
+            <div class="checkbox-subjects-line" *ngIf="formatSubjectsForAllocation(cls)">
+              {{ formatSubjectsForAllocation(cls) }}
+            </div>
           </div>
         </div>
 

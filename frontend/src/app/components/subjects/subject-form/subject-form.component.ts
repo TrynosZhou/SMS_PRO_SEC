@@ -25,6 +25,7 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
   subject: any = {
     name: '',
     code: '',
+    shortTitle: '',
     description: '',
     category: 'O_LEVEL',
     isActive: true
@@ -73,7 +74,8 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
       next: (data: any) => {
         this.subject = {
           ...data,
-          category: this.subjectUtils.normalizeCategory(data.category)
+          category: this.subjectUtils.normalizeCategory(data.category),
+          shortTitle: data.shortTitle != null && data.shortTitle !== '' ? String(data.shortTitle) : '',
         };
       },
       error: (err: any) => {
@@ -124,6 +126,13 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
           delete this.fieldErrors[fieldName];
         }
         break;
+      case 'shortTitle':
+        if (value && String(value).trim().length > 40) {
+          this.fieldErrors[fieldName] = 'Short title must be 40 characters or less';
+        } else {
+          delete this.fieldErrors[fieldName];
+        }
+        break;
       case 'description':
         if (value && value.length > 500) {
           this.fieldErrors[fieldName] = 'Description must be 500 characters or less';
@@ -154,9 +163,10 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
 
   isFormValid(): boolean {
     // Don't validate during change detection - only check existing errors
-    return !this.fieldErrors['name'] && 
-           !this.fieldErrors['code'] && 
-           !!this.subject.name?.trim() && 
+    return !this.fieldErrors['name'] &&
+           !this.fieldErrors['code'] &&
+           !this.fieldErrors['shortTitle'] &&
+           !!this.subject.name?.trim() &&
            !!this.subject.code?.trim();
   }
 
@@ -164,11 +174,13 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
     // Mark all fields as touched
     this.touchedFields.add('name');
     this.touchedFields.add('code');
+    this.touchedFields.add('shortTitle');
     this.touchedFields.add('description');
     
     // Validate all fields
     this.validateField('name');
     this.validateField('code');
+    this.validateField('shortTitle');
     this.validateField('description');
     
     if (!this.isFormValid()) {
@@ -182,9 +194,11 @@ export class SubjectFormComponent implements OnInit, AfterViewChecked {
     this.submitting = true;
 
     // Ensure code is uppercase
+    const st = this.subject.shortTitle?.trim();
     const subjectData: any = {
       name: this.subject.name.trim(),
       code: this.subject.code.trim().toUpperCase(),
+      shortTitle: st || null,
       description: this.subject.description?.trim() || '',
       category: this.subjectUtils.normalizeCategory(this.subject.category),
       isActive: this.subject.isActive !== false

@@ -14,6 +14,8 @@ export function teachersManageNav(router: Router) {
     assignClasses: m ? '/teachers/manage/assign-classes' : '/teachers/assign-classes',
     allocateClass: m ? '/teachers/manage/allocate_class' : '/teachers/allocate_class',
     recordBook: m ? '/teachers/manage/record-book' : '/admin/teacher-record-book',
+    teacherSubjectAssignment: '/teachers/manage/teacher_subject',
+    teacherSubjectContact: (id: string) => `/teachers/manage/teacher_subject/contact/${id}`,
     editSegments: (id: string) =>
       m ? ['/teachers', 'manage', 'edit', id] : ['/teachers', id, 'edit'],
   };

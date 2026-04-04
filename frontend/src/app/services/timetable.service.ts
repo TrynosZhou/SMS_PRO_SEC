@@ -48,9 +48,16 @@ export interface TimetableSlot {
   isManuallyEdited: boolean;
   /** When true, the lesson cannot be moved until unlocked (manual adjustments). */
   isLocked?: boolean;
-  teacher?: { id: string; firstName: string; lastName: string; teacherId: string };
+  teacher?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    teacherId: string;
+    gender?: string | null;
+    maritalStatus?: string | null;
+  };
   class?: { id: string; name: string; form?: string };
-  subject?: { id: string; name: string; code: string };
+  subject?: { id: string; name: string; code: string; shortTitle?: string | null };
 }
 
 @Injectable({
@@ -67,6 +74,17 @@ export class TimetableService {
 
   saveConfig(config: TimetableConfig): Observable<{ message: string; config: TimetableConfig }> {
     return this.http.post<{ message: string; config: TimetableConfig }>(`${this.apiUrl}/config`, config);
+  }
+
+  /** Updates active config lessonsPerWeek[subjectId] (keeps other subjects; same store as Timetable → Configuration). */
+  mergeSubjectLessonsInActiveConfig(
+    subjectId: string,
+    lessonsPerWeek: number
+  ): Observable<{ message: string; config: TimetableConfig }> {
+    return this.http.post<{ message: string; config: TimetableConfig }>(
+      `${this.apiUrl}/config/merge-subject-lessons`,
+      { subjectId, lessonsPerWeek }
+    );
   }
 
   generateTimetable(versionName?: string, description?: string): Observable<{

@@ -16,6 +16,7 @@ export class TeacherFormComponent implements OnInit {
     firstName: '',
     lastName: '',
     gender: '',
+    maritalStatus: '',
     phoneNumber: '',
     address: '',
     dateOfBirth: '',
@@ -119,7 +120,8 @@ export class TeacherFormComponent implements OnInit {
           ...data,
           dateOfBirth: data.dateOfBirth?.split('T')[0],
           subjectIds: data.subjects?.map((s: any) => s.id) || [],
-          phoneNumber: data.phoneNumber || ''
+          phoneNumber: data.phoneNumber || '',
+          maritalStatus: data.maritalStatus || ''
         };
       },
       error: (err: any) => {
@@ -232,4 +234,11 @@ export class TeacherFormComponent implements OnInit {
     this.router.navigateByUrl(teachersManageNav(this.router).list);
   }
 
+  get isTeacherFemale(): boolean {
+    return (this.teacher?.gender || '').trim().toLowerCase().startsWith('female');
+  }
+
+  get isTeacherMale(): boolean {
+    return (this.teacher?.gender || '').trim().toLowerCase().startsWith('male');
+  }
 }

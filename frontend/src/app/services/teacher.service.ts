@@ -43,8 +43,27 @@ export class TeacherService {
     return this.http.put(`${this.apiUrl}/teachers/${id}/classes`, { classIds });
   }
 
+  /** Link teacher to teach one subject in one class (updates teacher, class, and subject relations). */
+  assignTeacherClassSubject(teacherId: string, classId: string, subjectId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/teachers/${teacherId}/class-subject`, { classId, subjectId });
+  }
+
+  unassignTeacherClassSubject(teacherId: string, classId: string, subjectId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/teachers/${teacherId}/class-subject/remove`, { classId, subjectId });
+  }
+
   getTeacherLoad(id: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/teachers/${id}/load`);
+  }
+
+  /** All teachers with weekly lesson totals (subject-assignment hub). */
+  getSubjectAssignmentSummary(): Observable<{ teachers: any[] }> {
+    return this.http.get<{ teachers: any[] }>(`${this.apiUrl}/teachers/subject-assignment/summary`);
+  }
+
+  /** One teacher: subject × class rows with lessons/week from active timetable config. */
+  getTeacherSubjectAssignment(teacherId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/teachers/${teacherId}/subject-assignment`);
   }
 
   createTeacherAccount(teacherId: string): Observable<any> {

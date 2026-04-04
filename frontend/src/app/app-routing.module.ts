@@ -10,6 +10,8 @@ import { TeacherFormComponent } from './components/teachers/teacher-form/teacher
 import { TeachersManageComponent } from './components/teachers/teachers-manage/teachers-manage.component';
 import { AssignClassesComponent } from './components/teachers/assign-classes/assign-classes.component';
 import { AllocateClassComponent } from './components/teachers/allocate-class/allocate-class.component';
+import { TeacherSubjectAssignmentComponent } from './components/teachers/teacher-subject-assignment/teacher-subject-assignment.component';
+import { TeacherSubjectContactComponent } from './components/teachers/teacher-subject-contact/teacher-subject-contact.component';
 import { ExamListComponent } from './components/exams/exam-list/exam-list.component';
 import { ExamFormComponent } from './components/exams/exam-form/exam-form.component';
 import { MarksEntryComponent } from './components/exams/marks-entry/marks-entry.component';
@@ -82,6 +84,7 @@ import { TimetableConfigComponent } from './components/timetable/timetable-confi
 import { TimetableViewComponent } from './components/timetable/timetable-view/timetable-view.component';
 import { TimetableManageComponent } from './components/timetable/timetable-manage/timetable-manage.component';
 import { TimetableManualAdjustmentsComponent } from './components/timetable/timetable-manual-adjustments/timetable-manual-adjustments.component';
+import { TimetableViewTimetableComponent } from './components/timetable/timetable-view-timetable/timetable-view-timetable.component';
 import { StudentDashboardComponent } from './components/student/student-dashboard/student-dashboard.component';
 import { StudentReportCardComponent } from './components/student/student-report-card/student-report-card.component';
 import { StudentInvoiceStatementComponent } from './components/student/student-invoice-statement/student-invoice-statement.component';
@@ -219,6 +222,12 @@ const routes: Routes = [
       { path: 'add-new', component: TeacherFormComponent, canActivate: [AuthGuard] },
       { path: 'teachers', component: TeacherListComponent, canActivate: [AuthGuard] },
       { path: 'assign-classes', component: AssignClassesComponent, canActivate: [AuthGuard] },
+      {
+        path: 'teacher_subject/contact/:teacherId',
+        component: TeacherSubjectContactComponent,
+        canActivate: [AuthGuard],
+      },
+      { path: 'teacher_subject', component: TeacherSubjectAssignmentComponent, canActivate: [AuthGuard] },
       { path: 'allocate_class', component: AllocateClassComponent, canActivate: [AuthGuard] },
       { path: 'record-book', component: TeacherRecordBookComponent, canActivate: [AuthGuard] },
       { path: 'edit/:id', component: TeacherFormComponent, canActivate: [AuthGuard] },
@@ -378,6 +387,7 @@ const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'view' },
       { path: 'config', component: TimetableConfigComponent, canActivate: [AuthGuard] },
       { path: 'manual', component: TimetableManualAdjustmentsComponent, canActivate: [AuthGuard] },
+      { path: 'view_timetable', component: TimetableViewTimetableComponent, canActivate: [AuthGuard] },
       { path: 'view', component: TimetableViewComponent, canActivate: [AuthGuard] },
     ],
   },

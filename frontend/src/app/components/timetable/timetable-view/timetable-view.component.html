@@ -37,9 +37,10 @@
 
     <div class="generation-progress" *ngIf="generating" aria-live="polite">
       <div class="generation-progress-top">
-        <span class="generation-progress-title">Generating timetable — please wait</span>
+        <span class="generation-progress-title">Generating timetable for all teachers and classes — please wait</span>
         <span class="generation-progress-pct">{{ generationProgress }}%</span>
       </div>
+      <p class="generation-progress-sub">Building assignments and placing lessons… This may take a minute on large schools.</p>
       <div
         class="generation-progress-track"
         role="progressbar"
@@ -199,12 +200,14 @@
               <div *ngFor="let slot of getSlot(day, period)" class="slot-content">
                 <div class="slot-info" *ngIf="!isSlotBeingEdited(slot)">
                   <div class="slot-teacher" *ngIf="viewMode !== 'teacher'">
-                    {{ slot.teacher?.firstName }} {{ slot.teacher?.lastName }}
+                    {{ teacherDisplayName(slot) }}
                   </div>
                   <div class="slot-class" *ngIf="viewMode !== 'class'">
                     {{ slot.class?.name }}
                   </div>
-                  <div class="slot-subject">{{ slot.subject?.name }}</div>
+                  <div class="slot-subject">
+                    {{ viewMode === 'class' ? subjectLabelClassTimetable(slot) : slot.subject?.name }}
+                  </div>
                   <div class="slot-room" *ngIf="slot.room">{{ slot.room }}</div>
                   <div class="slot-actions">
                     <button class="btn-icon" (click)="editSlot(slot); $event.stopPropagation()" 
@@ -385,8 +388,7 @@
                           </div>
                         </ng-container>
                         <ng-container *ngIf="isBreakColumn(col)">
-                          <div class="tt-teacher-break-v">{{ col.label }}</div>
-                          <div class="tt-teacher-break-time">
+                          <div class="tt-teacher-break-time tt-break-th-times-only">
                             <span class="tt-ptime-line">{{ col.timeStart }}</span>
                             <span class="tt-ptime-line">{{ col.timeEnd }}</span>
                           </div>
@@ -395,17 +397,17 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let day of sheet.daysOfWeek">
+                    <tr *ngFor="let day of sheet.daysOfWeek; let dayIdx = index">
                       <th scope="row" class="tt-teacher-day">{{ dayShortLabel(day) }}</th>
-                      <td
-                        *ngFor="let col of sheet.columns"
-                        [class.tt-teacher-td-period]="isPeriodColumn(col)"
-                        [class.tt-teacher-td-break]="isBreakColumn(col)"
-                      >
-                        <div *ngIf="isBreakColumn(col)" class="tt-teacher-break-cell">
-                          {{ col.label }}
-                        </div>
-                        <ng-container *ngIf="isPeriodColumn(col)">
+                      <ng-container *ngFor="let col of sheet.columns">
+                        <td
+                          *ngIf="isBreakColumn(col) && dayIdx === 0"
+                          [attr.rowspan]="sheet.daysOfWeek.length"
+                          class="tt-teacher-td-break tt-break-td-merged"
+                        >
+                          <div class="tt-break-banner-merged">{{ breakBannerLabel(col.label) }}</div>
+                        </td>
+                        <td *ngIf="isPeriodColumn(col)" class="tt-teacher-td-period">
                           <div
                             *ngFor="let sl of getTeacherSheetCell(sheet, day, col.period)"
                             class="tt-teacher-lesson"
@@ -417,8 +419,8 @@
                               *ngIf="sl.class?.form || sl.room"
                             >{{ sl.class?.form || sl.room }}</span>
                           </div>
-                        </ng-container>
-                      </td>
+                        </td>
+                      </ng-container>
                     </tr>
                   </tbody>
                 </table>
@@ -490,8 +492,7 @@
                           </div>
                         </ng-container>
                         <ng-container *ngIf="isBreakColumn(col)">
-                          <div class="tt-teacher-break-v">{{ col.label }}</div>
-                          <div class="tt-teacher-break-time">
+                          <div class="tt-teacher-break-time tt-break-th-times-only">
                             <span class="tt-ptime-line">{{ col.timeStart }}</span>
                             <span class="tt-ptime-line">{{ col.timeEnd }}</span>
                           </div>
@@ -500,14 +501,15 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let day of sheet.daysOfWeek">
+                    <tr *ngFor="let day of sheet.daysOfWeek; let dayIdx = index">
                       <th scope="row" class="tt-teacher-day">{{ dayShortLabel(day) }}</th>
                       <ng-container *ngFor="let seg of getClassDaySegments(sheet, day)">
                         <td
-                          *ngIf="seg.kind === 'break'"
-                          class="tt-teacher-td-break"
+                          *ngIf="seg.kind === 'break' && dayIdx === 0"
+                          [attr.rowspan]="sheet.daysOfWeek.length"
+                          class="tt-teacher-td-break tt-break-td-merged"
                         >
-                          <div class="tt-teacher-break-cell">{{ seg.label }}</div>
+                          <div class="tt-break-banner-merged">{{ breakBannerLabel(seg.label) }}</div>
                         </td>
                         <td
                           *ngIf="seg.kind === 'empty'"
@@ -524,7 +526,7 @@
                               class="tt-class-form-corner"
                               *ngIf="classFormCornerLabel(seg.slots[0])"
                             >{{ classFormCornerLabel(seg.slots[0]) }}</span>
-                            <span class="tt-class-subj">{{ subjectAbbrev(seg.slots[0]) }}</span>
+                            <span class="tt-class-subj">{{ subjectLabelClassTimetable(seg.slots[0]) }}</span>
                             <span class="tt-class-tchr">{{ teacherDisplayName(seg.slots[0]) }}</span>
                             <span class="tt-class-room-corner" *ngIf="seg.slots[0].room">{{
                               seg.slots[0].room
@@ -560,7 +562,7 @@
                 />
                 <div class="tt-sheet-head-main">
                   <h4 class="tt-sheet-title">{{ sheet.versionTitle }}</h4>
-                  <p class="tt-sheet-subtitle">Summary timetable of teachers</p>
+                  <p class="tt-sheet-subtitle">Summary of teachers</p>
                 </div>
                 <div class="tt-sheet-head-actions">
                   <button
@@ -614,34 +616,27 @@
                               <span class="tt-ptime-line">{{ col.timeEnd }}</span>
                             </div>
                           </ng-container>
-                          <ng-container *ngIf="isBreakColumn(col)">
-                            <div class="tt-teacher-break-v">{{ col.label }}</div>
-                            <div class="tt-teacher-break-time">
-                              <span class="tt-ptime-line">{{ col.timeStart }}</span>
-                              <span class="tt-ptime-line">{{ col.timeEnd }}</span>
-                            </div>
-                          </ng-container>
+                          <ng-container *ngIf="isBreakColumn(col)"></ng-container>
                         </th>
                       </ng-container>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let t of sheet.teachers">
+                    <tr *ngFor="let t of sheet.teachers; let teacherIdx = index">
                       <th scope="row" class="tt-consolidated-teacher-name">{{ t.teacherName }}</th>
                       <ng-container *ngFor="let day of sheet.daysOfWeek">
-                        <td
-                          *ngFor="let col of sheet.dayStripColumns"
-                          [class.tt-teacher-td-break]="isBreakColumn(col)"
-                          [class.tt-consolidated-period-cell]="isPeriodColumn(col)"
-                        >
-                          <div *ngIf="isBreakColumn(col)" class="tt-teacher-break-cell">
-                            {{ col.label }}
-                          </div>
-                          <span
-                            *ngIf="isPeriodColumn(col)"
-                            class="tt-consolidated-class-code"
-                          >{{ getConsolidatedCellLabel(sheet, t.teacherId, day, col) }}</span>
-                        </td>
+                        <ng-container *ngFor="let col of sheet.dayStripColumns">
+                          <td
+                            *ngIf="isBreakColumn(col) && teacherIdx === 0"
+                            [attr.rowspan]="sheet.teachers.length"
+                            class="tt-teacher-td-break tt-break-td-merged tt-consolidated-break-merged tt-consolidated-break-empty"
+                          ></td>
+                          <td *ngIf="isPeriodColumn(col)" class="tt-consolidated-period-cell">
+                            <span class="tt-consolidated-class-code">{{
+                              getConsolidatedCellLabel(sheet, t.teacherId, day, col)
+                            }}</span>
+                          </td>
+                        </ng-container>
                       </ng-container>
                     </tr>
                   </tbody>
