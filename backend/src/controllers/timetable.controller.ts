@@ -16,7 +16,7 @@ import {
 } from '../utils/timetablePeriodTimes';
 import { mergeSubjectLessonsPerWeekForActiveConfig } from '../utils/timetableMergeSubjectLessons';
 import { mergeJunctionClassesIntoTeachers } from '../utils/teacherClassLinker';
-import { contractGenerationKey, loadDoubleMapForGeneration } from '../utils/teacherContractLesson';
+import { loadContractLessonsForGeneration } from '../utils/teacherContractLesson';
 
 /** Fisher–Yates shuffle (copy) — used to randomize slot placement order. */
 function shuffleArray<T>(items: T[]): T[] {
@@ -267,14 +267,14 @@ export const generateTimetable = async (req: AuthRequest, res: Response) => {
       
       // Generate timetable slots
       console.log('[generateTimetable] Generating timetable slots...');
-      const contractDoubleByTriple = await loadDoubleMapForGeneration(teachers.map((t) => t.id));
+      const teacherContractLines = await loadContractLessonsForGeneration(teachers.map((t) => t.id));
       const slots = await generateTimetableSlots(
         config,
         teachers,
         classes,
         subjects,
         version.id,
-        contractDoubleByTriple
+        teacherContractLines
       );
       console.log(`[generateTimetable] Generated ${slots.length} slots`);
 
@@ -377,7 +377,7 @@ async function generateTimetableSlots(
   classes: Class[],
   subjects: Subject[],
   versionId: string,
-  contractDoubleByTriple: Map<string, boolean> = new Map()
+  teacherContractLines: import('../entities/TeacherContractLesson').TeacherContractLesson[] = []
 ): Promise<TimetableSlot[]> {
   const slots: TimetableSlot[] = [];
   const daysOfWeek = [...(config.daysOfWeek || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])];
@@ -449,24 +449,47 @@ async function generateTimetableSlots(
       if (eligibleTeachers.length > 0) {
         // Use first eligible teacher (can be enhanced to distribute evenly)
         const teacher = eligibleTeachers[0];
-        const baseLpw = config.lessonsPerWeek?.[subject.id] || 3;
-        const isDouble =
-          contractDoubleByTriple.get(
-            contractGenerationKey(teacher.id, classEntity.id, subject.id)
-          ) === true;
-        const lessonsPerWeek = Math.min(100, Math.max(1, baseLpw * (isDouble ? 2 : 1)));
-
-        assignments.push({
-          teacher,
-          class: classEntity,
-          subject,
-          lessonsPerWeek,
-          isPairedDouble: isDouble,
-        });
-
-        console.log(
-          `[generateTimetableSlots] ✓ Assignment: ${teacher.firstName} ${teacher.lastName} -> ${classEntity.name} -> ${subject.name} (${lessonsPerWeek} periods/week${isDouble ? ', double' : ''})`
+        const linesForTriple = teacherContractLines.filter(
+          (l) =>
+            l.teacherId === teacher.id &&
+            l.classId === classEntity.id &&
+            l.subjectId === subject.id
         );
+
+        if (linesForTriple.length > 0) {
+          for (const line of linesForTriple) {
+            const isDouble = line.isDoublePeriod === true;
+            const spw = Math.max(1, line.sessionsPerWeek || 1);
+            const lessonsPerWeek = Math.min(100, Math.max(1, spw * (isDouble ? 2 : 1)));
+
+            assignments.push({
+              teacher,
+              class: classEntity,
+              subject,
+              lessonsPerWeek,
+              isPairedDouble: isDouble,
+            });
+
+            console.log(
+              `[generateTimetableSlots] ✓ Assignment (contract line): ${teacher.firstName} ${teacher.lastName} -> ${classEntity.name} -> ${subject.name} (${lessonsPerWeek} periods/week${isDouble ? ', double' : ''})`
+            );
+          }
+        } else {
+          const baseLpw = config.lessonsPerWeek?.[subject.id] || 3;
+          const lessonsPerWeek = Math.min(100, Math.max(1, baseLpw));
+
+          assignments.push({
+            teacher,
+            class: classEntity,
+            subject,
+            lessonsPerWeek,
+            isPairedDouble: false,
+          });
+
+          console.log(
+            `[generateTimetableSlots] ✓ Assignment (config fallback): ${teacher.firstName} ${teacher.lastName} -> ${classEntity.name} -> ${subject.name} (${lessonsPerWeek} periods/week)`
+          );
+        }
       } else {
         console.warn(`[generateTimetableSlots] ✗ No eligible teacher found for ${classEntity.name} - ${subject.name}`);
         console.warn(`  Requirements: Teacher must be assigned to ${classEntity.name} AND teach ${subject.name}`);
@@ -911,9 +934,10 @@ export const getTimetableVersions = async (req: AuthRequest, res: Response) => {
     }
 
     const versionRepository = AppDataSource.getRepository(TimetableVersion);
+    // Do not load `slots` here — UI fetches slots via GET /versions/:id/slots. Loading all
+    // slots for every version can timeout or OOM on Render and caused 500s in production.
     const versions = await versionRepository.find({
       order: { createdAt: 'DESC' },
-      relations: ['slots']
     });
 
     res.json(versions);
@@ -1153,11 +1177,14 @@ export const generateTeacherTimetablePDF = async (req: AuthRequest, res: Respons
     const slotRepository = AppDataSource.getRepository(TimetableSlot);
     const teacherRepository = AppDataSource.getRepository(Teacher);
     const settingsRepository = AppDataSource.getRepository(Settings);
+    const versionRepository = AppDataSource.getRepository(TimetableVersion);
 
     const teacher = await teacherRepository.findOne({ where: { id: teacherId } });
     if (!teacher) {
       return res.status(404).json({ message: 'Teacher not found' });
     }
+
+    const version = await versionRepository.findOne({ where: { id: versionId } });
 
     const slots = await slotRepository.find({
       where: { versionId, teacherId },
@@ -1176,7 +1203,8 @@ export const generateTeacherTimetablePDF = async (req: AuthRequest, res: Respons
       teacher,
       slots,
       settings,
-      config
+      config,
+      versionName: version?.name,
     });
 
     res.setHeader('Content-Type', 'application/pdf');

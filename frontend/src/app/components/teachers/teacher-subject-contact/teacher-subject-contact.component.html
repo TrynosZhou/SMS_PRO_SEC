@@ -26,8 +26,8 @@
       <strong>Assigned classes</strong> (from class assignments and the teacher–class register) are listed below.
       Select a row to <strong>edit</strong> or <strong>remove</strong> a lesson, or <strong>double-click</strong> a lesson row to open edit.
       Use <strong>New lesson</strong> to link another class and subject to this teacher (same as Assign Classes).
-      <strong>Lessons / week</strong> comes from <strong>Timetable → Configuration</strong>.
-      <strong>Period weight</strong> is Single (×1) or Double (×2) toward this teacher’s total load and timetable generation.
+      Each row is its own <strong>lesson line</strong> for that class: add multiple lines for the same subject/class (e.g. four singles + one double) without changing other classes.
+      <strong>Sessions / week</strong> and <strong>period weight</strong> (×1 or ×2) apply only to that line—not the whole subject across other classes.
       The first column shows the subject <strong>syllabus code</strong> from each subject’s Code field (e.g. 0478, 9618), then the full name and level when needed.
     </p>
     <div class="tsc-class-chips" *ngIf="assignedClasses.length">
@@ -54,7 +54,7 @@
             <th scope="col">Syllabus / subject</th>
             <th scope="col">Teacher</th>
             <th scope="col">Class</th>
-            <th scope="col" class="tsc-num">Lessons / week</th>
+            <th scope="col" class="tsc-num">Sessions / wk</th>
             <th scope="col" class="tsc-num">Weight</th>
           </tr>
         </thead>
@@ -119,10 +119,9 @@
       {{ lessonModalMode === 'new' ? 'New lesson' : 'Edit lesson' }}
     </h2>
     <p class="tsc-modal-sub">
-      Set class, subject, sessions per week, and whether each session is a <strong>single</strong> or
-      <strong>double</strong> period. Sessions/week updates <strong>Timetable → Configuration</strong> (school-wide for
-      that subject). Single/Double applies to this teacher in this class only and counts ×1 or ×2 toward load and
-      generated timetables.
+      Set class, subject, <strong>sessions per week</strong> for <em>this line only</em>, and whether each session is a
+      <strong>single</strong> or <strong>double</strong> period. Other classes and other lines for the same subject are
+      not changed. Period weight counts ×1 or ×2 toward this teacher’s load and timetable generation.
     </p>
 
     <div class="alert alert-danger" *ngIf="modalError">{{ modalError }}</div>
@@ -160,7 +159,7 @@
     </div>
     <div class="tsc-field tsc-field-lessons-row">
       <div class="tsc-lessons-week-block">
-        <label for="tsc-modal-lpw">Lessons / week</label>
+        <label for="tsc-modal-lpw">Sessions / week (this line)</label>
         <input
           id="tsc-modal-lpw"
           type="number"
@@ -184,8 +183,7 @@
         </select>
       </div>
       <p class="tsc-field-hint muted tsc-lessons-hint-full">
-        Lessons/week matches Timetable → Configuration for the subject. Double multiplies this teacher’s scheduled
-        periods for this class.
+        Example: four lines at ×1 single and one line at ×1 double → 4 + 2 = 6 teaching periods for that class/subject.
       </p>
     </div>
 

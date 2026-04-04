@@ -30,10 +30,23 @@ export function parseRequestDoublePeriod(body: any): boolean {
   return len === 'double';
 }
 
+/** Sessions per week for one contract line (1–50). */
+export function parseRequestSessionsPerWeek(body: any): number {
+  if (!body || typeof body !== 'object') {
+    return 1;
+  }
+  const raw = body.sessionsPerWeek ?? body.lessonsPerWeek ?? 1;
+  const n = typeof raw === 'string' ? parseInt(raw, 10) : Number(raw);
+  if (!Number.isFinite(n)) {
+    return 1;
+  }
+  return Math.min(50, Math.max(1, Math.round(n)));
+}
+
 let contractTableEnsured = false;
 
 /**
- * Creates `teacher_contract_lessons` when migrations were not run (upsert was failing silently before).
+ * Creates or migrates `teacher_contract_lessons` (multiple rows per triple; sessionsPerWeek column).
  */
 async function ensureTeacherContractLessonsTable(): Promise<void> {
   if (contractTableEnsured) {
@@ -53,17 +66,32 @@ async function ensureTeacherContractLessonsTable(): Promise<void> {
         "subjectId" uuid NOT NULL,
         "isDoublePeriod" boolean NOT NULL DEFAULT false,
         CONSTRAINT "PK_teacher_contract_lessons" PRIMARY KEY ("id"),
-        CONSTRAINT "UQ_teacher_contract_lessons_triple" UNIQUE ("teacherId", "classId", "subjectId"),
         CONSTRAINT "FK_teacher_contract_lessons_teacher" FOREIGN KEY ("teacherId") REFERENCES "teachers"("id") ON DELETE CASCADE,
         CONSTRAINT "FK_teacher_contract_lessons_class" FOREIGN KEY ("classId") REFERENCES "classes"("id") ON DELETE CASCADE,
         CONSTRAINT "FK_teacher_contract_lessons_subject" FOREIGN KEY ("subjectId") REFERENCES "subjects"("id") ON DELETE CASCADE
       )
     `);
     await qr.query(
+      `ALTER TABLE "teacher_contract_lessons" ADD COLUMN IF NOT EXISTS "sessionsPerWeek" integer NOT NULL DEFAULT 1`
+    );
+    await qr.query(
+      `UPDATE "teacher_contract_lessons" SET "sessionsPerWeek" = 1 WHERE "sessionsPerWeek" IS NULL`
+    );
+    await qr.query(
+      `ALTER TABLE "teacher_contract_lessons" ALTER COLUMN "sessionsPerWeek" SET DEFAULT 1`
+    );
+    // Drop legacy unique triple so multiple lesson lines per class+subject are allowed
+    await qr.query(
+      `ALTER TABLE "teacher_contract_lessons" DROP CONSTRAINT IF EXISTS "UQ_teacher_contract_lessons_triple"`
+    );
+    await qr.query(
       `CREATE INDEX IF NOT EXISTS "IDX_teacher_contract_lessons_teacherId" ON "teacher_contract_lessons" ("teacherId")`
     );
     await qr.query(
       `CREATE INDEX IF NOT EXISTS "IDX_teacher_contract_lessons_classId" ON "teacher_contract_lessons" ("classId")`
+    );
+    await qr.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_teacher_contract_lessons_tcp_triple" ON "teacher_contract_lessons" ("teacherId", "classId", "subjectId")`
     );
     contractTableEnsured = true;
   } catch (e: any) {
@@ -74,6 +102,47 @@ async function ensureTeacherContractLessonsTable(): Promise<void> {
   }
 }
 
+export async function insertTeacherContractLesson(
+  teacherId: string,
+  classId: string,
+  subjectId: string,
+  isDoublePeriod: boolean,
+  sessionsPerWeek: number
+): Promise<TeacherContractLesson> {
+  await ensureTeacherContractLessonsTable();
+  const repo = AppDataSource.getRepository(TeacherContractLesson);
+  const spw = Math.min(50, Math.max(1, Math.round(sessionsPerWeek)));
+  const row = repo.create({
+    teacherId,
+    classId,
+    subjectId,
+    isDoublePeriod,
+    sessionsPerWeek: spw,
+  });
+  return repo.save(row);
+}
+
+export async function updateTeacherContractLesson(
+  id: string,
+  teacherId: string,
+  patch: { isDoublePeriod?: boolean; sessionsPerWeek?: number }
+): Promise<TeacherContractLesson | null> {
+  await ensureTeacherContractLessonsTable();
+  const repo = AppDataSource.getRepository(TeacherContractLesson);
+  const row = await repo.findOne({ where: { id, teacherId } });
+  if (!row) {
+    return null;
+  }
+  if (patch.isDoublePeriod !== undefined) {
+    row.isDoublePeriod = patch.isDoublePeriod;
+  }
+  if (patch.sessionsPerWeek !== undefined) {
+    row.sessionsPerWeek = Math.min(50, Math.max(1, Math.round(patch.sessionsPerWeek)));
+  }
+  return repo.save(row);
+}
+
+/** @deprecated Prefer insert/update; kept for scripts */
 export async function upsertTeacherContractLesson(
   teacherId: string,
   classId: string,
@@ -82,13 +151,19 @@ export async function upsertTeacherContractLesson(
 ): Promise<void> {
   await ensureTeacherContractLessonsTable();
   const repo = AppDataSource.getRepository(TeacherContractLesson);
-  let row = await repo.findOne({ where: { teacherId, classId, subjectId } });
-  if (!row) {
-    row = repo.create({ teacherId, classId, subjectId, isDoublePeriod });
-  } else {
-    row.isDoublePeriod = isDoublePeriod;
+  const existing = await repo.find({ where: { teacherId, classId, subjectId } });
+  if (existing.length === 0) {
+    await insertTeacherContractLesson(teacherId, classId, subjectId, isDoublePeriod, 1);
+    return;
   }
-  await repo.save(row);
+  if (existing.length === 1) {
+    existing[0].isDoublePeriod = isDoublePeriod;
+    await repo.save(existing[0]);
+    return;
+  }
+  const first = existing[0];
+  first.isDoublePeriod = isDoublePeriod;
+  await repo.save(first);
 }
 
 export async function deleteTeacherContractLesson(
@@ -105,30 +180,54 @@ export async function deleteTeacherContractLesson(
   }
 }
 
+export async function deleteTeacherContractLessonById(
+  teacherId: string,
+  contractLessonId: string
+): Promise<boolean> {
+  await ensureTeacherContractLessonsTable();
+  const repo = AppDataSource.getRepository(TeacherContractLesson);
+  const r = await repo.delete({ id: contractLessonId, teacherId });
+  return (r.affected ?? 0) > 0;
+}
+
 function rowIsDouble(r: TeacherContractLesson): boolean {
   const v = r.isDoublePeriod as boolean | null | undefined;
   return v === true;
 }
 
-/** Map key classId:subjectId → double flag (for one teacher). */
+/** All contract lines for one teacher (contact grid + timetable). */
+export async function loadContractLessonsForTeacher(teacherId: string): Promise<TeacherContractLesson[]> {
+  try {
+    await ensureTeacherContractLessonsTable();
+    const repo = AppDataSource.getRepository(TeacherContractLesson);
+    return repo.find({
+      where: { teacherId },
+      order: { classId: 'ASC', subjectId: 'ASC', id: 'ASC' },
+    });
+  } catch (e: any) {
+    console.warn('[TeacherContractLesson] loadContractLessonsForTeacher:', e?.message || e);
+    return [];
+  }
+}
+
+/** Map key classId:subjectId → double flag (true if any line for that pair is double — legacy helper; prefer raw lines). */
 export async function loadDoubleMapForTeacherClassesSubjects(
   teacherId: string
 ): Promise<Map<string, boolean>> {
   const map = new Map<string, boolean>();
-  try {
-    await ensureTeacherContractLessonsTable();
-    const repo = AppDataSource.getRepository(TeacherContractLesson);
-    const rows = await repo.find({ where: { teacherId } });
-    for (const r of rows) {
-      map.set(contractClassSubjectKey(r.classId, r.subjectId), rowIsDouble(r));
+  const lines = await loadContractLessonsForTeacher(teacherId);
+  for (const r of lines) {
+    const k = contractClassSubjectKey(r.classId, r.subjectId);
+    if (rowIsDouble(r)) {
+      map.set(k, true);
+    } else if (!map.has(k)) {
+      map.set(k, false);
     }
-  } catch (e: any) {
-    console.warn('[TeacherContractLesson] loadDoubleMapForTeacherClassesSubjects:', e?.message || e);
   }
   return map;
 }
 
-/** Map key teacherId:classId:subjectId → isDouble (timetable generation). */
+/** Map key teacherId:classId:subjectId → isDouble (first line only — generation uses loadContractLessonsForGeneration). */
 export async function loadDoubleMapForGeneration(teacherIds: string[]): Promise<Map<string, boolean>> {
   const map = new Map<string, boolean>();
   if (!teacherIds.length) {
@@ -139,10 +238,33 @@ export async function loadDoubleMapForGeneration(teacherIds: string[]): Promise<
     const repo = AppDataSource.getRepository(TeacherContractLesson);
     const rows = await repo.find({ where: { teacherId: In(teacherIds) } });
     for (const r of rows) {
-      map.set(contractGenerationKey(r.teacherId, r.classId, r.subjectId), rowIsDouble(r));
+      const k = contractGenerationKey(r.teacherId, r.classId, r.subjectId);
+      if (rowIsDouble(r)) {
+        map.set(k, true);
+      } else if (!map.has(k)) {
+        map.set(k, false);
+      }
     }
   } catch (e: any) {
     console.warn('[TeacherContractLesson] loadDoubleMapForGeneration:', e?.message || e);
   }
   return map;
+}
+
+/** All contract lines for timetable generation for given teachers. */
+export async function loadContractLessonsForGeneration(teacherIds: string[]): Promise<TeacherContractLesson[]> {
+  if (!teacherIds.length) {
+    return [];
+  }
+  try {
+    await ensureTeacherContractLessonsTable();
+    const repo = AppDataSource.getRepository(TeacherContractLesson);
+    return repo.find({
+      where: { teacherId: In(teacherIds) },
+      order: { teacherId: 'ASC', classId: 'ASC', subjectId: 'ASC', id: 'ASC' },
+    });
+  } catch (e: any) {
+    console.warn('[TeacherContractLesson] loadContractLessonsForGeneration:', e?.message || e);
+    return [];
+  }
 }

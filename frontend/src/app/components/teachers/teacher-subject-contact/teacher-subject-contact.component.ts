@@ -5,6 +5,8 @@ import { ClassService } from '../../../services/class.service';
 import { TimetableService } from '../../../services/timetable.service';
 
 export interface SubjectAssignmentRow {
+  /** Backend teacher_contract_lessons.id; independent rows per class+subject. */
+  contractLessonId?: string | null;
   subjectId: string | null;
   subjectName: string;
   /** Syllabus code from subjects.code (e.g. 0478, 9618) */
@@ -94,7 +96,10 @@ export class TeacherSubjectContactComponent implements OnInit {
   modalError = '';
   /** Shown under the subject dropdown when there are no selectable options. */
   modalSubjectHelp = '';
-  private editOriginal: { classId: string; subjectId: string } | null = null;
+  /** When editing, backend row id (update in place instead of inserting another line). */
+  modalContractLessonId: string | null = null;
+  private editOriginal: { classId: string; subjectId: string; contractLessonId?: string | null } | null =
+    null;
 
   get modalIsDoublePeriod(): boolean {
     return this.modalLessonLength === 'double';
@@ -162,11 +167,13 @@ export class TeacherSubjectContactComponent implements OnInit {
     if (!this.selectedRow || this.selectedRow.placeholder || !this.selectedRow.subjectId) {
       return;
     }
+    const wantLine = this.selectedRow.contractLessonId ?? '';
     const match = this.rows.find(
       (r) =>
         !r.placeholder &&
         r.subjectId === this.selectedRow!.subjectId &&
-        r.classId === this.selectedRow!.classId
+        r.classId === this.selectedRow!.classId &&
+        (r.contractLessonId ?? '') === wantLine
     );
     this.selectedRow = match || null;
   }
@@ -251,7 +258,7 @@ export class TeacherSubjectContactComponent implements OnInit {
   }
 
   rowTrackKey(r: SubjectAssignmentRow): string {
-    return `${r.classId}|${r.subjectId ?? 'ph'}`;
+    return `${r.classId}|${r.subjectId ?? 'ph'}|${r.contractLessonId ?? 'legacy'}`;
   }
 
   isRowSelected(r: SubjectAssignmentRow): boolean {
@@ -289,6 +296,7 @@ export class TeacherSubjectContactComponent implements OnInit {
   openNewLesson(): void {
     this.lessonModalMode = 'new';
     this.editOriginal = null;
+    this.modalContractLessonId = null;
     this.modalClassId = '';
     this.modalSubjectId = '';
     this.modalSubjects = [];
@@ -317,7 +325,9 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.editOriginal = {
       classId: row.classId,
       subjectId: sid,
+      contractLessonId: row.contractLessonId ?? null,
     };
+    this.modalContractLessonId = row.contractLessonId ?? null;
     this.modalClassId = row.classId;
     this.modalSubjectId = sid;
     this.modalLessonsPerWeek = row.lessonsPerWeek;
@@ -343,6 +353,7 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.modalError = '';
     this.modalSubjectHelp = '';
     this.editOriginal = null;
+    this.modalContractLessonId = null;
   }
 
   onModalClassChange(): void {
@@ -432,32 +443,13 @@ export class TeacherSubjectContactComponent implements OnInit {
       'No overlap: this class shares no subjects with this teacher’s assigned subjects. Assign the subject to this teacher and ensure the class offers it.';
   }
 
-  private mergeTimetableLessonsAndFinalize(successMessage: string): void {
-    const sid = this.modalSubjectId;
-    const n = Number(this.modalLessonsPerWeek);
-    if (!Number.isFinite(n) || n < 1 || n > 50) {
-      this.modalSaving = false;
-      this.modalError = 'Enter periods per week between 1 and 50.';
-      return;
-    }
-    this.timetableService.mergeSubjectLessonsInActiveConfig(sid, Math.round(n)).subscribe({
-      next: () => {
-        this.modalSaving = false;
-        this.closeLessonModal();
-        this.selectedRow = null;
-        this.success =
-          successMessage +
-          ' The active timetable configuration (Timetable → Configuration) was updated for this subject.';
-        this.load();
-        setTimeout(() => (this.success = ''), 5500);
-      },
-      error: (err) => {
-        this.modalSaving = false;
-        this.modalError =
-          err.error?.message ||
-          'Could not save periods per week to timetable configuration. The lesson link may still have changed — open Timetable → Configuration to set periods.';
-      },
-    });
+  private finalizeLessonSave(successMessage: string): void {
+    this.modalSaving = false;
+    this.closeLessonModal();
+    this.selectedRow = null;
+    this.success = successMessage;
+    this.load();
+    setTimeout(() => (this.success = ''), 5500);
   }
 
   saveLesson(): void {
@@ -474,16 +466,33 @@ export class TeacherSubjectContactComponent implements OnInit {
     this.modalSaving = true;
     this.modalError = '';
 
+    const n = Number(this.modalLessonsPerWeek);
+    if (!Number.isFinite(n) || n < 1 || n > 50) {
+      this.modalSaving = false;
+      this.modalError = 'Enter sessions per week between 1 and 50 (each counts ×1 or ×2 by period weight).';
+      return;
+    }
+
     if (this.lessonModalMode === 'new') {
       this.teacherService
-        .assignTeacherClassSubject(tid, this.modalClassId, this.modalSubjectId, this.modalIsDoublePeriod)
+        .assignTeacherClassSubject(
+          tid,
+          this.modalClassId,
+          this.modalSubjectId,
+          this.modalIsDoublePeriod,
+          Math.round(n),
+          null
+        )
         .subscribe({
-        next: () => this.mergeTimetableLessonsAndFinalize('New lesson added.'),
-        error: (err) => {
-          this.modalSaving = false;
-          this.modalError = err.error?.message || 'Could not add lesson.';
-        },
-      });
+          next: () =>
+            this.finalizeLessonSave(
+              'New lesson line added. Other classes and lines are unchanged.'
+            ),
+          error: (err) => {
+            this.modalSaving = false;
+            this.modalError = err.error?.message || 'Could not add lesson.';
+          },
+        });
       return;
     }
 
@@ -494,9 +503,17 @@ export class TeacherSubjectContactComponent implements OnInit {
     }
     if (old.classId === this.modalClassId && old.subjectId === this.modalSubjectId) {
       this.teacherService
-        .assignTeacherClassSubject(tid, this.modalClassId, this.modalSubjectId, this.modalIsDoublePeriod)
+        .assignTeacherClassSubject(
+          tid,
+          this.modalClassId,
+          this.modalSubjectId,
+          this.modalIsDoublePeriod,
+          Math.round(n),
+          this.modalContractLessonId || old.contractLessonId || null
+        )
         .subscribe({
-          next: () => this.mergeTimetableLessonsAndFinalize('Lesson details updated.'),
+          next: () =>
+            this.finalizeLessonSave('Lesson line updated. Other classes are unchanged.'),
           error: (err) => {
             this.modalSaving = false;
             this.modalError = err.error?.message || 'Could not update lesson.';
@@ -505,20 +522,34 @@ export class TeacherSubjectContactComponent implements OnInit {
       return;
     }
 
-    this.teacherService.unassignTeacherClassSubject(tid, old.classId, old.subjectId).subscribe({
+    const lineId = this.modalContractLessonId || old.contractLessonId || null;
+    if (!lineId) {
+      this.modalSaving = false;
+      this.modalError = 'Cannot move this row: missing lesson line id. Remove it and add a new lesson.';
+      return;
+    }
+
+    this.teacherService.unassignTeacherClassSubject(tid, undefined, undefined, lineId).subscribe({
       next: () => {
         this.teacherService
-          .assignTeacherClassSubject(tid, this.modalClassId, this.modalSubjectId, this.modalIsDoublePeriod)
+          .assignTeacherClassSubject(
+            tid,
+            this.modalClassId,
+            this.modalSubjectId,
+            this.modalIsDoublePeriod,
+            Math.round(n),
+            null
+          )
           .subscribe({
-          next: () => this.mergeTimetableLessonsAndFinalize('Lesson updated.'),
-          error: (err) => {
-            this.modalSaving = false;
-            this.modalError =
-              err.error?.message ||
-              'Previous lesson was removed but the new assignment failed. Add the lesson again with New lesson.';
-            this.load();
-          },
-        });
+            next: () => this.finalizeLessonSave('Lesson moved to the new class/subject.'),
+            error: (err) => {
+              this.modalSaving = false;
+              this.modalError =
+                err.error?.message ||
+                'Previous line was removed but the new assignment failed. Use New lesson to add again.';
+              this.load();
+            },
+          });
       },
       error: (err) => {
         this.modalSaving = false;
@@ -547,7 +578,14 @@ export class TeacherSubjectContactComponent implements OnInit {
     }
     this.loading = true;
     this.error = '';
-    this.teacherService.unassignTeacherClassSubject(tid, r.classId, r.subjectId!).subscribe({
+    this.teacherService
+      .unassignTeacherClassSubject(
+        tid,
+        r.classId,
+        r.subjectId!,
+        r.contractLessonId || null
+      )
+      .subscribe({
       next: () => {
         this.selectedRow = null;
         this.success = 'Lesson removed.';

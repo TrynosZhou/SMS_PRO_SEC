@@ -4,7 +4,7 @@ import { Teacher } from '../entities/Teacher';
 import { Class } from '../entities/Class';
 import { TimetableSlot } from '../entities/TimetableSlot';
 import { TimetableConfig } from '../entities/TimetableConfig';
-import { formatTeacherTitleName } from './teacherDisplayName';
+import { formatTeacherTitleName, formatTeacherTimetableHeaderLabel } from './teacherDisplayName';
 import { calculateTeachingPeriodTimes } from './timetablePeriodTimes';
 
 interface TimetablePDFData {
@@ -142,7 +142,12 @@ export function createTimetablePDF(data: TimetablePDFData): Promise<Buffer> {
       let subtitle = '';
       if (type === 'teacher' && teacher) {
         title = `${settings?.schoolName || 'School'}: ${data.versionName || 'Timetable'}`;
-        subtitle = `Teacher: ${teacher.firstName} ${teacher.lastName}`;
+        subtitle = `Teacher: ${formatTeacherTimetableHeaderLabel(
+          teacher.firstName,
+          teacher.lastName,
+          teacher.gender,
+          teacher.maritalStatus
+        )}`;
       } else if (type === 'class' && classEntity) {
         title = `${settings?.schoolName || 'School'}: ${data.versionName || 'Timetable'}`;
         subtitle = `Class: ${classEntity.name}`;
@@ -644,7 +649,12 @@ function createConsolidatedTimetableLayout(
     doc.rect(tableStartX, rowY, teacherColumnWidth, cellHeight).fillColor('#ecf0f1').fill();
     doc.rect(tableStartX, rowY, teacherColumnWidth, cellHeight).strokeColor(gridStroke).lineWidth(gridLine).stroke();
     doc.fontSize(6.5).font('Helvetica-Bold').fillColor('#2c3e50');
-    const teacherName = `${teacher.firstName} ${teacher.lastName}`.trim();
+    const teacherName = formatTeacherTimetableHeaderLabel(
+      teacher.firstName,
+      teacher.lastName,
+      teacher.gender,
+      teacher.maritalStatus
+    );
     doc.text(teacherName, tableStartX + 2, rowY + 2, {
       width: teacherColumnWidth - 4,
       align: 'left',

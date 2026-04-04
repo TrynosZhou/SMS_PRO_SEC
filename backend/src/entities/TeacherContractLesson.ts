@@ -1,12 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 
 /**
- * Per teacher–class–subject: whether each scheduled session counts as one period or two (double period) for load and generation.
+ * One "lesson line" on the contact sheet: same teacher–class–subject can have multiple rows
+ * (e.g. 4 single sessions + 1 double session). Each row has its own sessions/week and single/double weight.
  */
 @Entity('teacher_contract_lessons')
-@Unique(['teacherId', 'classId', 'subjectId'])
 @Index(['teacherId'])
 @Index(['classId'])
+@Index(['teacherId', 'classId', 'subjectId'])
 export class TeacherContractLesson {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -19,6 +20,10 @@ export class TeacherContractLesson {
 
   @Column({ type: 'uuid' })
   subjectId: string;
+
+  /** Weekly occurrences of this line (each counts as 1 or 2 teaching periods per isDoublePeriod). */
+  @Column({ type: 'int', default: 1 })
+  sessionsPerWeek: number;
 
   @Column({ type: 'boolean', default: false })
   isDoublePeriod: boolean;

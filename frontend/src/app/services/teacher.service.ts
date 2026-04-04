@@ -48,17 +48,44 @@ export class TeacherService {
     teacherId: string,
     classId: string,
     subjectId: string,
-    isDoublePeriod = false
+    isDoublePeriod = false,
+    sessionsPerWeek?: number,
+    contractLessonId?: string | null
   ): Observable<any> {
-    return this.http.post(`${this.apiUrl}/teachers/${teacherId}/class-subject`, {
+    const body: Record<string, unknown> = {
       classId,
       subjectId,
       isDoublePeriod,
-    });
+    };
+    if (sessionsPerWeek != null && Number.isFinite(Number(sessionsPerWeek))) {
+      body['sessionsPerWeek'] = Math.min(50, Math.max(1, Math.round(Number(sessionsPerWeek))));
+    }
+    if (contractLessonId) {
+      body['contractLessonId'] = contractLessonId;
+    }
+    return this.http.post(`${this.apiUrl}/teachers/${teacherId}/class-subject`, body);
   }
 
-  unassignTeacherClassSubject(teacherId: string, classId: string, subjectId: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/teachers/${teacherId}/class-subject/remove`, { classId, subjectId });
+  /**
+   * Remove one contract line (pass contractLessonId), or all lines for a class+subject pair (omit contractLessonId).
+   */
+  unassignTeacherClassSubject(
+    teacherId: string,
+    classId?: string | null,
+    subjectId?: string | null,
+    contractLessonId?: string | null
+  ): Observable<any> {
+    const body: Record<string, unknown> = {};
+    if (contractLessonId) {
+      body['contractLessonId'] = contractLessonId;
+    }
+    if (classId) {
+      body['classId'] = classId;
+    }
+    if (subjectId) {
+      body['subjectId'] = subjectId;
+    }
+    return this.http.post(`${this.apiUrl}/teachers/${teacherId}/class-subject/remove`, body);
   }
 
   getTeacherLoad(id: string): Observable<any> {

@@ -7,7 +7,10 @@ import {
   ClassPreviewDaySegment,
   TimetableConsolidatedPreviewSheet,
 } from './timetable-preview.models';
-import { formatClassTimetableTeacherLabel } from '../../utils/teacher-timetable-label.util';
+import {
+  formatClassTimetableTeacherLabel,
+  formatTeacherTimetableHeaderLabel,
+} from '../../utils/teacher-timetable-label.util';
 import { calculateTeachingPeriodTimesFromConfig } from '../../utils/timetable-period-times.util';
 
 export interface TimetablePreviewPrepared {
@@ -155,16 +158,20 @@ export class TimetablePreviewBuilderService {
     return `Class ${classId}`;
   }
 
-  /** First + last name from any slot that has the teacher relation loaded (preview/PDF headers). */
+  /** Titled full name for preview header / consolidated rows (Mr / Mrs / Miss / Ms + first + last). */
   private teacherFullNameFromSlots(slots: TimetableSlot[], teacherId: string): string {
     const hit = slots.find((s) => s.teacherId === teacherId && s.teacher);
     const t = hit?.teacher;
     if (t) {
-      const name = [t.firstName, t.lastName]
-        .map((p) => (p || '').trim())
-        .filter(Boolean)
-        .join(' ');
-      if (name) return name;
+      const titled = formatTeacherTimetableHeaderLabel(
+        t.firstName,
+        t.lastName,
+        t.gender,
+        t.maritalStatus
+      );
+      if (titled && titled !== 'Teacher') {
+        return titled;
+      }
     }
     return `Teacher ${teacherId}`;
   }

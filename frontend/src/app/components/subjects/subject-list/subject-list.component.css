@@ -286,16 +286,20 @@
 .skeleton-status { width: 50%; }
 .skeleton-actions { width: 70%; }
 
-/* Table Container */
+/* Table Container — horizontal scroll when columns exceed viewport */
 .table-container {
   background: white;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .modern-table {
   width: 100%;
+  min-width: 72rem;
   border-collapse: collapse;
 }
 
@@ -657,12 +661,8 @@
     width: 100%;
   }
 
-  .table-container {
-    overflow-x: auto;
-  }
-
   .modern-table {
-    min-width: 800px;
+    min-width: 64rem;
   }
 
   .action-buttons {
