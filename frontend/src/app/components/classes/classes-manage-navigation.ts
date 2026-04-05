@@ -11,7 +11,7 @@ export function classesManageNav(router: Router) {
     list: m ? '/classes/manage/classes' : '/classes',
     lists: m ? '/classes/manage/lists' : '/classes/lists',
     markRegister: m ? '/classes/manage/mark-register' : '/attendance/mark',
-    attendanceReports: m ? '/classes/manage/attendance-reports' : '/attendance/reports',
+    attendanceReports: m ? '/reports/manage/attendance-reports' : '/attendance/reports',
     addNew: m ? '/classes/manage/add-new' : '/classes/new',
     editSegments: (id: string) =>
       m ? ['/classes', 'manage', 'edit', id] : ['/classes', id, 'edit'],

@@ -37,6 +37,8 @@ import { ClassFormComponent } from './components/classes/class-form/class-form.c
 import { ClassListsComponent } from './components/classes/class-lists/class-lists.component';
 import { ClassesManageComponent } from './components/classes/classes-manage/classes-manage.component';
 import { ClassTeachersComponent } from './components/classes/class-teachers/class-teachers.component';
+import { ClassAssignComponent } from './components/classes/class-assign/class-assign.component';
+import { ClassSubjectsComponent } from './components/classes/class-subjects/class-subjects.component';
 import { SubjectListComponent } from './components/subjects/subject-list/subject-list.component';
 import { SubjectFormComponent } from './components/subjects/subject-form/subject-form.component';
 import { SubjectsManageComponent } from './components/subjects/subjects-manage/subjects-manage.component';
@@ -138,6 +140,8 @@ import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-prev
     ClassListsComponent,
     ClassesManageComponent,
     ClassTeachersComponent,
+    ClassAssignComponent,
+    ClassSubjectsComponent,
     SubjectListComponent,
     SubjectFormComponent,
     SubjectsManageComponent,

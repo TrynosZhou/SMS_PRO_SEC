@@ -23,6 +23,25 @@ export class ClassService {
     return this.http.get(`${this.apiUrl}/classes/${id}`);
   }
 
+  /** Teacher–subject lesson lines (timetable contract) for one class. */
+  getClassContractLessons(classId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/classes/${classId}/contract-lessons`);
+  }
+
+  /** Weekly period availability: cells[day][period] — 0 available, 1 conditional, 2 time off. */
+  getClassTimeOff(classId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/classes/${classId}/time-off`);
+  }
+
+  /** All classes at once — same shape as single-class time-off. */
+  getAllClassesTimeOffBulk(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/classes/time-off/bulk`);
+  }
+
+  saveClassTimeOff(classId: string, cells: number[][]): Observable<any> {
+    return this.http.put(`${this.apiUrl}/classes/${classId}/time-off`, { cells });
+  }
+
   createClass(classData: any): Observable<any> {
     return this.http.post(`${this.apiUrl}/classes`, classData);
   }

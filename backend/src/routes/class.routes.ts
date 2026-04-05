@@ -17,8 +17,78 @@ import { TeacherClass } from '../entities/TeacherClass';
 import { ensureDemoDataAvailable } from '../utils/demoDataEnsurer';
 import { linkClassToTeachers } from '../utils/teacherClassLinker';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
+import { loadContractLessonsForClass } from '../utils/teacherContractLesson';
+import { TimetableConfig } from '../entities/TimetableConfig';
 
 const router = Router();
+
+const DAY_SHORT: Record<string, string> = {
+  Monday: 'Mo',
+  Tuesday: 'Tu',
+  Wednesday: 'We',
+  Thursday: 'Th',
+  Friday: 'Fr',
+  Saturday: 'Sa',
+  Sunday: 'Su',
+};
+
+function shortDayLabel(full: string): string {
+  const t = String(full || '').trim();
+  return DAY_SHORT[t] || (t.length >= 2 ? t.slice(0, 2) : t || '?');
+}
+
+function makeEmptyTimeOffGrid(dayCount: number, periodCount: number): number[][] {
+  return Array.from({ length: dayCount }, () => Array.from({ length: periodCount }, () => 0));
+}
+
+function normalizeTimeOffCells(
+  stored: { cells?: number[][] } | null | undefined,
+  dayCount: number,
+  periodCount: number
+): number[][] {
+  const grid = makeEmptyTimeOffGrid(dayCount, periodCount);
+  const cells = stored?.cells;
+  if (!Array.isArray(cells)) {
+    return grid;
+  }
+  for (let d = 0; d < dayCount; d++) {
+    const row = cells[d];
+    if (!Array.isArray(row)) {
+      continue;
+    }
+    for (let p = 0; p < periodCount; p++) {
+      const v = Math.round(Number(row[p]));
+      grid[d][p] = v === 1 || v === 2 ? v : 0;
+    }
+  }
+  return grid;
+}
+
+async function getTimetableGridShape(): Promise<{
+  periodCount: number;
+  dayCount: number;
+  dayLabels: string[];
+  dayKeys: string[];
+}> {
+  if (!AppDataSource.isInitialized) {
+    await AppDataSource.initialize();
+  }
+  const configRepository = AppDataSource.getRepository(TimetableConfig);
+  const config = await configRepository.findOne({ where: { isActive: true } });
+  const periodCount = Math.max(1, Math.min(24, config?.periodsPerDay ?? 8));
+  const days =
+    Array.isArray(config?.daysOfWeek) && config!.daysOfWeek!.length > 0
+      ? config!.daysOfWeek!.map((x) => String(x))
+      : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const dayCount = Math.max(1, Math.min(7, days.length));
+  const slice = days.slice(0, dayCount);
+  return {
+    periodCount,
+    dayCount,
+    dayLabels: slice.map(shortDayLabel),
+    dayKeys: slice,
+  };
+}
 
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -159,6 +229,192 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   } catch (error: any) {
     console.error('[getClasses] Error:', error);
     console.error('[getClasses] Error stack:', error.stack);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+});
+
+/** All classes’ time-off grids in one response (for timetable manual UI). */
+router.get('/time-off/bulk', authenticate, async (req, res) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+    const shape = await getTimetableGridShape();
+    const classRepository = AppDataSource.getRepository(Class);
+    const entities = await classRepository.find({
+      select: ['id', 'timeOffGrid'],
+    });
+    const byClassId: Record<string, number[][]> = {};
+    for (const c of entities) {
+      byClassId[c.id] = normalizeTimeOffCells(c.timeOffGrid, shape.dayCount, shape.periodCount);
+    }
+    res.json({
+      dayKeys: shape.dayKeys,
+      dayLabels: shape.dayLabels,
+      periodCount: shape.periodCount,
+      dayCount: shape.dayCount,
+      byClassId,
+    });
+  } catch (error: any) {
+    console.error('[getClassesTimeOffBulk]', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+});
+
+router.get('/:id/contract-lessons', authenticate, async (req, res) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { id } = req.params;
+    const classRepository = AppDataSource.getRepository(Class);
+    const classEntity = await classRepository.findOne({ where: { id } });
+    if (!classEntity) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    const lines = await loadContractLessonsForClass(id);
+    if (lines.length === 0) {
+      return res.json({
+        classId: classEntity.id,
+        className: classEntity.name,
+        lessons: [],
+      });
+    }
+
+    const teacherIds = [...new Set(lines.map((l) => l.teacherId))];
+    const subjectIds = [...new Set(lines.map((l) => l.subjectId))];
+
+    const teacherRepository = AppDataSource.getRepository(Teacher);
+    const subjectRepository = AppDataSource.getRepository(Subject);
+
+    const teachers = teacherIds.length
+      ? await teacherRepository.find({ where: { id: In(teacherIds) } })
+      : [];
+    const subjects = subjectIds.length
+      ? await subjectRepository.find({ where: { id: In(subjectIds) } })
+      : [];
+
+    const teacherName = (t: Teacher): string => `${t.firstName || ''} ${t.lastName || ''}`.trim() || t.teacherId;
+
+    const tMap = new Map(teachers.map((t) => [t.id, t] as const));
+    const sMap = new Map(subjects.map((s) => [s.id, s] as const));
+
+    const lessons = lines.map((line) => {
+      const t = tMap.get(line.teacherId);
+      const s = sMap.get(line.subjectId);
+      return {
+        contractLessonId: line.id,
+        teacherId: line.teacherId,
+        teacherName: t ? teacherName(t) : 'Unknown',
+        subjectId: line.subjectId,
+        subjectName: s?.name ?? 'Unknown',
+        subjectCode: s?.code ?? null,
+        classId: line.classId,
+        className: classEntity.name,
+        sessionsPerWeek: line.sessionsPerWeek,
+        isDoublePeriod: line.isDoublePeriod === true,
+        lessonLength: line.isDoublePeriod ? 2 : 1,
+        classScope: (line as any).classScope ?? 'entire',
+      };
+    });
+
+    res.json({
+      classId: classEntity.id,
+      className: classEntity.name,
+      lessons,
+    });
+  } catch (error: any) {
+    console.error('[getClassContractLessons]', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+});
+
+router.get('/:id/time-off', authenticate, async (req, res) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+    const { id } = req.params;
+    const classRepository = AppDataSource.getRepository(Class);
+    const classEntity = await classRepository.findOne({ where: { id } });
+    if (!classEntity) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+    const shape = await getTimetableGridShape();
+    const cells = normalizeTimeOffCells(classEntity.timeOffGrid, shape.dayCount, shape.periodCount);
+    res.json({
+      classId: classEntity.id,
+      className: classEntity.name,
+      periodCount: shape.periodCount,
+      dayCount: shape.dayCount,
+      dayLabels: shape.dayLabels,
+      dayKeys: shape.dayKeys,
+      periodLabels: Array.from({ length: shape.periodCount }, (_, i) => String(i)),
+      cells,
+    });
+  } catch (error: any) {
+    console.error('[getClassTimeOff]', error);
+    res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
+  }
+});
+
+router.put('/:id/time-off', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DEMO_USER), async (req, res) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+    const { id } = req.params;
+    const classRepository = AppDataSource.getRepository(Class);
+    const classEntity = await classRepository.findOne({ where: { id } });
+    if (!classEntity) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+    const shape = await getTimetableGridShape();
+    const rawCells = req.body?.cells;
+    if (!Array.isArray(rawCells)) {
+      return res.status(400).json({ message: 'cells must be a 2D number array' });
+    }
+    if (rawCells.length !== shape.dayCount) {
+      return res.status(400).json({
+        message: `cells must have ${shape.dayCount} rows (school days).`,
+      });
+    }
+    const normalized: number[][] = [];
+    for (let d = 0; d < shape.dayCount; d++) {
+      const rowIn = rawCells[d];
+      if (!Array.isArray(rowIn) || rowIn.length !== shape.periodCount) {
+        return res.status(400).json({
+          message: `Row ${d} must have ${shape.periodCount} period values.`,
+        });
+      }
+      const row: number[] = [];
+      for (let p = 0; p < shape.periodCount; p++) {
+        const v = Math.round(Number(rowIn[p]));
+        row.push(v === 1 || v === 2 ? v : 0);
+      }
+      normalized.push(row);
+    }
+    classEntity.timeOffGrid = {
+      periodCount: shape.periodCount,
+      dayCount: shape.dayCount,
+      cells: normalized,
+    };
+    await classRepository.save(classEntity);
+    res.json({
+      message: 'Class time off saved.',
+      classId: classEntity.id,
+      className: classEntity.name,
+      periodCount: shape.periodCount,
+      dayCount: shape.dayCount,
+      dayLabels: shape.dayLabels,
+      dayKeys: shape.dayKeys,
+      periodLabels: Array.from({ length: shape.periodCount }, (_, i) => String(i)),
+      cells: normalized,
+    });
+  } catch (error: any) {
+    console.error('[putClassTimeOff]', error);
     res.status(500).json({ message: 'Server error', error: error.message || 'Unknown error' });
   }
 });

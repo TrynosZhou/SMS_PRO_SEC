@@ -1,7 +1,7 @@
 <div class="rm-wrap">
   <header class="rm-header">
     <h1 class="rm-title">Reports</h1>
-    <p class="rm-sub">Transport services and student ID card reports</p>
+    <p class="rm-sub">Transport, ID cards, and attendance reports</p>
   </header>
 
   <nav class="rm-tabs" aria-label="Reports sections">
@@ -12,6 +12,15 @@
     <a routerLink="/reports/manage/student-id-cards" routerLinkActive="active" class="rm-tab">
       <span class="rm-tab-ico" aria-hidden="true">🪪</span>
       Student ID Cards
+    </a>
+    <a
+      *ngIf="showAttendanceReportsTab()"
+      routerLink="/reports/manage/attendance-reports"
+      routerLinkActive="active"
+      class="rm-tab"
+    >
+      <span class="rm-tab-ico" aria-hidden="true">📊</span>
+      Attendance Reports
     </a>
   </nav>
 

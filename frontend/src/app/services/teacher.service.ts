@@ -50,12 +50,14 @@ export class TeacherService {
     subjectId: string,
     isDoublePeriod = false,
     sessionsPerWeek?: number,
-    contractLessonId?: string | null
+    contractLessonId?: string | null,
+    classScope?: string
   ): Observable<any> {
     const body: Record<string, unknown> = {
       classId,
       subjectId,
       isDoublePeriod,
+      classScope: classScope || 'entire',
     };
     if (sessionsPerWeek != null && Number.isFinite(Number(sessionsPerWeek))) {
       body['sessionsPerWeek'] = Math.min(50, Math.max(1, Math.round(Number(sessionsPerWeek))));

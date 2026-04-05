@@ -38,6 +38,8 @@ import { ClassListComponent } from './components/classes/class-list/class-list.c
 import { ClassFormComponent } from './components/classes/class-form/class-form.component';
 import { ClassListsComponent } from './components/classes/class-lists/class-lists.component';
 import { ClassTeachersComponent } from './components/classes/class-teachers/class-teachers.component';
+import { ClassAssignComponent } from './components/classes/class-assign/class-assign.component';
+import { ClassSubjectsComponent } from './components/classes/class-subjects/class-subjects.component';
 import { ClassesManageComponent } from './components/classes/classes-manage/classes-manage.component';
 import { SubjectListComponent } from './components/subjects/subject-list/subject-list.component';
 import { SubjectFormComponent } from './components/subjects/subject-form/subject-form.component';
@@ -328,7 +330,8 @@ const routes: Routes = [
       },
       { path: 'lists', component: ClassListsComponent, canActivate: [AuthGuard] },
       { path: 'mark-register', component: MarkAttendanceComponent, canActivate: [AuthGuard] },
-      { path: 'attendance-reports', component: AttendanceReportsComponent, canActivate: [AuthGuard] },
+      { path: 'assign-teachers', component: ClassAssignComponent, canActivate: [AuthGuard] },
+      { path: 'assign-teachers/:classId/lessons', component: ClassSubjectsComponent, canActivate: [AuthGuard] },
       { path: 'add-new', component: ClassFormComponent, canActivate: [AuthGuard] },
       { path: 'edit/:id', component: ClassFormComponent, canActivate: [AuthGuard] },
     ],
@@ -374,6 +377,7 @@ const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'transport-services' },
       { path: 'transport-services', component: TransportServicesReportComponent, canActivate: [AuthGuard] },
       { path: 'student-id-cards', component: StudentIdCardsComponent, canActivate: [AuthGuard] },
+      { path: 'attendance-reports', component: AttendanceReportsComponent, canActivate: [AuthGuard] },
     ],
   },
   { path: 'report_manage', redirectTo: 'reports/manage', pathMatch: 'full' },

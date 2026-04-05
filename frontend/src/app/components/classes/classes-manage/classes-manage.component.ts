@@ -49,4 +49,9 @@ export class ClassesManageComponent {
   showClassTeachersTab(): boolean {
     return this.showClassListsTab();
   }
+
+  /** Timetable-style teacher ↔ subject assignments per class. */
+  showAssignTeachersTab(): boolean {
+    return this.showManageClassesTab();
+  }
 }

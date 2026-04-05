@@ -52,5 +52,12 @@ export class Class {
   @ManyToMany(() => Subject, subject => subject.classes)
   @JoinTable()
   subjects: Subject[];
+
+  /**
+   * Weekly availability for timetable generation: rows = school days, columns = period indices (0-based).
+   * Cell values: 0 = available, 1 = conditional, 2 = not available (time off).
+   */
+  @Column({ type: 'json', nullable: true })
+  timeOffGrid: { periodCount?: number; dayCount?: number; cells: number[][] } | null;
 }
 

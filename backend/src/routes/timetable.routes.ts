@@ -11,7 +11,8 @@ import {
   activateTimetableVersion,
   generateTeacherTimetablePDF,
   generateClassTimetablePDF,
-  generateConsolidatedTimetablePDF
+  generateConsolidatedTimetablePDF,
+  clearAllTeachingData
 } from '../controllers/timetable.controller';
 import { authenticate } from '../middleware/auth';
 
@@ -33,6 +34,9 @@ router.post('/versions/:versionId/activate', authenticate, activateTimetableVers
 router.get('/versions/:versionId/slots', authenticate, getTimetableSlots);
 router.put('/slots/:slotId', authenticate, updateTimetableSlot);
 router.delete('/slots/:slotId', authenticate, deleteTimetableSlot);
+
+// Admin reset — must come after /slots/:slotId so it doesn't shadow it
+router.delete('/teaching-data', authenticate, clearAllTeachingData);
 
 // PDF generation routes
 router.get('/versions/:versionId/teachers/:teacherId/pdf', authenticate, generateTeacherTimetablePDF);

@@ -80,6 +80,9 @@ async function ensureTeacherContractLessonsTable(): Promise<void> {
     await qr.query(
       `ALTER TABLE "teacher_contract_lessons" ALTER COLUMN "sessionsPerWeek" SET DEFAULT 1`
     );
+    await qr.query(
+      `ALTER TABLE "teacher_contract_lessons" ADD COLUMN IF NOT EXISTS "classScope" varchar(20) NOT NULL DEFAULT 'entire'`
+    );
     // Drop legacy unique triple so multiple lesson lines per class+subject are allowed
     await qr.query(
       `ALTER TABLE "teacher_contract_lessons" DROP CONSTRAINT IF EXISTS "UQ_teacher_contract_lessons_triple"`
@@ -102,12 +105,20 @@ async function ensureTeacherContractLessonsTable(): Promise<void> {
   }
 }
 
+const VALID_SCOPES = new Set(['entire', 'group1', 'group2', 'boys', 'girls']);
+
+function normaliseScope(raw: unknown): string {
+  const s = String(raw ?? '').trim().toLowerCase();
+  return VALID_SCOPES.has(s) ? s : 'entire';
+}
+
 export async function insertTeacherContractLesson(
   teacherId: string,
   classId: string,
   subjectId: string,
   isDoublePeriod: boolean,
-  sessionsPerWeek: number
+  sessionsPerWeek: number,
+  classScope?: string
 ): Promise<TeacherContractLesson> {
   await ensureTeacherContractLessonsTable();
   const repo = AppDataSource.getRepository(TeacherContractLesson);
@@ -118,6 +129,7 @@ export async function insertTeacherContractLesson(
     subjectId,
     isDoublePeriod,
     sessionsPerWeek: spw,
+    classScope: normaliseScope(classScope),
   });
   return repo.save(row);
 }
@@ -125,7 +137,7 @@ export async function insertTeacherContractLesson(
 export async function updateTeacherContractLesson(
   id: string,
   teacherId: string,
-  patch: { isDoublePeriod?: boolean; sessionsPerWeek?: number }
+  patch: { isDoublePeriod?: boolean; sessionsPerWeek?: number; classScope?: string }
 ): Promise<TeacherContractLesson | null> {
   await ensureTeacherContractLessonsTable();
   const repo = AppDataSource.getRepository(TeacherContractLesson);
@@ -138,6 +150,9 @@ export async function updateTeacherContractLesson(
   }
   if (patch.sessionsPerWeek !== undefined) {
     row.sessionsPerWeek = Math.min(50, Math.max(1, Math.round(patch.sessionsPerWeek)));
+  }
+  if (patch.classScope !== undefined) {
+    row.classScope = normaliseScope(patch.classScope);
   }
   return repo.save(row);
 }
@@ -206,6 +221,21 @@ export async function loadContractLessonsForTeacher(teacherId: string): Promise<
     });
   } catch (e: any) {
     console.warn('[TeacherContractLesson] loadContractLessonsForTeacher:', e?.message || e);
+    return [];
+  }
+}
+
+/** All contract lines for one class (assign-teachers / lessons-for-class UI). */
+export async function loadContractLessonsForClass(classId: string): Promise<TeacherContractLesson[]> {
+  try {
+    await ensureTeacherContractLessonsTable();
+    const repo = AppDataSource.getRepository(TeacherContractLesson);
+    return repo.find({
+      where: { classId: String(classId) },
+      order: { subjectId: 'ASC', teacherId: 'ASC', id: 'ASC' },
+    });
+  } catch (e: any) {
+    console.warn('[TeacherContractLesson] loadContractLessonsForClass:', e?.message || e);
     return [];
   }
 }

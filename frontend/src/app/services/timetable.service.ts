@@ -119,7 +119,10 @@ export class TimetableService {
     return this.http.get<TimetableSlot[]>(url);
   }
 
-  updateSlot(slotId: string, updates: Partial<TimetableSlot>): Observable<{ message: string; slot: TimetableSlot }> {
+  updateSlot(
+    slotId: string,
+    updates: Partial<TimetableSlot> & { ignoreCollisions?: boolean }
+  ): Observable<{ message: string; slot: TimetableSlot }> {
     return this.http.put<{ message: string; slot: TimetableSlot }>(`${this.apiUrl}/slots/${slotId}`, updates);
   }
 
@@ -143,6 +146,11 @@ export class TimetableService {
     return this.http.get(`${this.apiUrl}/versions/${versionId}/consolidated/pdf`, {
       responseType: 'blob'
     });
+  }
+
+  /** Admin only: wipes all teaching loads and class–teacher assignments. */
+  clearAllTeachingData(): Observable<{ message: string; cleared: string[] }> {
+    return this.http.delete<{ message: string; cleared: string[] }>(`${this.apiUrl}/teaching-data`);
   }
 }
 

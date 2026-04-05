@@ -26,6 +26,8 @@ import { ensureTeacherMaritalStatusColumn } from './utils/ensureTeacherMaritalSt
 import { ensureSubjectShortTitleColumn } from './utils/ensureSubjectShortTitleColumn';
 import { ensureSchoolMottoColumns } from './utils/ensureSchoolMottoColumns';
 import { ensureMessageAttachmentUrlColumn } from './utils/ensureMessageAttachmentUrlColumn';
+import { ensureClassTimeOffGridColumn } from './utils/ensureClassTimeOffGridColumn';
+import { ensureTimetableSlotNoUniqueCollision } from './utils/ensureTimetableSlotNoUniqueCollision';
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -301,6 +303,18 @@ async function bootstrap() {
       await ensureMessageAttachmentUrlColumn(AppDataSource);
     } catch (maErr: any) {
       console.warn('[Server] ensureMessageAttachmentUrlColumn:', maErr?.message || maErr);
+    }
+
+    try {
+      await ensureClassTimeOffGridColumn(AppDataSource);
+    } catch (togErr: any) {
+      console.warn('[Server] ensureClassTimeOffGridColumn:', togErr?.message || togErr);
+    }
+
+    try {
+      await ensureTimetableSlotNoUniqueCollision(AppDataSource);
+    } catch (ttErr: any) {
+      console.warn('[Server] ensureTimetableSlotNoUniqueCollision:', ttErr?.message || ttErr);
     }
 
     // Ensure existing students use the student ID prefix from settings (one-time alignment per boot)

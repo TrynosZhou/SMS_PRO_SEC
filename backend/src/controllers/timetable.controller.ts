@@ -8,7 +8,10 @@ import { Class } from '../entities/Class';
 import { Subject } from '../entities/Subject';
 import { Settings } from '../entities/Settings';
 import { AuthRequest } from '../middleware/auth';
+import { UserRole } from '../entities/User';
 import { In, Not } from 'typeorm';
+import { TeacherClass } from '../entities/TeacherClass';
+import { TeacherContractLesson } from '../entities/TeacherContractLesson';
 import { createTimetablePDF } from '../utils/timetablePdfGenerator';
 import {
   calculateTeachingPeriodTimes,
@@ -992,6 +995,10 @@ export const updateTimetableSlot = async (req: AuthRequest, res: Response) => {
 
     const { slotId } = req.params;
     const { teacherId, classId, subjectId, dayOfWeek, periodNumber, room, isLocked } = req.body;
+    const ignoreCollisions =
+      req.body?.ignoreCollisions === true ||
+      req.body?.ignoreCollisions === 1 ||
+      String(req.body?.ignoreCollisions || '').toLowerCase() === 'true';
 
     const slotRepository = AppDataSource.getRepository(TimetableSlot);
     const slot = await slotRepository.findOne({ where: { id: slotId } });
@@ -1032,8 +1039,20 @@ export const updateTimetableSlot = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Check for conflicts if changing teacher, class, day, or period
-    if (positionChanging) {
+    const roleNorm = String(req.user?.role ?? '').toLowerCase();
+    const canIgnoreCollisions =
+      roleNorm === UserRole.ADMIN ||
+      roleNorm === UserRole.SUPERADMIN ||
+      roleNorm === UserRole.DEMO_USER;
+
+    if (ignoreCollisions && !canIgnoreCollisions) {
+      return res.status(403).json({
+        message: 'Only administrators can ignore timetable collisions.',
+      });
+    }
+
+    /** Unless ignoreCollisions is set (admin only), enforce: one teacher × one period; one class × one period. */
+    if (positionChanging && !ignoreCollisions) {
       const conflicts = await slotRepository.find({
         where: [
           {
@@ -1056,7 +1075,8 @@ export const updateTimetableSlot = async (req: AuthRequest, res: Response) => {
       if (conflicts.length > 0) {
         return res.status(400).json({
           message: 'Conflict detected. This slot would create a scheduling conflict.',
-          conflicts
+          conflicts,
+          code: 'TIMETABLE_CONFLICT',
         });
       }
 
@@ -1073,6 +1093,7 @@ export const updateTimetableSlot = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({
           message:
             'A teacher cannot meet the same class more than once per day unless it is a double lesson. Double lessons must be two consecutive periods.',
+          code: 'TIMETABLE_TEACHER_CLASS_DAY',
         });
       }
     }
@@ -1331,6 +1352,72 @@ export const generateConsolidatedTimetablePDF = async (req: AuthRequest, res: Re
       message: 'Failed to generate consolidated timetable PDF', 
       error: error.message,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+/**
+ * DELETE /api/timetable/teaching-data
+ * Clears ALL teaching loads (teacher_contract_lessons) AND all class–teacher assignments
+ * (teacher_classes junction + TypeORM M2M join table + classes.classTeacherId).
+ * Admin / superadmin only. Wrapped in a transaction so either everything clears or nothing does.
+ */
+export const clearAllTeachingData = async (req: AuthRequest, res: Response) => {
+  try {
+    const role = (req as any).user?.role ?? '';
+    if (!['admin', 'superadmin'].includes(role)) {
+      return res.status(403).json({ message: 'Only administrators can perform this action.' });
+    }
+
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const qr = AppDataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    const cleared: string[] = [];
+    try {
+      // 1. All teaching load lines
+      const contractResult = await qr.query(`DELETE FROM "teacher_contract_lessons"`);
+      cleared.push(`teacher_contract_lessons (${contractResult[1] ?? '?'} rows)`);
+
+      // 2. Explicit junction table
+      const junctionResult = await qr.query(`DELETE FROM "teacher_classes"`);
+      cleared.push(`teacher_classes (${junctionResult[1] ?? '?'} rows)`);
+
+      // 3. TypeORM-managed M2M join table — resolve name from metadata at runtime
+      const teacherMeta = AppDataSource.getMetadata(Teacher);
+      const classesRelation = teacherMeta.relations.find((r) => r.propertyName === 'classes');
+      const m2mTable = classesRelation?.junctionEntityMetadata?.tableName;
+      if (m2mTable) {
+        await qr.query(`DELETE FROM "${m2mTable}"`);
+        cleared.push(`${m2mTable} (M2M)`);
+      }
+
+      // 4. Nullify class teacher on every class
+      await qr.query(`UPDATE "classes" SET "classTeacherId" = NULL`);
+      cleared.push('classes.classTeacherId → NULL');
+
+      await qr.commitTransaction();
+      console.log('[clearAllTeachingData] cleared:', cleared.join(', '));
+
+      res.json({
+        message: 'All teaching loads and class–teacher assignments have been cleared successfully.',
+        cleared,
+      });
+    } catch (innerErr: any) {
+      await qr.rollbackTransaction();
+      throw innerErr;
+    } finally {
+      await qr.release();
+    }
+  } catch (error: any) {
+    console.error('[clearAllTeachingData]', error);
+    res.status(500).json({
+      message: 'Failed to clear teaching data.',
+      error: error?.message || 'Unknown error',
     });
   }
 };

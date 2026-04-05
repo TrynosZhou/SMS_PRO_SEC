@@ -976,6 +976,7 @@ export const assignTeacherClassSubject = async (req: AuthRequest, res: Response)
     const isDoublePeriod = parseRequestDoublePeriod(req.body);
     const sessionsPerWeek = parseRequestSessionsPerWeek(req.body);
     const contractLessonIdRaw = req.body.contractLessonId;
+    const classScope: string = String(req.body.classScope ?? 'entire').trim() || 'entire';
     const contractLessonId =
       contractLessonIdRaw != null && String(contractLessonIdRaw).trim() !== ''
         ? String(contractLessonIdRaw).trim()
@@ -1064,6 +1065,7 @@ export const assignTeacherClassSubject = async (req: AuthRequest, res: Response)
         const updatedLine = await updateTeacherContractLesson(contractLessonId, teacherRow.id, {
           isDoublePeriod,
           sessionsPerWeek,
+          classScope,
         });
         if (!updatedLine) {
           return res.status(404).json({ message: 'Contract lesson line not found for this teacher.' });
@@ -1074,7 +1076,8 @@ export const assignTeacherClassSubject = async (req: AuthRequest, res: Response)
           classEntity.id,
           subjectEntity.id,
           isDoublePeriod,
-          sessionsPerWeek
+          sessionsPerWeek,
+          classScope
         );
       }
     } catch (contractErr: any) {

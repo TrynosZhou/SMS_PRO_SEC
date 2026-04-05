@@ -6,8 +6,9 @@ import { TimetableVersion } from './TimetableVersion';
 
 @Entity('timetable_slots')
 @Index(['versionId', 'dayOfWeek', 'periodNumber'])
-@Index(['versionId', 'teacherId', 'dayOfWeek', 'periodNumber'], { unique: true })
-@Index(['versionId', 'classId', 'dayOfWeek', 'periodNumber'], { unique: true })
+/** Non-unique: administrators may allow duplicate teacher or class in the same period (ignore collisions). */
+@Index(['versionId', 'teacherId', 'dayOfWeek', 'periodNumber'])
+@Index(['versionId', 'classId', 'dayOfWeek', 'periodNumber'])
 export class TimetableSlot {
   @PrimaryGeneratedColumn('uuid')
   id: string;

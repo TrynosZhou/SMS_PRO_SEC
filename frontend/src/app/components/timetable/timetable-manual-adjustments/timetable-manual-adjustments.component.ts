@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, HostListener, OnInit } from '@angular/core';
 import { forkJoin } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, map } from 'rxjs/operators';
 import { of } from 'rxjs';
 import {
   TimetableService,
@@ -12,6 +12,7 @@ import { TeacherService } from '../../../services/teacher.service';
 import { ClassService } from '../../../services/class.service';
 import { TimetablePreviewBuilderService } from '../timetable-preview-builder.service';
 import { formatClassTimetableTeacherLabel } from '../../../utils/teacher-timetable-label.util';
+import { AuthService } from '../../../services/auth.service';
 
 /** Class-based colors (dense timetable style — same class keeps the same color). */
 const CLASS_COLOR_PALETTE = [
@@ -30,14 +31,52 @@ const CLASS_COLOR_PALETTE = [
   '#4338ca',
   '#9f1239',
   '#047857',
+  '#1d4ed8',
+  '#15803d',
+  '#c2410c',
+  '#7e22ce',
 ];
 
-function classColorForId(classId: string): string {
+/** Teacher-row colors in "By teacher" view (separate palette from classes). */
+const TEACHER_COLOR_PALETTE = [
+  '#22c55e',
+  '#15803d',
+  '#ca8a04',
+  '#64748b',
+  '#eab308',
+  '#0f766e',
+  '#7c3aed',
+  '#ea580c',
+  '#db2777',
+  '#2563eb',
+  '#65a30d',
+  '#b45309',
+  '#0e7490',
+  '#4338ca',
+  '#be123c',
+  '#047857',
+  '#92400e',
+  '#4f46e5',
+  '#0d9488',
+  '#a21caf',
+];
+
+function hashToPaletteIndex(id: string): number {
   let h = 0;
-  for (let i = 0; i < classId.length; i++) {
-    h = classId.charCodeAt(i) + ((h << 5) - h);
+  for (let i = 0; i < id.length; i++) {
+    h = id.charCodeAt(i) + ((h << 5) - h);
   }
-  return CLASS_COLOR_PALETTE[Math.abs(h) % CLASS_COLOR_PALETTE.length];
+  return Math.abs(h);
+}
+
+function classColorForId(classId: string): string {
+  const key = classId || '—';
+  return CLASS_COLOR_PALETTE[hashToPaletteIndex(key) % CLASS_COLOR_PALETTE.length];
+}
+
+function teacherColorForId(teacherId: string): string {
+  const key = teacherId || '—';
+  return TEACHER_COLOR_PALETTE[hashToPaletteIndex(key) % TEACHER_COLOR_PALETTE.length];
 }
 
 function abbrevTeacherRowLabel(fullName: string): string {
@@ -53,6 +92,21 @@ function abbrevTeacherRowLabel(fullName: string): string {
   const last = parts[parts.length - 1][0] || '';
   return (first + last).toUpperCase();
 }
+
+/** Map short / alternate day labels to the same names stored in timetable config and slots. */
+const DAY_ALIAS_TO_CANONICAL: Record<string, string> = {
+  mon: 'Monday',
+  tue: 'Tuesday',
+  tues: 'Tuesday',
+  wed: 'Wednesday',
+  weds: 'Wednesday',
+  thu: 'Thursday',
+  thur: 'Thursday',
+  thurs: 'Thursday',
+  fri: 'Friday',
+  sat: 'Saturday',
+  sun: 'Sunday',
+};
 
 function abbrevClassRowLabel(className: string): string {
   const t = className.trim();
@@ -91,6 +145,16 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
   success: string | null = null;
   conflictMessage: string | null = null;
 
+  /** When set, user must confirm "Ignore collisions" before save (admin only). */
+  collisionPrompt: {
+    slot: TimetableSlot;
+    teacherId: string;
+    classId: string;
+    day: string;
+    period: number;
+    lines: string[];
+  } | null = null;
+
   readonly dayOrder = [
     'Monday',
     'Tuesday',
@@ -109,17 +173,29 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
   /** Cached grid — avoids *ngFor destroying rows every CD (breaks pick / lift). */
   gridRows: { id: string; name: string; rowLabel: string }[] = [];
   gridDays: string[] = [];
+  /**
+   * Class time-off grids from `/classes/time-off/bulk` — rows follow school `dayKeys`,
+   * columns are period indices 0..n-1 (aligned with period numbers 1..n on this page).
+   */
+  timeOffDayKeys: string[] = [];
+  private timeOffByClassId = new Map<string, number[][]>();
   /** True after mousedown on card so the following click does not double-toggle. */
   private liftHandledByMouseDown = false;
   /** Right-click menu for Lock / Unlock */
   contextMenu: { x: number; y: number; slot: TimetableSlot } | null = null;
+
+
+  /** Pre-built lookup maps for O(1) cell slot access — rebuilt in buildSlotIndex(). */
+  private slotTeacherIdx = new Map<string, Map<string, Map<number, TimetableSlot[]>>>();
+  private slotClassIdx   = new Map<string, Map<string, Map<number, TimetableSlot[]>>>();
 
   constructor(
     private timetableService: TimetableService,
     private teacherService: TeacherService,
     private classService: ClassService,
     private cdr: ChangeDetectorRef,
-    private previewBuilder: TimetablePreviewBuilderService
+    private previewBuilder: TimetablePreviewBuilderService,
+    private authService: AuthService
   ) {}
 
   @HostListener('document:click', ['$event'])
@@ -165,17 +241,6 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.teacherService.getTeachers().subscribe({
-      next: (t) => (this.teachers = Array.isArray(t) ? t : []),
-      error: () => (this.teachers = []),
-    });
-    this.classService.getClasses().subscribe({
-      next: (c) => {
-        const list = Array.isArray(c) ? c : c?.data || [];
-        this.classes = this.classService.sortClasses(list);
-      },
-      error: () => (this.classes = []),
-    });
     this.loadVersions();
   }
 
@@ -190,6 +255,7 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
           this.refreshData();
         } else {
           this.loading = false;
+          this.loadSupportData();
         }
       },
       error: (err) => {
@@ -202,6 +268,7 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
 
   onVersionChange(): void {
     this.conflictMessage = null;
+    this.collisionPrompt = null;
     this.liftedSlotId = null;
     this.dragOverKey = null;
     this.refreshData();
@@ -219,52 +286,146 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     this.refreshGridLayout();
   }
 
+  /** Load teachers + classes for filter dropdowns (non-blocking). */
+  private loadSupportData(): void {
+    this.teacherService
+      .getTeachers()
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        const list = Array.isArray(res) ? res : ((res as any)?.data || []);
+        this.teachers = list;
+        if (!this.loading) {
+          this.refreshGridLayout();
+          this.cdr.detectChanges();
+        }
+      });
+    this.classService
+      .getClasses()
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        const list = Array.isArray(res) ? res : ((res as any)?.data || []);
+        this.classes = this.classService.sortClasses(list);
+        if (!this.loading) {
+          this.refreshGridLayout();
+          this.cdr.detectChanges();
+        }
+      });
+    this.classService
+      .getAllClassesTimeOffBulk()
+      .pipe(catchError(() => of(null)))
+      .subscribe((bulk) => {
+        this.applyTimeOffBulk(bulk);
+        this.cdr.detectChanges();
+      });
+  }
+
   refreshData(): void {
     if (!this.selectedVersionId) {
       return;
     }
     this.loading = true;
     this.error = null;
+
+    /* Load slots and config — the only things needed to draw the grid. */
     forkJoin({
       slots: this.timetableService.getSlots(this.selectedVersionId),
       config: this.timetableService.getConfig().pipe(catchError(() => of(null as TimetableConfig | null))),
     }).subscribe({
       next: ({ slots, config }) => {
         this.config = config;
-        this.allSlots = (slots || []).filter((s) => !s.isBreak);
+
+        /* Normalize raw slots: always an array, IDs trimmed, numbers coerced. */
+        const raw: any[] = Array.isArray(slots) ? slots : ((slots as any)?.data || []);
+        this.allSlots = raw
+          .filter((s) => {
+            const isBreak = s?.isBreak;
+            return !(isBreak === true || isBreak === 1 || isBreak === 'true' || isBreak === '1');
+          })
+          .map((s) => ({
+            ...s,
+            teacherId: String(s.teacherId || s.teacher?.id || '').trim(),
+            classId:   String(s.classId   || s.class?.id   || '').trim(),
+            dayOfWeek:    this.canonicalDay(String(s.dayOfWeek    || '').trim()),
+            periodNumber: Number(s.periodNumber) || 0,
+          }));
+
+        console.log('[ManualAdj] slots loaded:', this.allSlots.length,
+          'sample:', this.allSlots[0]?.teacherId, this.allSlots[0]?.dayOfWeek, this.allSlots[0]?.periodNumber);
+
+        this.buildSlotIndex();
         this.buildPeriods();
         this.refreshGridLayout();
         this.loading = false;
+        this.cdr.detectChanges();
+        this.loadSupportData();
       },
       error: (err) => {
-        console.error(err);
-        this.error = 'Failed to load timetable slots';
+        console.error('[ManualAdj] forkJoin error:', err);
+        this.error = 'Failed to load timetable data — ' + (err?.message || err?.status || 'network error');
         this.loading = false;
+        this.cdr.detectChanges();
+        this.loadSupportData();
       },
     });
   }
 
-  private buildPeriods(): void {
-    if (this.config?.periodsPerDay && this.config.periodsPerDay > 0) {
-      this.periods = Array.from({ length: this.config.periodsPerDay }, (_, i) => i + 1);
-      return;
-    }
-    const set = new Set<number>();
-    this.allSlots.forEach((s) => set.add(s.periodNumber));
-    this.periods = Array.from(set).sort((a, b) => a - b);
-    if (this.periods.length === 0) {
-      this.periods = [1, 2, 3, 4, 5, 6, 7, 8];
+  /** Pre-build teacher-keyed and class-keyed lookup maps for O(1) cell access. */
+  private buildSlotIndex(): void {
+    this.slotTeacherIdx.clear();
+    this.slotClassIdx.clear();
+    for (const s of this.allSlots) {
+      const tid = s.teacherId;
+      const cid = s.classId;
+      const day = s.dayOfWeek;        /* already canonicalized in refreshData */
+      const p   = s.periodNumber;     /* already coerced to Number */
+
+      if (tid) {
+        if (!this.slotTeacherIdx.has(tid)) { this.slotTeacherIdx.set(tid, new Map()); }
+        const dm = this.slotTeacherIdx.get(tid)!;
+        if (!dm.has(day)) { dm.set(day, new Map()); }
+        const pm = dm.get(day)!;
+        if (!pm.has(p)) { pm.set(p, []); }
+        pm.get(p)!.push(s);
+      }
+      if (cid) {
+        if (!this.slotClassIdx.has(cid)) { this.slotClassIdx.set(cid, new Map()); }
+        const dm = this.slotClassIdx.get(cid)!;
+        if (!dm.has(day)) { dm.set(day, new Map()); }
+        const pm = dm.get(day)!;
+        if (!pm.has(p)) { pm.set(p, []); }
+        pm.get(p)!.push(s);
+      }
     }
   }
 
+  /**
+   * Wall-chart columns: at least 12 periods (reference UI), and at least config/slots max (capped at 16).
+   */
+  private buildPeriods(): void {
+    const fromConfig =
+      this.config?.periodsPerDay && this.config.periodsPerDay > 0 ? this.config.periodsPerDay : 8;
+    let maxFromSlots = 0;
+    this.allSlots.forEach((s) => {
+      const n = Number(s.periodNumber);
+      if (Number.isFinite(n)) {
+        maxFromSlots = Math.max(maxFromSlots, n);
+      }
+    });
+    const n = Math.min(16, Math.max(fromConfig, maxFromSlots, 12));
+    this.periods = Array.from({ length: n }, (_, i) => i + 1);
+  }
+
   private computeSortedDays(): string[] {
-    if (this.config?.daysOfWeek?.length) {
-      return [...this.config.daysOfWeek].sort(
-        (a, b) => this.dayOrder.indexOf(a) - this.dayOrder.indexOf(b)
-      );
-    }
-    const d = [...new Set(this.allSlots.map((s) => s.dayOfWeek))];
-    return d.sort((a, b) => this.dayOrder.indexOf(a) - this.dayOrder.indexOf(b));
+    const fromConfig = (this.config?.daysOfWeek || []).map((x) => this.canonicalDay(String(x))).filter(Boolean);
+    const fromSlots = this.allSlots.map((s) => this.canonicalDay(s.dayOfWeek)).filter(Boolean);
+    const union = [...new Set([...fromConfig, ...fromSlots])];
+    const fallback = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const days = union.length > 0 ? union : fallback;
+    const rank = (d: string) => {
+      const i = this.dayOrder.indexOf(d);
+      return i >= 0 ? i : 999;
+    };
+    return [...days].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
   }
 
   /** Rebuild cached row/day lists when data or view changes (keeps table DOM stable). */
@@ -273,20 +434,99 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     this.gridRows = this.viewKind === 'teacher' ? this.teacherRows() : this.classRows();
   }
 
-  /** Short day label for dense header (Mon, Tue, …). */
+  /** Wall-chart day labels: MON, TUE, … */
   dayHeadingShort(day: string): string {
-    if (!day || day.length < 3) {
-      return day;
+    if (!day) {
+      return '';
     }
-    return day.slice(0, 3);
+    const idx = this.dayOrder.indexOf(day);
+    const abbrevs = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    if (idx >= 0 && idx < abbrevs.length) {
+      return abbrevs[idx];
+    }
+    return day.length <= 4 ? day.toUpperCase() : day.slice(0, 3).toUpperCase();
   }
 
   trackRowById(_: number, row: { id: string }): string {
     return row.id;
   }
 
+  /** Arrow function so `this` context is preserved when Angular stores it as _trackByFn. */
+  trackSlotById = (_: number, slot: TimetableSlot): string => {
+    const id = slot?.id;
+    return id != null && id !== '' ? String(id) : '';
+  };
+
   normId(id: string | undefined | null): string {
     return id != null && id !== '' ? String(id) : '';
+  }
+
+  /** API may return a bare array or a wrapped payload. */
+  private normalizeSlotsPayload(slots: unknown): TimetableSlot[] {
+    if (Array.isArray(slots)) {
+      return slots as TimetableSlot[];
+    }
+    if (slots && typeof slots === 'object') {
+      const o = slots as Record<string, unknown>;
+      if (Array.isArray(o['data'])) {
+        return o['data'] as TimetableSlot[];
+      }
+      if (Array.isArray(o['slots'])) {
+        return o['slots'] as TimetableSlot[];
+      }
+    }
+    return [];
+  }
+
+  /** Treat only explicit “break” markers as non-teaching; avoid dropping lessons if isBreak is a string, etc. */
+  private slotCountsAsBreak(s: TimetableSlot): boolean {
+    const v = (s as any).isBreak;
+    return v === true || v === 1 || v === 'true' || v === '1';
+  }
+
+  /** Ensure flat ids match joined relations (some API shapes omit top-level teacherId/classId). */
+  private hydrateSlotIds(slots: TimetableSlot[]): TimetableSlot[] {
+    return slots.map((s) => {
+      const teacherId = this.normId(s.teacherId) || this.normId(s.teacher?.id);
+      const classId = this.normId(s.classId) || this.normId(s.class?.id);
+      return { ...s, teacherId, classId };
+    });
+  }
+
+  /** Trim day labels so slots match grid headers (avoids empty cells when API has stray spaces). */
+  private normDay(d: string | null | undefined): string {
+    if (d == null) {
+      return '';
+    }
+    return String(d).trim();
+  }
+
+  /** Map any casing (e.g. "monday", "MON", "Tue") to the canonical `dayOrder` string ("Monday"). */
+  private canonicalDay(d: string | null | undefined): string {
+    const t = this.normDay(d);
+    if (!t) {
+      return '';
+    }
+    const lower = t.toLowerCase();
+    const found = this.dayOrder.find((x) => x.toLowerCase() === lower);
+    if (found) {
+      return found;
+    }
+    const fromAlias = DAY_ALIAS_TO_CANONICAL[lower];
+    return fromAlias || t;
+  }
+
+  private sameDay(a: string | null | undefined, b: string | null | undefined): boolean {
+    return this.canonicalDay(a) === this.canonicalDay(b);
+  }
+
+  private slotPeriodNum(s: TimetableSlot): number {
+    const n = Number((s as any).periodNumber);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  private samePeriod(slot: TimetableSlot, period: number): boolean {
+    return this.slotPeriodNum(slot) === Number(period);
   }
 
   isSlotLifted(slot: TimetableSlot): boolean {
@@ -323,10 +563,23 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
   private teacherRows(): { id: string; name: string; rowLabel: string }[] {
     const map = new Map<string, string>();
     this.allSlots.forEach((s) => {
+      const tid = this.normId(s.teacherId);
+      if (!tid) {
+        return;
+      }
       const nm = s.teacher
         ? `${s.teacher.firstName || ''} ${s.teacher.lastName || ''}`.trim()
         : 'Teacher';
-      map.set(s.teacherId, nm || 'Teacher');
+      map.set(tid, nm || 'Teacher');
+    });
+    const teacherList = Array.isArray(this.teachers) ? this.teachers : [];
+    teacherList.forEach((t: any) => {
+      const tid = this.normId(t?.id);
+      if (!tid || map.has(tid)) {
+        return;
+      }
+      const nm = `${t.firstName || ''} ${t.lastName || ''}`.trim() || 'Teacher';
+      map.set(tid, nm);
     });
     let rows = [...map.entries()].map(([id, name]) => ({
       id,
@@ -343,7 +596,19 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
   private classRows(): { id: string; name: string; rowLabel: string }[] {
     const map = new Map<string, string>();
     this.allSlots.forEach((s) => {
-      map.set(s.classId, s.class?.name || 'Class');
+      const cid = this.normId(s.classId);
+      if (!cid) {
+        return;
+      }
+      map.set(cid, s.class?.name || 'Class');
+    });
+    const classList = Array.isArray(this.classes) ? this.classes : [];
+    classList.forEach((c: any) => {
+      const cid = this.normId(c?.id);
+      if (!cid || map.has(cid)) {
+        return;
+      }
+      map.set(cid, c.name || c.form || 'Class');
     });
     let rows = [...map.entries()].map(([id, name]) => ({
       id,
@@ -374,26 +639,79 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     return `${rowId}|${day}|${period}`;
   }
 
-  cellSlot(rowId: string, day: string, period: number): TimetableSlot | null {
-    const rid = this.normId(rowId);
-    if (this.viewKind === 'teacher') {
-      return (
-        this.allSlots.find(
-          (s) =>
-            this.normId(s.teacherId) === rid && s.dayOfWeek === day && s.periodNumber === period
-        ) || null
-      );
+  private applyTimeOffBulk(res: any): void {
+    this.timeOffDayKeys = Array.isArray(res?.dayKeys)
+      ? res.dayKeys.map((x: any) => this.canonicalDay(String(x))).filter(Boolean)
+      : [];
+    this.timeOffByClassId.clear();
+    const raw = res?.byClassId;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      for (const k of Object.keys(raw)) {
+        const grid = raw[k];
+        if (Array.isArray(grid)) {
+          this.timeOffByClassId.set(
+            k,
+            grid.map((row: any) => (Array.isArray(row) ? row.map((v: any) => Math.round(Number(v)) || 0) : []))
+          );
+        }
+      }
     }
-    return (
-      this.allSlots.find(
-        (s) =>
-          this.normId(s.classId) === rid && s.dayOfWeek === day && s.periodNumber === period
-      ) || null
-    );
   }
 
+  /** 0 = available, 1 = conditional, 2 = time off (per class assign grid). */
+  classTimeOffAt(classId: string, day: string, period: number): number {
+    const grid = this.timeOffByClassId.get(this.normId(classId));
+    if (!grid?.length || !this.timeOffDayKeys.length) {
+      return 0;
+    }
+    const d = this.timeOffDayKeys.findIndex((k) => this.sameDay(k, day));
+    if (d < 0 || d >= grid.length) {
+      return 0;
+    }
+    const row = grid[d];
+    const p = period - 1;
+    if (!row || p < 0 || p >= row.length) {
+      return 0;
+    }
+    const v = Math.round(Number(row[p]));
+    return v === 1 || v === 2 ? v : 0;
+  }
+
+  slotClassTimeOff(slot: TimetableSlot, day: string, period: number): number {
+    return this.classTimeOffAt(slot.classId, day, period);
+  }
+
+  /** Two overlapping lessons use a diagonal split (wall-chart style). */
+  useDiagonalSplit(slots: TimetableSlot[]): boolean {
+    return slots.length === 2;
+  }
+
+  /** All lessons in this cell — O(1) lookup via pre-built index. */
+  cellSlots(rowId: string, day: string, period: number): TimetableSlot[] {
+    const rid = this.normId(rowId);
+    const canonDay = this.canonicalDay(day);
+    const p = Number(period);
+    if (this.viewKind === 'teacher') {
+      return this.slotTeacherIdx.get(rid)?.get(canonDay)?.get(p) ?? [];
+    }
+    return this.slotClassIdx.get(rid)?.get(canonDay)?.get(p) ?? [];
+  }
+
+  /** By teacher: color encodes the teacher (row). By class: color encodes the class (row). */
   cardColor(slot: TimetableSlot): string {
+    if (this.viewKind === 'teacher') {
+      return teacherColorForId(slot.teacherId);
+    }
     return classColorForId(slot.classId);
+  }
+
+  /** Sticky row label accent — same identity as card colors for that row. */
+  rowRibbonColor(row: { id: string }): string {
+    const id = row?.id || '';
+    if (this.viewKind === 'teacher') {
+      return teacherColorForId(id);
+    }
+    return classColorForId(id);
   }
 
   subjectAbbrev(slot: TimetableSlot): string {
@@ -561,12 +879,6 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     if (!slot) {
       return;
     }
-    const occupying = this.cellSlot(rowId, day, period);
-    if (occupying && this.normId(occupying.id) !== this.normId(slot.id)) {
-      this.conflictMessage =
-        'That cell already has a lesson. Choose an empty cell, or use two steps to swap.';
-      return;
-    }
     this.applyMoveToCell(slot, rowId, day, period);
   }
 
@@ -643,28 +955,6 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     if (this.viewKind === 'class' && this.normId(rowId) !== this.normId(slot.classId)) {
       return true;
     }
-    const nextTeacherId = this.viewKind === 'teacher' ? rowId : slot.teacherId;
-    const nextClassId = this.viewKind === 'class' ? rowId : slot.classId;
-    const otherTeacherSlot = this.allSlots.some(
-      (s) =>
-        this.normId(s.id) !== this.normId(slot.id) &&
-        this.normId(s.teacherId) === this.normId(nextTeacherId) &&
-        s.dayOfWeek === day &&
-        s.periodNumber === period
-    );
-    if (otherTeacherSlot) {
-      return true;
-    }
-    const otherClassSlot = this.allSlots.some(
-      (s) =>
-        this.normId(s.id) !== this.normId(slot.id) &&
-        this.normId(s.classId) === this.normId(nextClassId) &&
-        s.dayOfWeek === day &&
-        s.periodNumber === period
-    );
-    if (otherClassSlot) {
-      return true;
-    }
     return false;
   }
 
@@ -722,8 +1012,8 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     if (
       this.normId(slot.teacherId) === this.normId(nextTeacherId) &&
       this.normId(slot.classId) === this.normId(nextClassId) &&
-      slot.dayOfWeek === day &&
-      slot.periodNumber === period
+      this.sameDay(slot.dayOfWeek, day) &&
+      this.samePeriod(slot, period)
     ) {
       return;
     }
@@ -732,29 +1022,93 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
       (s) =>
         this.normId(s.id) !== this.normId(slot.id) &&
         this.normId(s.teacherId) === this.normId(nextTeacherId) &&
-        s.dayOfWeek === day &&
-        s.periodNumber === period
+        this.sameDay(s.dayOfWeek, day) &&
+        this.samePeriod(s, period)
     );
-    if (otherTeacherSlot) {
-      this.conflictMessage =
-        'This teacher already has a lesson in that period — choose an empty slot or swap in two steps.';
-      return;
-    }
 
     const otherClassSlot = this.allSlots.some(
       (s) =>
         this.normId(s.id) !== this.normId(slot.id) &&
         this.normId(s.classId) === this.normId(nextClassId) &&
-        s.dayOfWeek === day &&
-        s.periodNumber === period
+        this.sameDay(s.dayOfWeek, day) &&
+        this.samePeriod(s, period)
     );
-    if (otherClassSlot) {
+
+    if (otherTeacherSlot || otherClassSlot) {
+      const lines: string[] = [
+        'Policy: one teacher must teach only one lesson in a given period (one room / one class at a time).',
+        'Policy: one class must have only one subject in a given period.',
+      ];
+      if (otherTeacherSlot) {
+        lines.push(
+          'Conflict: this teacher is already assigned in this day and period. Ignoring collisions allows two classes (e.g. joint set) in the same slot.'
+        );
+      }
+      if (otherClassSlot) {
+        lines.push('Conflict: this class already has a lesson in this day and period.');
+      }
+      lines.push('Only click “Ignore collisions” when this overlap is deliberate.');
+      if (this.authService.hasRole('admin') || this.authService.hasRole('superadmin') || this.authService.hasRole('demo_user')) {
+        this.collisionPrompt = { slot, teacherId: nextTeacherId, classId: nextClassId, day, period, lines };
+        this.conflictMessage = null;
+        return;
+      }
       this.conflictMessage =
-        'This class already has a lesson in that period — choose an empty slot.';
+        otherTeacherSlot && otherClassSlot
+          ? 'Teacher and class are both already busy in that period. An administrator can use “Ignore collisions” only when that double booking is intentional.'
+          : otherTeacherSlot
+            ? 'This teacher is already teaching in that period. An administrator may use “Ignore collisions” for joint / shared slots (e.g. two classes, one teacher).'
+            : 'This class already has a subject in that period. An administrator may use “Ignore collisions” only if that is intentional.';
       return;
     }
 
-    this.persistMove(slot, nextTeacherId, nextClassId, day, period);
+    this.persistMove(slot, nextTeacherId, nextClassId, day, period, false);
+  }
+
+  cancelCollisionPrompt(): void {
+    this.collisionPrompt = null;
+    this.cdr.detectChanges();
+  }
+
+  confirmIgnoreCollisions(): void {
+    const p = this.collisionPrompt;
+    if (!p) {
+      return;
+    }
+    this.collisionPrompt = null;
+    this.persistMove(p.slot, p.teacherId, p.classId, p.day, p.period, true);
+  }
+
+  /**
+   * Slots that have no day or period yet — shown in the unplaced tray below the grid.
+   * After a slot is placed the API is saved and refreshData() removes it from this list.
+   */
+  unplacedSlots(): TimetableSlot[] {
+    let slots = this.allSlots.filter(
+      (s) => !s.dayOfWeek || !s.periodNumber || s.periodNumber <= 0
+    );
+    if (this.filterEntityId) {
+      if (this.viewKind === 'teacher') {
+        slots = slots.filter((s) => this.normId(s.teacherId) === this.filterEntityId);
+      } else {
+        slots = slots.filter((s) => this.normId(s.classId) === this.filterEntityId);
+      }
+    }
+    return slots;
+  }
+
+  /**
+   * Short identifier shown on a tray card so the user can tell which row the lesson belongs to.
+   * In teacher view → teacher initials; in class view → class abbreviation.
+   */
+  trayRowLabel(slot: TimetableSlot): string {
+    if (this.viewKind === 'teacher') {
+      const t = slot.teacher;
+      if (!t) { return ''; }
+      return abbrevTeacherRowLabel(`${t.firstName || ''} ${t.lastName || ''}`.trim());
+    }
+    const name = slot.class?.name || (slot.class as any)?.form || '';
+    return abbrevClassRowLabel(name);
   }
 
   /** Autosave to API after every valid manual move (click-to-place or drag-drop). */
@@ -763,7 +1117,8 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     teacherId: string,
     classId: string,
     day: string,
-    period: number
+    period: number,
+    ignoreCollisions: boolean
   ): void {
     if (this.saving) {
       return;
@@ -786,38 +1141,65 @@ export class TimetableManualAdjustmentsComponent implements OnInit {
     this.refreshGridLayout();
     this.cdr.detectChanges();
 
-    this.timetableService
-      .updateSlot(slot.id, {
-        teacherId,
-        classId,
-        subjectId: slot.subjectId,
-        dayOfWeek: day,
-        periodNumber: period,
-        room: slot.room,
-      })
-      .subscribe({
-        next: () => {
-          this.saving = false;
-          this.liftedSlotId = null;
-          this.dragOverKey = null;
-          this.success = 'Lesson saved in new slot.';
-          this.refreshData();
-          setTimeout(() => (this.success = null), 3500);
-        },
-        error: (err) => {
-          this.saving = false;
-          slot.teacherId = prev.teacherId;
-          slot.classId = prev.classId;
-          slot.dayOfWeek = prev.dayOfWeek;
-          slot.periodNumber = prev.periodNumber;
-          this.refreshGridLayout();
-          const msg = err.error?.message || err.message || 'Could not save the move.';
+    const body = {
+      teacherId,
+      classId,
+      subjectId: slot.subjectId,
+      dayOfWeek: day,
+      periodNumber: period,
+      room: slot.room,
+      ...(ignoreCollisions ? { ignoreCollisions: true as const } : {}),
+    };
+
+    this.timetableService.updateSlot(slot.id, body).subscribe({
+      next: () => {
+        this.saving = false;
+        this.liftedSlotId = null;
+        this.dragOverKey = null;
+        this.collisionPrompt = null;
+        this.success = ignoreCollisions
+          ? 'Lesson saved (collisions ignored).'
+          : 'Lesson saved in new slot.';
+        this.refreshData();
+        setTimeout(() => (this.success = null), 3500);
+      },
+      error: (err) => {
+        this.saving = false;
+        slot.teacherId = prev.teacherId;
+        slot.classId = prev.classId;
+        slot.dayOfWeek = prev.dayOfWeek;
+        slot.periodNumber = prev.periodNumber;
+        this.refreshGridLayout();
+        const msg = err.error?.message || err.message || 'Could not save the move.';
+        const code = err.error?.code;
+        const isConflict =
+          code === 'TIMETABLE_CONFLICT' ||
+          code === 'TIMETABLE_TEACHER_CLASS_DAY' ||
+          /conflict/i.test(msg);
+        if (
+          isConflict &&
+          !ignoreCollisions &&
+          (this.authService.hasRole('admin') ||
+            this.authService.hasRole('superadmin') ||
+            this.authService.hasRole('demo_user'))
+        ) {
+          this.collisionPrompt = {
+            slot,
+            teacherId,
+            classId,
+            day,
+            period,
+            lines: [msg],
+          };
+          this.conflictMessage = null;
+        } else {
           this.conflictMessage = msg;
           if (err.error?.conflicts?.length) {
             this.conflictMessage += ' (Server detected a timetable conflict.)';
           }
-          this.cdr.detectChanges();
-        },
-      });
+        }
+        this.cdr.detectChanges();
+      },
+    });
   }
 }

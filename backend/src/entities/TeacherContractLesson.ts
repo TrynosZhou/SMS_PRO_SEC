@@ -27,4 +27,11 @@ export class TeacherContractLesson {
 
   @Column({ type: 'boolean', default: false })
   isDoublePeriod: boolean;
+
+  /**
+   * Which part of the class attends this lesson.
+   * Values: 'entire' | 'group1' | 'group2' | 'boys' | 'girls'
+   */
+  @Column({ type: 'varchar', length: 20, default: 'entire' })
+  classScope: string;
 }
