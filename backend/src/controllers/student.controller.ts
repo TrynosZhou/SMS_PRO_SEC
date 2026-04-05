@@ -449,8 +449,10 @@ export const getStudents = async (req: AuthRequest, res: Response) => {
       .leftJoinAndSelect('student.enrollments', 'enrollments')
       .leftJoinAndSelect('student.classEntity', 'classEntity')
       .orderBy('student.firstName', 'ASC')
-      .addOrderBy('student.lastName', 'ASC')
-      .distinct(true);
+      .addOrderBy('student.lastName', 'ASC');
+    /* NOTE: .distinct(true) was removed — TypeORM 0.3.x has a bug where
+     * distinct(true) + getManyAndCount() generates broken COUNT SQL.
+     * leftJoinAndSelect already deduplicates entities by primary key on hydration. */
 
     if (classId) {
       const trimmedClassId = String(classId).trim();
@@ -496,10 +498,13 @@ export const getStudents = async (req: AuthRequest, res: Response) => {
     }
 
     if (pagination.isPaginated) {
-      const [students, total] = await queryBuilder
+      /* Use separate count + fetch to sidestep TypeORM 0.3.x getManyAndCount bugs
+       * with complex LEFT JOINs. getCount() does not apply TAKE/SKIP so it counts all. */
+      const total = await queryBuilder.getCount();
+      const students = await queryBuilder
         .skip(pagination.skip)
         .take(pagination.limit)
-        .getManyAndCount();
+        .getMany();
 
       return res.json(
         buildPaginationResponse(students, pagination.page, pagination.limit, total)
