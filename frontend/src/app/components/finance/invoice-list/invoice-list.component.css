@@ -113,13 +113,17 @@
 }
 
 .bl-btn-secondary {
-  background: #fff;
-  color: var(--bl-text);
-  border: 1px solid var(--bl-border);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #fff;
+  font-weight: 700;
+  border: none;
+  box-shadow: 0 2px 12px rgba(79, 70, 229, 0.35);
+  padding: 0.6rem 1rem;
+  font-size: 0.88rem;
 }
 
 .bl-btn-secondary:hover:not(:disabled) {
-  background: #f8fafc;
+  filter: brightness(1.05);
 }
 
 .bl-btn-ghost {

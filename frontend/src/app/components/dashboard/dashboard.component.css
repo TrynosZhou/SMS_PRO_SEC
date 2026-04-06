@@ -1371,3 +1371,209 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ══════════════════════════════════════════
+   Financial Health Banner  (.db-fh-*)
+══════════════════════════════════════════ */
+.db-fh-banner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: linear-gradient(120deg, #0f172a 0%, #1e3a8a 100%);
+  border-radius: 16px;
+  padding: 1.1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #fff;
+  flex-wrap: wrap;
+}
+
+.db-fh-kpi {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+.db-fh-kpi--right { margin-left: auto; }
+
+.db-fh-kpi-ico { font-size: 1.6rem; }
+
+.db-fh-kpi-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #fff;
+}
+.db-fh-kpi-lbl {
+  font-size: 0.73rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.db-fh-center {
+  flex: 1;
+  min-width: 180px;
+}
+.db-fh-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.75);
+  margin-bottom: 0.4rem;
+}
+.db-fh-bar-label strong { color: #fff; }
+
+.db-fh-track {
+  height: 8px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.db-fh-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #ef4444;
+  transition: width 0.6s cubic-bezier(.4,0,.2,1);
+}
+.db-fh-fill--mid  { background: #f59e0b; }
+.db-fh-fill--high { background: #22c55e; }
+
+.db-fh-sub {
+  font-size: 0.73rem;
+  color: rgba(255,255,255,0.5);
+  margin-top: 0.35rem;
+  text-align: center;
+}
+
+/* ══════════════════════════════════════════
+   Module Tiles  (.db-modules-* / .db-mod-*)
+══════════════════════════════════════════ */
+.db-modules-card { min-height: unset; }
+
+.db-modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 0.75rem;
+}
+
+.db-mod-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.9rem 0.4rem 0.75rem;
+  border-radius: 14px;
+  text-decoration: none;
+  background: color-mix(in srgb, var(--mc, #6366f1) 10%, #fff);
+  border: 1.5px solid color-mix(in srgb, var(--mc, #6366f1) 22%, transparent);
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  cursor: pointer;
+}
+.db-mod-tile:hover {
+  background: color-mix(in srgb, var(--mc, #6366f1) 18%, #fff);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--mc, #6366f1) 30%, transparent);
+  transform: translateY(-2px);
+}
+
+.db-mod-ico {
+  font-size: 1.65rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.12));
+}
+.db-mod-lbl {
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--mc, #6366f1) 80%, #0f172a);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ══════════════════════════════════════════
+   Activity Tabs  (.db-act-*)
+══════════════════════════════════════════ */
+.db-activity-card .db-act-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 0;
+}
+
+.db-act-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.db-act-tab:hover { color: #0f172a; }
+.db-act-tab--active {
+  color: #4f46e5;
+  border-bottom-color: #4f46e5;
+}
+
+.db-act-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 999px;
+}
+.db-act-tab--active .db-act-tab-count {
+  background: #4f46e5;
+  color: #fff;
+}
+
+/* Avatar initials */
+.db-act-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.db-act-avatar--inv {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  font-size: 1rem;
+}
+
+.db-type-badge { background: #dcfce7; color: #166534; }
+.db-badge-boarder { background: #dbeafe; color: #1e40af; }
+
+.db-inv-status { text-transform: capitalize; }
+.db-inv-paid    { background: #dcfce7; color: #166534; }
+.db-inv-pending { background: #fef9c3; color: #854d0e; }
+
+.db-act-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+.db-act-empty span { font-size: 2rem; opacity: 0.4; }

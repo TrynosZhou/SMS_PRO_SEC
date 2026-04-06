@@ -31,6 +31,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   reportsOpen = true;
   generalSettingsOpen = true;
   
+  // Activity tab state
+  activeActivityTab: 'students' | 'invoices' = 'students';
+
   // Statistics
   stats = {
     totalStudents: 0,
@@ -39,10 +42,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
     totalSubjects: 0,
     totalInvoices: 0,
     totalBalance: 0,
+    totalInvoiced: 0,
+    totalPaid: 0,
     dayScholars: 0,
     boarders: 0,
     staffChildren: 0
   };
+
+  get collectionRatePercent(): number {
+    if (!this.stats.totalInvoiced || this.stats.totalInvoiced <= 0) return 0;
+    return Math.min(100, Math.round((this.stats.totalPaid / this.stats.totalInvoiced) * 100));
+  }
   
   loadingStats = true;
   /** Pending XHRs for admin/accountant stats (5 sources). */
@@ -156,6 +166,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
           const list = Array.isArray(invoices) ? invoices : invoices?.data || [];
           this.stats.totalInvoices = list.length;
           this.stats.totalBalance = list.reduce((sum: number, inv: any) => sum + (parseFloat(String(inv.balance)) || 0), 0);
+          this.stats.totalInvoiced = list.reduce((sum: number, inv: any) => sum + (parseFloat(String(inv.amount)) || 0), 0);
+          this.stats.totalPaid = list.reduce((sum: number, inv: any) => sum + (parseFloat(String(inv.paidAmount)) || 0), 0);
           this.recentInvoices = list
             .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
             .slice(0, 5);

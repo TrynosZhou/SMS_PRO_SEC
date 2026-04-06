@@ -98,7 +98,7 @@
   top: 64px;
   left: 0;
   bottom: 0;
-  width: 260px;
+  width: 280px;
   background: #1e3a8a;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
   z-index: 998;
@@ -173,6 +173,7 @@
 
 .sidebar-text {
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -306,7 +307,7 @@
    ======================================== */
 
 .main-content {
-  margin-left: 260px;
+  margin-left: 280px;
   min-height: calc(100vh - 64px);
   transition: margin-left 0.3s ease;
   padding: 2rem;
@@ -319,7 +320,7 @@
 }
 
 .main-content.sidebar-open {
-  margin-left: 260px;
+  margin-left: 280px;
 }
 
 .sidebar.collapsed ~ .main-content {
@@ -602,7 +603,7 @@
   }
 
   .mobile-sidebar-content {
-    width: 260px;
+    width: 280px;
   }
 }
 
