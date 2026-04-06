@@ -23,6 +23,9 @@ export class InvoiceListComponent implements OnInit {
   viewMode: 'grid' | 'list' = 'grid';
   loading = false;
   creatingBulk = false;
+  bulkProgress = 0;
+  bulkProgressText = '';
+  private bulkProgressTimer: any = null;
   success = '';
   error = '';
   showBulkInvoiceForm = false;
@@ -973,7 +976,11 @@ export class InvoiceListComponent implements OnInit {
   }
 
   closeBulkInvoiceForm() {
+    this.stopBulkProgress();
     this.showBulkInvoiceForm = false;
+    this.creatingBulk = false;
+    this.bulkProgress = 0;
+    this.bulkProgressText = '';
     this.bulkInvoiceForm = {
       currentTerm: '',
       dueDate: '',
@@ -981,8 +988,37 @@ export class InvoiceListComponent implements OnInit {
     };
   }
 
+  private startBulkProgress(totalStudents: number): void {
+    this.bulkProgress = 0;
+    const label = totalStudents > 0 ? `Processing ${totalStudents} students` : 'Processing';
+    this.bulkProgressText = `${label}…`;
+
+    // Estimate ~80 ms per student, min 4 s, max 60 s
+    const estimatedMs = Math.min(60_000, Math.max(4_000, totalStudents * 80));
+    const tickMs = 300;
+    const ticksToFill90 = estimatedMs / tickMs;
+    const stepPer90 = 90 / ticksToFill90;
+
+    this.bulkProgressTimer = setInterval(() => {
+      if (this.bulkProgress < 90) {
+        // Decelerate: linear until 60%, then slows to a crawl
+        const remaining = 90 - this.bulkProgress;
+        const increment = Math.max(0.1, stepPer90 * (remaining / 90));
+        this.bulkProgress = Math.min(90, +(this.bulkProgress + increment).toFixed(1));
+        const done = Math.round((this.bulkProgress / 90) * totalStudents);
+        this.bulkProgressText = `${label} (${done} / ${totalStudents})…`;
+      }
+    }, tickMs);
+  }
+
+  private stopBulkProgress(): void {
+    if (this.bulkProgressTimer) {
+      clearInterval(this.bulkProgressTimer);
+      this.bulkProgressTimer = null;
+    }
+  }
+
   createBulkInvoices() {
-    // Check if user is authenticated
     if (!this.authService.isAuthenticated()) {
       this.error = 'You must be logged in to create invoices. Please log in and try again.';
       return;
@@ -993,14 +1029,9 @@ export class InvoiceListComponent implements OnInit {
       return;
     }
 
-    // Validate date format
     const dueDate = new Date(this.bulkInvoiceForm.dueDate);
     if (isNaN(dueDate.getTime())) {
       this.error = 'Invalid date format. Please use YYYY-MM-DD format.';
-      return;
-    }
-
-    if (!confirm(`This will create invoices for all active students for the following term (based on current term: ${this.bulkInvoiceForm.currentTerm}). Continue?`)) {
       return;
     }
 
@@ -1008,52 +1039,60 @@ export class InvoiceListComponent implements OnInit {
     this.error = '';
     this.success = '';
 
-    // Pass the current term - backend will calculate the following term
+    // Kick off animated progress bar based on known student count
+    const totalStudents = this.students.length;
+    this.startBulkProgress(totalStudents);
+
     this.financeService.createBulkInvoices(
-      this.bulkInvoiceForm.currentTerm, 
-      this.bulkInvoiceForm.dueDate, 
+      this.bulkInvoiceForm.currentTerm,
+      this.bulkInvoiceForm.dueDate,
       this.bulkInvoiceForm.description || undefined
     ).subscribe({
       next: (response: any) => {
-        this.creatingBulk = false;
-        this.success = response.message || 'Bulk invoices created successfully';
-        
-        // Show detailed summary
+        this.stopBulkProgress();
+        this.bulkProgress = 100;
         const summary = response.summary;
-        let message = `Created: ${summary.created} invoices\nFailed: ${summary.failed}`;
+        this.bulkProgressText = `Done — ${summary.created} created, ${summary.failed} failed`;
+
+        this.success = response.message || 'Bulk invoices created successfully';
+
+        // Build summary for the in-modal result panel (no alert popup)
+        let summaryLines = [`Created: ${summary.created} invoices`, `Failed: ${summary.failed}`];
         if (summary.errors && summary.errors.length > 0) {
-          message += `\n\nErrors:\n${summary.errors.slice(0, 5).join('\n')}`;
-          if (summary.errors.length > 5) {
-            message += `\n... and ${summary.errors.length - 5} more errors`;
+          summaryLines = summaryLines.concat(summary.errors.slice(0, 10));
+          if (summary.errors.length > 10) {
+            summaryLines.push(`…and ${summary.errors.length - 10} more errors`);
           }
         }
-        
-        // Show success message with summary (no automatic PDF downloads)
-        alert(message + '\n\nYou can now view and download invoices from the invoice list.');
-        
-        // Reload invoices to show the newly created ones
+        this.bulkSummaryLines = summaryLines;
+        this.bulkDone = true;
+
         this.loadInvoices();
-        
-        // Close the form
-        this.closeBulkInvoiceForm();
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => this.success = '', 5000);
+        setTimeout(() => this.success = '', 8000);
       },
       error: (err: any) => {
+        this.stopBulkProgress();
+        this.bulkProgress = 0;
+        this.bulkProgressText = '';
         this.creatingBulk = false;
         if (err.status === 401) {
           this.error = 'Authentication required. Please log in again.';
-          // Optionally redirect to login
-          setTimeout(() => {
-            this.authService.logout();
-          }, 2000);
+          setTimeout(() => this.authService.logout(), 2000);
         } else {
           this.error = err.error?.message || 'Failed to create bulk invoices';
         }
         setTimeout(() => this.error = '', 5000);
       }
     });
+  }
+
+  bulkDone = false;
+  bulkSummaryLines: string[] = [];
+
+  closeBulkResult(): void {
+    this.bulkDone = false;
+    this.bulkSummaryLines = [];
+    this.closeBulkInvoiceForm();
   }
 
   getStudentBalance() {

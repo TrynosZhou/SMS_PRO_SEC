@@ -16,7 +16,7 @@ import { Settings } from '../entities/Settings';
 import QRCode from 'qrcode';
 import { createStudentIdCardPDF, createClassStudentIdCardsPDF } from '../utils/studentIdCardPdf';
 import { isDemoUser } from '../utils/demoDataFilter';
-import { parseAmount } from '../utils/numberUtils';
+import { parseAmount, generateInvoiceNumber } from '../utils/numberUtils';
 import { calculateAge } from '../utils/ageUtils';
 import { In } from 'typeorm';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
@@ -327,8 +327,7 @@ export const registerStudent = async (req: AuthRequest, res: Response) => {
         console.log('📝 Invoice items:', invoiceItems);
 
         if (totalAmount > 0) {
-          const invoiceCount = await invoiceRepository.count();
-          const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(6, '0')}`;
+          const invoiceNumber = generateInvoiceNumber();
 
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 30);

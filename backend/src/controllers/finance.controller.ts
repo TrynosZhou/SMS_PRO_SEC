@@ -9,7 +9,7 @@ import { createReceiptPDF } from '../utils/receiptPdfGenerator';
 import { UniformItem } from '../entities/UniformItem';
 import { InvoiceUniformItem } from '../entities/InvoiceUniformItem';
 import { isDemoUser } from '../utils/demoDataFilter';
-import { parseAmount, roundMoney } from '../utils/numberUtils';
+import { parseAmount, roundMoney, generateInvoiceNumber } from '../utils/numberUtils';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
 import { logPaymentAuditEvent } from '../utils/paymentAuditLogger';
 import { PaymentAuditEventType } from '../entities/PaymentAuditLog';
@@ -227,8 +227,7 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
     const finalBalance = totalInvoiceAmount - appliedPrepaidAmount;
 
     // Generate invoice number
-    const invoiceCount = await invoiceRepository.count();
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(6, '0')}`;
+    const invoiceNumber = generateInvoiceNumber();
 
     const invoice = invoiceRepository.create({
       invoiceNumber,
@@ -555,9 +554,6 @@ export const createBulkInvoices = async (req: AuthRequest, res: Response) => {
       errors: [] as string[]
     };
 
-    // Get current invoice count for numbering
-    const invoiceCount = await invoiceRepository.count();
-    let invoiceCounter = invoiceCount + 1;
 
     // Process each student
     for (const student of students) {
@@ -636,8 +632,7 @@ export const createBulkInvoices = async (req: AuthRequest, res: Response) => {
         const finalBalance = totalAmount - appliedPrepaid;
 
         // Generate invoice number
-        const invoiceNumber = `INV-${new Date().getFullYear()}-${String(invoiceCounter).padStart(6, '0')}`;
-        invoiceCounter++;
+        const invoiceNumber = generateInvoiceNumber();
 
         // Create invoice for the following term
         // term variable is the current term, but we're creating invoice for next term

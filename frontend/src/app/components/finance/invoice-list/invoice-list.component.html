@@ -161,47 +161,87 @@
   </div>
 
   <!-- Bulk Invoice Creation Form Modal -->
-  <div *ngIf="showBulkInvoiceForm" class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
-      <div class="card" style="width: 500px; max-width: 90%; max-height: 90vh; overflow-y: auto; position: relative;">
-        <button (click)="closeBulkInvoiceForm()" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
-        <h2 style="margin-top: 0;">Create Invoices for All Students</h2>
-        <div class="alert alert-info" style="margin-bottom: 20px;">
-          <p><strong>Note:</strong> Invoices will be created for the <strong>following term</strong> based on the current term you select.</p>
-          <p>Example: If you select "Term 1 2024", invoices will be created for "Term 2 2024".</p>
+  <div *ngIf="showBulkInvoiceForm" class="bk-overlay">
+    <div class="bk-dialog">
+
+      <!-- ── Close button (hidden while processing) ── -->
+      <button class="bk-close" (click)="closeBulkInvoiceForm()" [disabled]="creatingBulk" aria-label="Close">&times;</button>
+
+      <!-- ── Title ── -->
+      <h2 class="bk-title">
+        <span class="bk-title-icon">📋</span>
+        Bulk Invoice Generation
+      </h2>
+
+      <!-- ══ RESULT PANEL (shown after completion) ══ -->
+      <div *ngIf="bulkDone" class="bk-result">
+        <div class="bk-result-icon">✅</div>
+        <p class="bk-result-heading">Invoices generated!</p>
+        <ul class="bk-result-list">
+          <li *ngFor="let line of bulkSummaryLines">{{ line }}</li>
+        </ul>
+        <button type="button" class="bk-btn bk-btn-primary" (click)="closeBulkResult()">Close</button>
+      </div>
+
+      <!-- ══ FORM (hidden while done) ══ -->
+      <ng-container *ngIf="!bulkDone">
+
+        <div class="bk-info">
+          Invoices will be created for the <strong>following term</strong> based on the current term you enter.
+          <span *ngIf="students.length > 0" class="bk-student-count">{{ students.length }} students found.</span>
         </div>
+
         <form (ngSubmit)="createBulkInvoices()">
-          <div class="form-group">
-            <label>Current Term *</label>
-            <input type="text" [(ngModel)]="bulkInvoiceForm.currentTerm" name="currentTerm" 
-                   placeholder="e.g., Term 1 2024" required 
-                   class="form-control">
-            <small style="color: #666;">Enter the current term. Invoices will be created for the following term.</small>
-            <div *ngIf="bulkInvoiceForm.currentTerm" style="margin-top: 8px; padding: 8px; background: #E8F4F8; border-radius: 4px;">
-              <strong>Following Term:</strong> <span style="color: #003366;">{{ getFollowingTerm(bulkInvoiceForm.currentTerm) }}</span>
+
+          <div class="bk-field">
+            <label class="bk-label">Current Term <span class="bk-req">*</span></label>
+            <input type="text" class="bk-input" [(ngModel)]="bulkInvoiceForm.currentTerm" name="currentTerm"
+                   placeholder="e.g., Term 1 2025" [disabled]="creatingBulk" required>
+            <div *ngIf="bulkInvoiceForm.currentTerm" class="bk-next-term">
+              Invoices will be for: <strong>{{ getFollowingTerm(bulkInvoiceForm.currentTerm) }}</strong>
             </div>
           </div>
-          <div class="form-group">
-            <label>Due Date *</label>
-            <input type="date" [(ngModel)]="bulkInvoiceForm.dueDate" name="dueDate" required 
-                   class="form-control">
+
+          <div class="bk-field">
+            <label class="bk-label">Due Date <span class="bk-req">*</span></label>
+            <input type="date" class="bk-input" [(ngModel)]="bulkInvoiceForm.dueDate" name="dueDate"
+                   [disabled]="creatingBulk" required>
           </div>
-          <div class="form-group">
-            <label>Description (Optional)</label>
-            <textarea [(ngModel)]="bulkInvoiceForm.description" name="description" 
-                      placeholder="e.g., Tuition fees for next term" 
-                      class="form-control" rows="3"></textarea>
+
+          <div class="bk-field">
+            <label class="bk-label">Description <span class="bk-optional">(optional)</span></label>
+            <textarea class="bk-input bk-textarea" [(ngModel)]="bulkInvoiceForm.description" name="description"
+                      placeholder="e.g., Term fees for next term" rows="2" [disabled]="creatingBulk"></textarea>
           </div>
-          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-            <button type="button" class="btn btn-secondary" (click)="closeBulkInvoiceForm()" [disabled]="creatingBulk">
-              ❌ Cancel
+
+          <!-- ── PROGRESS BAR (visible while processing) ── -->
+          <div class="bk-progress-wrap" *ngIf="creatingBulk">
+            <div class="bk-progress-label">
+              <span class="bk-progress-text">{{ bulkProgressText }}</span>
+              <span class="bk-progress-pct">{{ bulkProgress | number:'1.0-0' }}%</span>
+            </div>
+            <div class="bk-progress-track">
+              <div class="bk-progress-fill" [style.width.%]="bulkProgress"></div>
+            </div>
+            <p class="bk-progress-hint">Please wait — do not close this window.</p>
+          </div>
+
+          <!-- ── ACTION BUTTONS ── -->
+          <div class="bk-actions">
+            <button type="button" class="bk-btn bk-btn-ghost" (click)="closeBulkInvoiceForm()" [disabled]="creatingBulk">
+              Cancel
             </button>
-            <button type="submit" class="btn btn-primary" [disabled]="creatingBulk">
-              {{ creatingBulk ? 'Creating...' : '📋 Create Invoices' }}
+            <button type="submit" class="bk-btn bk-btn-primary" [disabled]="creatingBulk">
+              <span class="bk-spinner" *ngIf="creatingBulk"></span>
+              {{ creatingBulk ? 'Generating…' : 'Generate Invoices' }}
             </button>
           </div>
+
         </form>
-      </div>
+      </ng-container>
+
     </div>
+  </div>
 
   <!-- Invoice list -->
   <section class="bl-invoice-section">
