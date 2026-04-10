@@ -13,7 +13,8 @@ export enum PaymentAuditAnomalyType {
   EDITED_CONFIRMED = 'edited_confirmed_payment'
 }
 
-@Entity('payment_audit_logs')
+/** Schema aligned via `ensurePaymentAuditLogTable`; exclude from `synchronize` to avoid NOT NULL fights on legacy rows. */
+@Entity('payment_audit_logs', { synchronize: false })
 @Index(['studentId'])
 @Index(['referenceNumber'])
 @Index(['eventAt'])

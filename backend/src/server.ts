@@ -29,6 +29,7 @@ import { ensureMessageAttachmentUrlColumn } from './utils/ensureMessageAttachmen
 import { ensureClassTimeOffGridColumn } from './utils/ensureClassTimeOffGridColumn';
 import { ensureTimetableSlotNoUniqueCollision } from './utils/ensureTimetableSlotNoUniqueCollision';
 import { ensureFurnitureCurrentTeacherColumn } from './utils/ensureFurnitureCurrentTeacherColumn';
+import { repairUserActivityLogUserIdsBeforeSync } from './utils/repairUserActivityLogUserIdsBeforeSync';
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -264,6 +265,16 @@ process.on('unhandledRejection', (reason, promise) => {
 // Wrap everything in an async bootstrap function
 async function bootstrap() {
   try {
+    // Always run before init on Postgres: sync is gated by env (often not exactly the string "true")
+    // and NULL userId rows block TypeORM from tightening NOT NULL on user_activity_logs.
+    if (AppDataSource.options.type === 'postgres') {
+      try {
+        console.log('[Server] Pre-sync: user_activity_logs userId cleanup (if needed)...');
+        await repairUserActivityLogUserIdsBeforeSync();
+      } catch (repairErr: any) {
+        console.warn('[Server] repairUserActivityLogUserIdsBeforeSync:', repairErr?.message || repairErr);
+      }
+    }
     console.log('[Server] Calling AppDataSource.initialize()...');
     await AppDataSource.initialize();
     console.log('[Server] ✓ Database connected successfully');

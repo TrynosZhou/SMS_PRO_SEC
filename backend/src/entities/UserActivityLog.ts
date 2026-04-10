@@ -6,7 +6,8 @@ import {
 } from 'typeorm';
 import { UserRole } from './User';
 
-@Entity('user_activity_logs')
+/** Table is created via migration / `ensureUserActivityLogTable`; do not let `synchronize` rewrite legacy rows/columns. */
+@Entity('user_activity_logs', { synchronize: false })
 @Index(['userId'])
 @Index(['loginAt'])
 export class UserActivityLog {
