@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { AppDataSource } from '../config/database';
 import { User, UserRole } from '../entities/User';
+import { Department } from '../entities/Department';
 import { AuthRequest } from '../middleware/auth';
 
 // Update user account (username and password) - works for teachers, parents, and students
@@ -189,7 +190,8 @@ export const createUserAccount = async (req: AuthRequest, res: Response) => {
       role,
       password,
       generatePassword = true,
-      isDemo = false
+      isDemo = false,
+      departmentId: bodyDepartmentId
     } = req.body || {};
 
     if (!role) {
@@ -199,6 +201,20 @@ export const createUserAccount = async (req: AuthRequest, res: Response) => {
     const requestedRole = String(role).toLowerCase() as UserRole;
     
     const isTeacherProfileRole = requestedRole === UserRole.TEACHER || requestedRole === UserRole.HOD;
+
+    let hodDepartmentId: string | null = null;
+    if (requestedRole === UserRole.HOD) {
+      const d = bodyDepartmentId != null ? String(bodyDepartmentId).trim() : '';
+      if (!d) {
+        return res.status(400).json({ message: 'Department is required for HOD accounts' });
+      }
+      const deptRepo = AppDataSource.getRepository(Department);
+      const dept = await deptRepo.findOne({ where: { id: d } });
+      if (!dept) {
+        return res.status(400).json({ message: 'Department not found' });
+      }
+      hodDepartmentId = d;
+    }
 
     // For teacher-profile roles (Teacher/HOD): username is mandatory, email is not required
     if (isTeacherProfileRole) {
@@ -307,6 +323,11 @@ export const createUserAccount = async (req: AuthRequest, res: Response) => {
       if (teacher && !teacher.userId) {
         // Teacher profile exists but not linked - link it to this user
         teacher.userId = user.id;
+        if (requestedRole === UserRole.HOD) {
+          teacher.role = 'HOD';
+        } else if (requestedRole === UserRole.TEACHER) {
+          teacher.role = 'Teacher';
+        }
         await teacherRepository.save(teacher);
         // Ensure username matches teacherId
         if (user.username !== teacher.teacherId) {
@@ -359,6 +380,14 @@ export const createUserAccount = async (req: AuthRequest, res: Response) => {
         if (existingTeacher.role !== desiredTeacherRole) {
           existingTeacher.role = desiredTeacherRole;
           await teacherRepository.save(existingTeacher);
+        }
+      }
+
+      if (hodDepartmentId) {
+        const t = await teacherRepository.findOne({ where: { userId: user.id } });
+        if (t) {
+          t.departmentId = hodDepartmentId;
+          await teacherRepository.save(t);
         }
       }
     }

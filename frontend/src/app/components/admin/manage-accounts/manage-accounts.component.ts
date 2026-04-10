@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { TeacherService } from '../../../services/teacher.service';
 import { AccountService } from '../../../services/account.service';
 import { AuthService } from '../../../services/auth.service';
+import { DepartmentsService } from '../../../services/departments.service';
 import { trigger, state, style, transition, animate } from '@angular/animations';
 import { Subscription } from 'rxjs';
 
@@ -56,7 +57,8 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
     { value: 'demo-user', label: 'Demo User' }
   ];
   manualAccount = this.getDefaultManualAccountForm();
-  
+  departments: Array<{ id: string; name: string; isActive?: boolean }> = [];
+
   // Search and filter
   searchQuery = '';
   filterStatus: 'all' | 'with-account' | 'without-account' = 'all';
@@ -84,12 +86,19 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
     private teacherService: TeacherService,
     private accountService: AccountService,
     private authService: AuthService,
+    private departmentsService: DepartmentsService,
     private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit() {
     this.loadTeachers();
-    
+    this.departmentsService.list().subscribe({
+      next: rows => {
+        this.departments = (rows || []).filter((d: any) => d && d.isActive !== false);
+      },
+      error: () => (this.departments = []),
+    });
+
     // Get current user immediately
     this.currentUser = this.authService.getCurrentUser();
     
@@ -109,10 +118,15 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
       }
     }, 200);
     
-    // Initialize form - ensure email is cleared if role is teacher
-    if (this.manualAccount.role === 'teacher') {
+    // Initialize form - teacher-profile roles use username login (email optional)
+    if (this.manualAccount.role === 'teacher' || this.manualAccount.role === 'hod') {
       this.manualAccount.email = '';
     }
+  }
+
+  /** Teacher and HOD share username-based login; HOD also needs a department. */
+  isTeacherProfileManualRole(): boolean {
+    return this.manualAccount.role === 'teacher' || this.manualAccount.role === 'hod';
   }
 
   ngOnDestroy() {
@@ -470,15 +484,12 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
   }
 
   onRoleChange() {
-    // Clear email when switching to teacher role
-    if (this.manualAccount.role === 'teacher') {
+    if (this.manualAccount.role === 'teacher' || this.manualAccount.role === 'hod') {
       this.manualAccount.email = '';
-      // Ensure username is required for teachers
-      if (!this.manualAccount.username || !this.manualAccount.username.trim()) {
-        // Username will be required by the form validation
-      }
     }
-    // Force change detection to update the view
+    if (this.manualAccount.role !== 'hod') {
+      this.manualAccount.departmentId = '';
+    }
     this.cdr.detectChanges();
   }
 
@@ -489,15 +500,15 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
       role: 'accountant',
       generatePassword: true,
       password: '',
-      isDemo: false
+      isDemo: false,
+      departmentId: '' as string,
     };
   }
 
   createManualAccount() {
-    // For teachers, username is mandatory, email is not required
-    if (this.manualAccount.role === 'teacher') {
+    if (this.isTeacherProfileManualRole()) {
       if (!this.manualAccount.username || !this.manualAccount.username.trim()) {
-        this.error = 'Username is mandatory for teacher accounts';
+        this.error = 'Username is mandatory for teacher and HOD accounts';
         setTimeout(() => this.error = '', 5000);
         return;
       }
@@ -506,8 +517,12 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
         setTimeout(() => this.error = '', 5000);
         return;
       }
+      if (this.manualAccount.role === 'hod' && !String(this.manualAccount.departmentId || '').trim()) {
+        this.error = 'Please select a department for this HOD.';
+        setTimeout(() => this.error = '', 5000);
+        return;
+      }
     } else {
-      // For other roles, email is required
       if (!this.manualAccount.email || !this.manualAccount.role) {
         this.error = 'Email and role are required to create an account';
         setTimeout(() => this.error = '', 5000);
@@ -541,15 +556,17 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
       username: this.manualAccount.username?.trim() || undefined,
       generatePassword: this.manualAccount.generatePassword
     };
-    
-    // Email is not required for teachers, required for other roles
-    if (resolvedRole !== 'teacher') {
+
+    if (resolvedRole !== 'teacher' && resolvedRole !== 'hod') {
       payload.email = this.manualAccount.email.trim();
     }
-    // Do not include email for teachers - teachers login with username and password only
 
     if (!this.manualAccount.generatePassword) {
       payload.password = this.manualAccount.password.trim();
+    }
+
+    if (resolvedRole === 'hod' && String(this.manualAccount.departmentId || '').trim()) {
+      payload.departmentId = String(this.manualAccount.departmentId).trim();
     }
 
     if (isDemoRole || (this.manualAccount.isDemo && this.isSuperAdmin())) {
@@ -568,8 +585,10 @@ export class ManageAccountsComponent implements OnInit, OnDestroy {
         if (password) {
           messageParts.push(`<strong>Temporary Password:</strong> ${password}`);
         }
-        if (resolvedRole === 'teacher') {
-          messageParts.push(`<small>Note: A basic teacher profile has been created. You can update the teacher details later.</small>`);
+        if (resolvedRole === 'teacher' || resolvedRole === 'hod') {
+          messageParts.push(
+            `<small>Note: A basic teacher profile has been created${resolvedRole === 'hod' ? ' with the selected department' : ''}. You can update details later.</small>`
+          );
         }
         this.success = messageParts.join('<br>');
         this.resetManualAccountForm();

@@ -35,12 +35,14 @@ export class AccountService {
   }
 
   createUserAccount(data: {
-    email: string;
+    email?: string;
     username?: string;
     role: string;
     password?: string;
     generatePassword?: boolean;
     isDemo?: boolean;
+    /** Required when role is `hod` (backend validates). */
+    departmentId?: string;
   }): Observable<any> {
     return this.http.post(`${this.apiUrl}/account/users`, data);
   }
