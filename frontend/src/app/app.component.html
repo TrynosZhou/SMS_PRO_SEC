@@ -73,6 +73,10 @@
         <span class="sidebar-icon">🧾</span>
         <span class="sidebar-text">My Invoice Statement</span>
       </a>
+      <a routerLink="/student/inventory" routerLinkActive="active" class="sidebar-item" *ngIf="isStudent()">
+        <span class="sidebar-icon">📚</span>
+        <span class="sidebar-text">My books &amp; fines</span>
+      </a>
 
       <!-- Student Manager (tabbed hub: /students/manage) -->
       <a
@@ -97,7 +101,6 @@
         <span class="sidebar-text">Class Promotion</span>
       </a>
 
-      <!-- Teacher Manager (tabbed hub: /teachers/manage) -->
       <a
         routerLink="/teachers/manage"
         routerLinkActive="active"
@@ -212,6 +215,17 @@
       >
         <span class="sidebar-icon">📊</span>
         <span class="sidebar-text">Reports Manager</span>
+      </a>
+
+      <a
+        [routerLink]="isTeacher() ? '/teacher/inventory_manage' : '/inventory/manage'"
+        routerLinkActive="active"
+        class="sidebar-item"
+        *ngIf="isInventoryStaff() && !isStudent()"
+        (click)="closeMobileMenu()"
+      >
+        <span class="sidebar-icon">📦</span>
+        <span class="sidebar-text">Inventory Manager</span>
       </a>
 
       <!-- E-learning Manager (teachers — hub with tabs) -->

@@ -69,6 +69,38 @@
         </div>
       </div>
 
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="teacherRole">
+            Role <span class="required">*</span>
+          </label>
+          <select id="teacherRole" [(ngModel)]="teacher.role" name="teacherRole" required class="form-input">
+            <option value="Teacher">Teacher</option>
+            <option value="HOD">HOD</option>
+          </select>
+          <small class="form-hint">Set whether this teacher is a regular teacher or Head of Department.</small>
+        </div>
+      </div>
+
+      <div class="form-grid" *ngIf="teacher.role === 'HOD'">
+        <div class="form-group">
+          <label for="teacherDepartment">
+            Department <span class="required">*</span>
+          </label>
+          <select
+            id="teacherDepartment"
+            [(ngModel)]="teacher.departmentId"
+            name="teacherDepartment"
+            required
+            class="form-input"
+          >
+            <option value="">— Select —</option>
+            <option *ngFor="let d of departments" [value]="d.id">{{ d.name }}</option>
+          </select>
+          <small class="form-hint">Choose the department this HOD leads (e.g. Chemistry).</small>
+        </div>
+      </div>
+
       <div class="form-grid form-grid-gender-married">
         <div class="form-group">
           <label for="gender">Gender</label>

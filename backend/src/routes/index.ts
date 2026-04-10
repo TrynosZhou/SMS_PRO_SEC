@@ -24,6 +24,7 @@ import userActivityRoutes from './userActivity.routes';
 import payrollRoutes from './payroll.routes';
 import adminRoutes from './admin.routes';
 import etaskRoutes from './etask.routes';
+import inventoryRoutes from './inventory.routes';
 
 const router = Router();
 
@@ -54,6 +55,7 @@ router.use('/activity', userActivityRoutes);
 router.use('/payroll', payrollRoutes);
 router.use('/admin', adminRoutes);
 router.use('/etasks', etaskRoutes);
+router.use('/inventory', inventoryRoutes);
 
 export default router;
 

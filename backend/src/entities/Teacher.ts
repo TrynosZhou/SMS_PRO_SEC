@@ -2,6 +2,9 @@ import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, ManyToMan
 import { User } from './User';
 import { Subject } from './Subject';
 import { Class } from './Class';
+import { Department } from './Department';
+
+export type TeacherRole = 'HOD' | 'Teacher';
 
 @Entity('teachers')
 @Index(['teacherId'], { unique: true })
@@ -29,6 +32,16 @@ export class Teacher {
 
   @Column({ nullable: true })
   qualification: string;
+
+  @Column({ type: 'varchar', length: 16, default: 'Teacher' })
+  role: TeacherRole;
+
+  @ManyToOne(() => Department, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'departmentId' })
+  department: Department | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  departmentId: string | null;
 
   /** e.g. Male / Female — used for formal title on dashboards (Mr / Mrs) */
   @Column({ type: 'varchar', length: 20, nullable: true })

@@ -96,6 +96,7 @@ import { StudentReportCardComponent } from './components/student/student-report-
 import { StudentInvoiceStatementComponent } from './components/student/student-invoice-statement/student-invoice-statement.component';
 import { UserLogComponent } from './components/settings/user-log/user-log.component';
 import { GeneralManageComponent } from './components/settings/general-manage/general-manage.component';
+import { DepartmentsComponent } from './components/settings/departments/departments.component';
 import { TransactionAuditComponent } from './components/finance/transaction-audit/transaction-audit.component';
 import { PayrollManagementComponent } from './components/payroll/payroll-management/payroll-management.component';
 import { SalaryAssignmentsComponent } from './components/payroll/salary-assignments/salary-assignments.component';
@@ -105,6 +106,8 @@ import { CommunicationSendComponent } from './components/admin/communication-sen
 import { CommunicationViewMessagesComponent } from './components/admin/communication-view-messages/communication-view-messages.component';
 import { ParentCommunicationsShellComponent } from './components/parent/parent-communications-shell/parent-communications-shell.component';
 import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-preview/invoice-pdf-preview.component';
+import { InventoryManageComponent } from './components/inventory/inventory-manage/inventory-manage.component';
+import { StudentInventoryComponent } from './components/student/student-inventory/student-inventory.component';
 
 @NgModule({
   declarations: [
@@ -198,6 +201,7 @@ import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-prev
     StudentInvoiceStatementComponent,
     GeneralManageComponent,
     UserLogComponent,
+    DepartmentsComponent,
     TransactionAuditComponent,
     PayrollManagementComponent,
     SalaryAssignmentsComponent,
@@ -206,7 +210,9 @@ import { InvoicePdfPreviewComponent } from './components/shared/invoice-pdf-prev
     CommunicationSendComponent,
     CommunicationViewMessagesComponent,
     ParentCommunicationsShellComponent,
-    InvoicePdfPreviewComponent
+    InvoicePdfPreviewComponent,
+    InventoryManageComponent,
+    StudentInventoryComponent
   ],
   imports: [
     BrowserModule,

@@ -79,7 +79,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.user = this.authService.getCurrentUser();
 
     // Teachers use the dedicated Teacher Portal — keep admin/accountant dashboard separate
-    if (this.authService.hasRole('teacher')) {
+    if (this.authService.hasRole('teacher') || this.authService.hasRole('hod')) {
       this.router.navigate(['/teacher/dashboard'], { replaceUrl: true });
       return;
     }
@@ -185,6 +185,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (this.isSuperAdmin()) return 'Super admin';
     if (this.isAdmin()) return 'Admin';
     if (this.isAccountant()) return 'Accountant';
+    if (this.authService.hasRole('librarian')) return 'Librarian';
+    if (this.authService.hasRole('inventory_clerk')) return 'Inventory clerk';
     if (this.isParent()) return 'Parent';
     if (this.isStudent()) return 'Student';
     return 'Staff';
@@ -254,8 +256,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.authService.hasRole('accountant');
   }
 
+  isInventoryStaff(): boolean {
+    return (
+      this.authService.hasRole('librarian') ||
+      this.authService.hasRole('inventory_clerk') ||
+      this.isAdmin()
+    );
+  }
+
   isTeacher(): boolean {
-    return this.authService.hasRole('teacher');
+    return this.authService.hasRole('teacher') || this.authService.hasRole('hod');
   }
 
   isParent(): boolean {

@@ -179,6 +179,7 @@ export class ModuleAccessService {
     // Map role names to module access keys (handle singular/plural differences)
     const roleMap: { [key: string]: string } = {
       'teacher': 'teachers',
+      'hod': 'teachers',
       'parent': 'parents',
       'accountant': 'accountant',
       'admin': 'admin',

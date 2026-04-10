@@ -30,7 +30,7 @@ export class SplashComponent implements OnInit, OnDestroy {
         return;
       }
 
-      if (role === 'teacher') {
+      if (role === 'teacher' || role === 'hod') {
         this.router.navigate(['/teacher/dashboard']);
         return;
       }

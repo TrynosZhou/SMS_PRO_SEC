@@ -115,7 +115,7 @@ export class ManageAccountComponent implements OnInit {
         this.currentEmail = data.email || '';
         this.newUsername = this.currentUsername;
         this.newEmail = this.currentEmail;
-        this.isTeacher = data.role === 'teacher';
+        this.isTeacher = data.role === 'teacher' || data.role === 'hod';
         this.mustChangePassword = data.mustChangePassword === true;
         this.canChangeUsername = !this.isTeacher || !this.mustChangePassword;
         this.loading = false;
@@ -192,7 +192,7 @@ export class ManageAccountComponent implements OnInit {
   private navigateToRoleHome() {
     if (this.authService.hasRole('parent')) {
       this.router.navigate(['/parent/dashboard']);
-    } else if (this.authService.hasRole('teacher')) {
+    } else if (this.authService.hasRole('teacher') || this.authService.hasRole('hod')) {
       this.router.navigate(['/teacher/dashboard']);
     } else {
       this.router.navigate(['/dashboard']);

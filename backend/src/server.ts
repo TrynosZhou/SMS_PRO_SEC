@@ -28,6 +28,7 @@ import { ensureSchoolMottoColumns } from './utils/ensureSchoolMottoColumns';
 import { ensureMessageAttachmentUrlColumn } from './utils/ensureMessageAttachmentUrlColumn';
 import { ensureClassTimeOffGridColumn } from './utils/ensureClassTimeOffGridColumn';
 import { ensureTimetableSlotNoUniqueCollision } from './utils/ensureTimetableSlotNoUniqueCollision';
+import { ensureFurnitureCurrentTeacherColumn } from './utils/ensureFurnitureCurrentTeacherColumn';
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -315,6 +316,12 @@ async function bootstrap() {
       await ensureTimetableSlotNoUniqueCollision(AppDataSource);
     } catch (ttErr: any) {
       console.warn('[Server] ensureTimetableSlotNoUniqueCollision:', ttErr?.message || ttErr);
+    }
+
+    try {
+      await ensureFurnitureCurrentTeacherColumn(AppDataSource);
+    } catch (furColErr: any) {
+      console.warn('[Server] ensureFurnitureCurrentTeacherColumn:', furColErr?.message || furColErr);
     }
 
     // Ensure existing students use the student ID prefix from settings (one-time alignment per boot)

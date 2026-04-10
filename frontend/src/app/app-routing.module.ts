@@ -92,6 +92,7 @@ import { StudentReportCardComponent } from './components/student/student-report-
 import { StudentInvoiceStatementComponent } from './components/student/student-invoice-statement/student-invoice-statement.component';
 import { UserLogComponent } from './components/settings/user-log/user-log.component';
 import { GeneralManageComponent } from './components/settings/general-manage/general-manage.component';
+import { DepartmentsComponent } from './components/settings/departments/departments.component';
 import { PayrollManagementComponent } from './components/payroll/payroll-management/payroll-management.component';
 import { SalaryAssignmentsComponent } from './components/payroll/salary-assignments/salary-assignments.component';
 import { PayrollManageComponent } from './components/payroll/payroll-manage/payroll-manage.component';
@@ -99,6 +100,9 @@ import { CommunicationManageShellComponent } from './components/admin/communicat
 import { CommunicationSendComponent } from './components/admin/communication-send/communication-send.component';
 import { CommunicationViewMessagesComponent } from './components/admin/communication-view-messages/communication-view-messages.component';
 import { ParentCommunicationsShellComponent } from './components/parent/parent-communications-shell/parent-communications-shell.component';
+import { InventoryManageComponent } from './components/inventory/inventory-manage/inventory-manage.component';
+import { StudentInventoryComponent } from './components/student/student-inventory/student-inventory.component';
+import { InventoryAccessGuard } from './guards/inventory-access.guard';
 
 const routes: Routes = [
   { path: '', component: SplashComponent },
@@ -405,6 +409,7 @@ const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'school-settings' },
       { path: 'school-settings', component: SettingsComponent, canActivate: [AuthGuard] },
+      { path: 'departments', component: DepartmentsComponent, canActivate: [AuthGuard] },
       { path: 'user-management', component: ManageAccountsComponent, canActivate: [AuthGuard] },
       { path: 'parent-management', component: ParentManagementComponent, canActivate: [AuthGuard] },
       { path: 'activity-log', component: UserLogComponent, canActivate: [AuthGuard] },
@@ -416,6 +421,17 @@ const routes: Routes = [
   { path: 'student/dashboard', component: StudentDashboardComponent, canActivate: [AuthGuard] },
   { path: 'student/report-card', component: StudentReportCardComponent, canActivate: [AuthGuard] },
   { path: 'student/invoice-statement', component: StudentInvoiceStatementComponent, canActivate: [AuthGuard] },
+  { path: 'student/inventory', component: StudentInventoryComponent, canActivate: [AuthGuard] },
+  {
+    path: 'inventory/manage',
+    component: InventoryManageComponent,
+    canActivate: [AuthGuard, InventoryAccessGuard],
+  },
+  {
+    path: 'teacher/inventory_manage',
+    component: InventoryManageComponent,
+    canActivate: [AuthGuard, InventoryAccessGuard],
+  },
   {
     path: 'student/elearning',
     component: StudentElearningShellComponent,

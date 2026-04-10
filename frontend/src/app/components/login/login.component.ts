@@ -181,7 +181,7 @@ export class LoginComponent implements OnInit {
           });
         }
         // Check if teacher must change password
-        else if (user.role === 'teacher' && user.mustChangePassword) {
+        else if ((user.role === 'teacher' || user.role === 'hod') && user.mustChangePassword) {
           // Navigate to manage account page
           this.router.navigate(['/teacher/manage-account']).catch(err => {
             console.error('Navigation error:', err);
@@ -189,7 +189,7 @@ export class LoginComponent implements OnInit {
           });
         }
         // Check if teacher login - redirect to teacher dashboard
-        else if (user.role === 'teacher') {
+        else if (user.role === 'teacher' || user.role === 'hod') {
           // Navigate to teacher dashboard
           this.router.navigate(['/teacher/dashboard']).catch(err => {
             console.error('Navigation error:', err);

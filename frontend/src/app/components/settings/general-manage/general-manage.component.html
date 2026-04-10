@@ -15,6 +15,15 @@
       School Settings
     </a>
     <a
+      *ngIf="showDepartmentsTab()"
+      routerLink="/general/manage/departments"
+      routerLinkActive="active"
+      class="gm-tab"
+    >
+      <span class="gm-tab-ico" aria-hidden="true">🏷️</span>
+      Departments
+    </a>
+    <a
       *ngIf="showUserManagementTab()"
       routerLink="/general/manage/user-management"
       routerLinkActive="active"

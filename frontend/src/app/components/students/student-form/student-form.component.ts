@@ -2,6 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { StudentService } from '../../../services/student.service';
 import { SettingsService } from '../../../services/settings.service';
+import { InventoryService } from '../../../services/inventory.service';
+import { AuthService } from '../../../services/auth.service';
 import { environment } from '../../../../environments/environment';
 import { studentsManageNav } from '../students-manage-navigation';
 
@@ -30,6 +32,10 @@ export class StudentFormComponent implements OnInit {
   isEdit = false;
   error = '';
   success = '';
+  /** Populated for staff users when editing, via GET /inventory/students/:id/summary */
+  inventorySummary: any = null;
+  inventorySummaryError = '';
+  inventorySummaryLoading = false;
   submitting = false;
   maxDate = '';
   selectedPhoto: File | null = null;
@@ -40,6 +46,8 @@ export class StudentFormComponent implements OnInit {
   constructor(
     private studentService: StudentService,
     private settingsService: SettingsService,
+    private inventoryService: InventoryService,
+    private authService: AuthService,
     private route: ActivatedRoute,
     public router: Router
   ) {
@@ -115,6 +123,7 @@ export class StudentFormComponent implements OnInit {
           this.student.photo = data.photo;
         }
         console.log('Formatted student data:', this.student);
+        this.loadInventorySummaryForProfile(id);
       },
       error: (err: any) => {
         console.error('Error loading student:', err);
@@ -283,6 +292,29 @@ export class StudentFormComponent implements OnInit {
 
   goToStudentsList(): void {
     this.router.navigateByUrl(studentsManageNav(this.router).list);
+  }
+
+  staffCanViewInventoryProfile(): boolean {
+    const r = String(this.authService.getCurrentUser()?.role || '').toLowerCase();
+    return ['librarian', 'inventory_clerk', 'admin', 'superadmin'].includes(r);
+  }
+
+  private loadInventorySummaryForProfile(studentId: string): void {
+    this.inventorySummary = null;
+    this.inventorySummaryError = '';
+    if (!this.isEdit || !this.staffCanViewInventoryProfile() || !studentId) return;
+    this.inventorySummaryLoading = true;
+    this.inventoryService.studentSummary(studentId).subscribe({
+      next: s => {
+        this.inventorySummary = s;
+        this.inventorySummaryLoading = false;
+      },
+      error: err => {
+        this.inventorySummaryLoading = false;
+        this.inventorySummaryError =
+          err.error?.message || 'Inventory summary unavailable (check permissions or module migration).';
+      },
+    });
   }
 
   getCompletionPercent(): number {

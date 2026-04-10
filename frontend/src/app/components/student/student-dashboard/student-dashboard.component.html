@@ -96,6 +96,13 @@
             <span class="sd-card-go">Go to parent dashboard →</span>
           </a>
 
+          <a *ngIf="!isParentViewer" routerLink="/student/inventory" class="sd-card sd-card-learn">
+            <span class="sd-card-icon" aria-hidden="true">📚</span>
+            <span class="sd-card-title">My books &amp; fines</span>
+            <span class="sd-card-desc">Textbooks on issue, library loans, and inventory fine balance.</span>
+            <span class="sd-card-go">Open →</span>
+          </a>
+
           <!-- E-learning -->
           <a *ngIf="!isParentViewer" routerLink="/student/elearning" class="sd-card sd-card-learn">
             <span class="sd-card-icon" aria-hidden="true">💻</span>

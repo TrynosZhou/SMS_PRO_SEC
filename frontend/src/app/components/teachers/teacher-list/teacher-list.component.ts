@@ -3,12 +3,14 @@ import { Router } from '@angular/router';
 import { TeacherService } from '../../../services/teacher.service';
 import { SubjectService } from '../../../services/subject.service';
 import { ClassService } from '../../../services/class.service';
+import { DepartmentsService } from '../../../services/departments.service';
 import { teachersManageNav } from '../teachers-manage-navigation';
 
 /** Editable teacher fields from list / grid / modal (Staff / Employee ID is read-only). */
 export type TeacherQuickEditField =
   | 'firstName'
   | 'lastName'
+  | 'role'
   | 'gender'
   | 'maritalStatus'
   | 'phoneNumber'
@@ -17,6 +19,7 @@ export type TeacherQuickEditField =
   | 'qualification'
   | 'subjectIds'
   | 'classIds'
+  | 'departmentId'
   | 'isActive';
 
 @Component({
@@ -29,6 +32,9 @@ export class TeacherListComponent implements OnInit {
   filteredTeachers: any[] = [];
   allSubjects: any[] = [];
   allClasses: any[] = [];
+  allDepartments: any[] = [];
+  private departmentByName = new Map<string, any>();
+  private hodByDepartmentId = new Map<string, any>();
   loading = false;
   searchQuery = '';
   selectedSubjectFilter = '';
@@ -65,6 +71,7 @@ export class TeacherListComponent implements OnInit {
     private teacherService: TeacherService,
     private subjectService: SubjectService,
     private classService: ClassService,
+    private departmentsService: DepartmentsService,
     private router: Router
   ) {
     const today = new Date();
@@ -82,6 +89,17 @@ export class TeacherListComponent implements OnInit {
     this.loadTeachers();
     this.loadSubjects();
     this.loadClasses();
+    this.loadDepartments();
+  }
+
+  loadDepartments(): void {
+    this.departmentsService.list().subscribe({
+      next: (rows) => {
+        this.allDepartments = (rows || []).filter((d: any) => d && d.isActive !== false);
+        this.rebuildDepartmentIndexes();
+      },
+      error: () => (this.allDepartments = []),
+    });
   }
 
   loadTeachers() {
@@ -101,6 +119,7 @@ export class TeacherListComponent implements OnInit {
           this.pagination.total = data?.total || this.teachers.length;
           this.pagination.totalPages = data?.totalPages || 1;
         }
+        this.rebuildDepartmentIndexes();
         this.applyLocalFilters();
         this.loading = false;
       },
@@ -116,6 +135,58 @@ export class TeacherListComponent implements OnInit {
         }
       }
     });
+  }
+
+  private normalizeDepartmentKey(value: unknown): string {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+  }
+
+  private rebuildDepartmentIndexes(): void {
+    this.departmentByName.clear();
+    this.hodByDepartmentId.clear();
+
+    for (const d of this.allDepartments || []) {
+      const key = this.normalizeDepartmentKey(d?.name);
+      if (key) this.departmentByName.set(key, d);
+    }
+
+    for (const t of this.teachers || []) {
+      if (String(t?.role || '').toUpperCase() !== 'HOD') continue;
+      const depId = String(t?.departmentId || t?.department?.id || '').trim();
+      if (depId) this.hodByDepartmentId.set(depId, t);
+    }
+  }
+
+  getDerivedDepartmentMemberships(teacher: any): Array<{ department: any; hod: any | null }> {
+    const out: Array<{ department: any; hod: any | null }> = [];
+    const seen = new Set<string>();
+    const subjects = Array.isArray(teacher?.subjects) ? teacher.subjects : [];
+
+    for (const s of subjects) {
+      const name = String(s?.name || '').trim();
+      if (!name) continue;
+
+      const key = this.normalizeDepartmentKey(name);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+
+      const mappedDepartment = this.departmentByName.get(key) || { id: '', name };
+      const mappedHod = mappedDepartment?.id
+        ? this.hodByDepartmentId.get(mappedDepartment.id) || null
+        : null;
+      out.push({ department: mappedDepartment, hod: mappedHod });
+    }
+
+    return out;
+  }
+
+  getHodDisplayName(hod: any): string {
+    if (!hod) return 'HOD not assigned';
+    const full = `${hod?.lastName || ''} ${hod?.firstName || ''}`.trim();
+    return full || hod?.teacherId || 'HOD assigned';
   }
 
   loadSubjects() {
@@ -227,6 +298,15 @@ export class TeacherListComponent implements OnInit {
         ];
         this.fieldEditValue = (teacher.gender || '').trim();
         break;
+      case 'role':
+        this.fieldEditLabel = 'Role';
+        this.fieldEditInputMode = 'select';
+        this.fieldEditSelectOptions = [
+          { value: 'Teacher', label: 'Teacher' },
+          { value: 'HOD', label: 'HOD' }
+        ];
+        this.fieldEditValue = teacher.role === 'HOD' ? 'HOD' : 'Teacher';
+        break;
       case 'maritalStatus':
         this.fieldEditLabel = 'Marital status';
         this.fieldEditInputMode = 'select';
@@ -298,6 +378,15 @@ export class TeacherListComponent implements OnInit {
         this.fieldEditCheckboxOptions = [...this.allClasses]
           .map((c: any) => ({ id: c.id, label: c.name }));
         this.fieldEditMultiIds = (teacher.classes || []).map((c: any) => c.id);
+        break;
+      case 'departmentId':
+        this.fieldEditLabel = 'Department (for HOD)';
+        this.fieldEditInputMode = 'select';
+        this.fieldEditSelectOptions = [
+          { value: '', label: '— None —' },
+          ...[...this.allDepartments].map((d: any) => ({ value: d.id, label: d.name })),
+        ];
+        this.fieldEditValue = teacher.departmentId || teacher.department?.id || '';
         break;
       default:
         return;
@@ -380,6 +469,9 @@ export class TeacherListComponent implements OnInit {
       case 'gender':
         payload['gender'] = this.fieldEditValue.trim() || null;
         break;
+      case 'role':
+        payload['role'] = this.fieldEditValue === 'HOD' ? 'HOD' : 'Teacher';
+        break;
       case 'maritalStatus':
         payload['maritalStatus'] = this.fieldEditValue.trim() || null;
         break;
@@ -410,6 +502,9 @@ export class TeacherListComponent implements OnInit {
         break;
       case 'subjectIds':
         payload['subjectIds'] = [...this.fieldEditMultiIds];
+        break;
+      case 'departmentId':
+        payload['departmentId'] = this.fieldEditValue.trim() || null;
         break;
       default:
         return;
@@ -487,14 +582,6 @@ export class TeacherListComponent implements OnInit {
       }
     });
     return classSet.size;
-  }
-
-  getAverageSubjectsPerTeacher(): number {
-    if (this.teachers.length === 0) return 0;
-    const total = this.teachers.reduce((sum, teacher) => {
-      return sum + (teacher.subjects ? teacher.subjects.length : 0);
-    }, 0);
-    return Math.round((total / this.teachers.length) * 10) / 10;
   }
 
   deleteTeacher(id: string, teacherName: string, teacherId: string) {

@@ -100,7 +100,7 @@ export class AppComponent implements OnInit {
   }
 
   isTeacher(): boolean {
-    return this.authService.hasRole('teacher');
+    return this.authService.hasRole('teacher') || this.authService.hasRole('hod');
   }
 
   isSuperAdmin(): boolean {
@@ -109,6 +109,16 @@ export class AppComponent implements OnInit {
 
   isAdmin(): boolean {
     return this.authService.hasRole('admin') || this.authService.hasRole('superadmin');
+  }
+
+  isInventoryStaff(): boolean {
+    return (
+      this.authService.hasRole('teacher') ||
+      this.authService.hasRole('librarian') ||
+      this.authService.hasRole('inventory_clerk') ||
+      this.authService.hasRole('hod') ||
+      this.isAdmin()
+    );
   }
 
   isStudent(): boolean {

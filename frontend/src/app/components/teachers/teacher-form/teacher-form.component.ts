@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { TeacherService } from '../../../services/teacher.service';
 import { SubjectService } from '../../../services/subject.service';
 import { SubjectUtilsService } from '../../../services/subject-utils.service';
+import { DepartmentsService } from '../../../services/departments.service';
 import { NgModel } from '@angular/forms';
 import { teachersManageNav } from '../teachers-manage-navigation';
 
@@ -15,6 +16,8 @@ export class TeacherFormComponent implements OnInit {
   teacher: any = {
     firstName: '',
     lastName: '',
+    role: 'Teacher',
+    departmentId: '',
     gender: '',
     maritalStatus: '',
     phoneNumber: '',
@@ -23,6 +26,7 @@ export class TeacherFormComponent implements OnInit {
     qualification: '',
     subjectIds: []
   };
+  departments: any[] = [];
   availableSubjects: any[] = [];
   subjectSearchQuery = '';
   filteredSubjects: any[] = [];
@@ -38,6 +42,7 @@ export class TeacherFormComponent implements OnInit {
     private teacherService: TeacherService,
     private subjectService: SubjectService,
     private subjectUtils: SubjectUtilsService,
+    private departmentsService: DepartmentsService,
     private route: ActivatedRoute,
     public router: Router
   ) {
@@ -48,11 +53,21 @@ export class TeacherFormComponent implements OnInit {
 
   ngOnInit() {
     this.loadSubjects();
+    this.loadDepartments();
     const id = this.route.snapshot.params['id'];
     if (id) {
       this.isEdit = true;
       this.loadTeacher(id);
     }
+  }
+
+  loadDepartments() {
+    this.departmentsService.list().subscribe({
+      next: (rows: any) => {
+        this.departments = (rows || []).filter((d: any) => d && d.isActive !== false);
+      },
+      error: () => (this.departments = []),
+    });
   }
 
   loadSubjects() {
@@ -118,6 +133,8 @@ export class TeacherFormComponent implements OnInit {
       next: (data: any) => {
         this.teacher = {
           ...data,
+          role: data.role || 'Teacher',
+          departmentId: data.departmentId || data.department?.id || '',
           dateOfBirth: data.dateOfBirth?.split('T')[0],
           subjectIds: data.subjects?.map((s: any) => s.id) || [],
           phoneNumber: data.phoneNumber || '',
@@ -187,6 +204,13 @@ export class TeacherFormComponent implements OnInit {
     const age = this.calculateAge(this.teacher.dateOfBirth);
     if (age < 20 || age > 65) {
       this.error = 'Teacher age must be between 20 and 65 years';
+      this.submitting = false;
+      return;
+    }
+
+    const role = String(this.teacher?.role || 'Teacher').trim();
+    if (role === 'HOD' && !String(this.teacher?.departmentId || '').trim()) {
+      this.error = 'Please select a department for this HOD.';
       this.submitting = false;
       return;
     }

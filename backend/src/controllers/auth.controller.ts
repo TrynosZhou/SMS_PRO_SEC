@@ -68,7 +68,7 @@ export const login = async (req: Request, res: Response) => {
 
     // Support username login (email is optional, mainly for non-teachers)
     // For teachers, only username is required
-    const loginIdentifier = username || email;
+    const loginIdentifier = String(username || email || '').trim();
     if (!loginIdentifier || !password) {
       console.log('[Login] Missing credentials:', { loginIdentifier: !!loginIdentifier, password: !!password });
       return res.status(400).json({ message: 'Username and password are required' });
@@ -264,8 +264,8 @@ export const login = async (req: Request, res: Response) => {
       return res.status(500).json({ message: 'Server error during authentication' });
     }
 
-    // Load teacher with classes if user is a teacher
-    if (user.role === UserRole.TEACHER) {
+    // Load teacher with classes if user is a teacher or HOD account
+    if (user.role === UserRole.TEACHER || user.role === UserRole.HOD) {
       try {
         console.log('[Login] Teacher login detected, loading teacher profile...');
         
@@ -344,12 +344,30 @@ export const login = async (req: Request, res: Response) => {
           }
         }
         
-        // If teacher profile doesn't exist, return error (don't auto-create)
+        // If teacher profile doesn't exist, create a minimal one and continue login.
         if (!teacher) {
-          console.log('[Login] Teacher profile not found for userId:', user.id);
-          return res.status(404).json({ 
-            message: 'Teacher profile not found. Please contact the administrator.' 
+          console.log('[Login] Teacher profile not found; creating minimal profile for userId:', user.id);
+          const baseTeacherId = String(user.username || '').trim();
+          let generatedTeacherId = baseTeacherId || `staff_${String(user.id || '').slice(0, 8)}`;
+          let suffix = 1;
+          while (await teacherRepository.findOne({ where: { teacherId: generatedTeacherId } })) {
+            generatedTeacherId = `${baseTeacherId || 'staff'}_${suffix++}`;
+          }
+          const createdTeacher = teacherRepository.create({
+            teacherId: generatedTeacherId,
+            firstName: 'Teacher',
+            lastName: 'Account',
+            role: user.role === UserRole.HOD ? 'HOD' : 'Teacher',
+            userId: user.id,
+            isActive: true,
           });
+          teacher = createdTeacher;
+          await teacherRepository.save(createdTeacher);
+          if (user.username !== generatedTeacherId) {
+            user.username = generatedTeacherId;
+            await userRepository.save(user);
+          }
+          console.log('[Login] ✓ Minimal teacher profile created with TeacherID:', generatedTeacherId);
         }
         
         // Log final teacher info
@@ -525,8 +543,8 @@ export const login = async (req: Request, res: Response) => {
       }
     };
 
-    // For teachers, include teacher object with full name and classes list
-    if (user.role === UserRole.TEACHER && user.teacher) {
+    // For teachers/HODs, include teacher object with full name and classes list
+    if ((user.role === UserRole.TEACHER || user.role === UserRole.HOD) && user.teacher) {
       response.user.teacher = user.teacher;
       response.user.classes = (user as any).classes || [];
     } else {
@@ -1006,8 +1024,14 @@ export const verifyTeacherPasswordReset = async (req: Request, res: Response) =>
     }
 
     const user = await userRepository.findOne({ where: { id: teacher.userId } });
-    if (!user || user.role !== UserRole.TEACHER) {
-      return res.status(400).json({ message: 'Invalid account for teacher password reset' });
+    const staffResetRoles = new Set<string>([
+      UserRole.TEACHER,
+      UserRole.HOD,
+      UserRole.LIBRARIAN,
+      UserRole.INVENTORY_CLERK,
+    ]);
+    if (!user || !staffResetRoles.has(String(user.role || '').toLowerCase())) {
+      return res.status(400).json({ message: 'Invalid account for staff password reset' });
     }
 
     if (!user.isActive) {

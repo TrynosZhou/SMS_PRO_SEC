@@ -964,6 +964,13 @@
   letter-spacing: 0.5px;
 }
 
+.teachers-table th:last-child,
+.teachers-table td:last-child {
+  text-align: center;
+  width: 320px;
+  min-width: 320px;
+}
+
 .teachers-table td {
   padding: 18px 20px;
   border-bottom: 1px solid #f1f3f5;
@@ -1031,8 +1038,11 @@
 /* Action Buttons */
 .action-buttons {
   display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .btn {
@@ -1549,11 +1559,13 @@
   }
 
   .action-buttons {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .btn {
-    width: 100%;
+    width: auto;
     justify-content: center;
   }
 

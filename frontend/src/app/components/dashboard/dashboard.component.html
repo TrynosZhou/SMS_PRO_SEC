@@ -199,6 +199,9 @@
           <a routerLink="/reports/manage" class="db-mod-tile" style="--mc:#8b5cf6">
             <span class="db-mod-ico">📊</span><span class="db-mod-lbl">Reports</span>
           </a>
+          <a routerLink="/inventory/manage" class="db-mod-tile" style="--mc:#14b8a6" *ngIf="isInventoryStaff()">
+            <span class="db-mod-ico">📦</span><span class="db-mod-lbl">Inventory Manager</span>
+          </a>
           <a routerLink="/timetable/manage" class="db-mod-tile" style="--mc:#06b6d4">
             <span class="db-mod-ico">📅</span><span class="db-mod-lbl">Timetable</span>
           </a>
@@ -210,6 +213,15 @@
           </a>
           <a routerLink="/elearning" class="db-mod-tile" style="--mc:#7c3aed">
             <span class="db-mod-ico">💻</span><span class="db-mod-lbl">E-Learning</span>
+          </a>
+        </div>
+
+        <div class="db-modules-grid" *ngIf="isInventoryStaff() && !isAdmin()">
+          <a routerLink="/inventory/manage" class="db-mod-tile" style="--mc:#14b8a6">
+            <span class="db-mod-ico">📦</span><span class="db-mod-lbl">Inventory Manager</span>
+          </a>
+          <a routerLink="/dashboard" class="db-mod-tile" style="--mc:#64748b">
+            <span class="db-mod-ico">🏠</span><span class="db-mod-lbl">Dashboard</span>
           </a>
         </div>
 

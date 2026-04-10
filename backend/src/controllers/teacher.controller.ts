@@ -3,6 +3,7 @@ import { In } from 'typeorm';
 import bcrypt from 'bcryptjs';
 import { AppDataSource } from '../config/database';
 import { Teacher } from '../entities/Teacher';
+import { Department } from '../entities/Department';
 import { User, UserRole } from '../entities/User';
 import { AuthRequest } from '../middleware/auth';
 import { generateTeacherId } from '../utils/teacherIdGenerator';
@@ -27,6 +28,16 @@ import {
   parseRequestSessionsPerWeek,
 } from '../utils/teacherContractLesson';
 
+function normalizeTeacherRole(input: unknown): 'HOD' | 'Teacher' {
+  const raw = String(input ?? '').trim().toLowerCase();
+  return raw === 'hod' ? 'HOD' : 'Teacher';
+}
+
+function normalizeDepartmentId(input: unknown): string | null {
+  const s = String(input ?? '').trim();
+  return s ? s : null;
+}
+
 export const registerTeacher = async (req: AuthRequest, res: Response) => {
   try {
     // Ensure database is initialized
@@ -34,7 +45,7 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
       await AppDataSource.initialize();
     }
 
-    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds, gender, maritalStatus } =
+    const { firstName, lastName, phoneNumber, address, dateOfBirth, qualification, subjectIds, gender, maritalStatus, role, departmentId } =
       req.body;
     
     // Validate required fields
@@ -48,6 +59,7 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
     }
 
     const teacherRepository = AppDataSource.getRepository(Teacher);
+    const departmentRepository = AppDataSource.getRepository(Department);
     const userRepository = AppDataSource.getRepository(User);
 
     // Generate unique teacher ID with prefix JPST
@@ -77,6 +89,16 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
 
     const gTrim = gender !== undefined && gender !== null && String(gender).trim() ? String(gender).trim() : null;
 
+    const normalizedRole = normalizeTeacherRole(role);
+    const depId = normalizeDepartmentId(departmentId);
+    if (normalizedRole === 'HOD') {
+      if (!depId) return res.status(400).json({ message: 'Department is required when role is HOD' });
+      const dep = await departmentRepository.findOne({ where: { id: depId } as any });
+      if (!dep) return res.status(400).json({ message: 'Selected department does not exist' });
+      const existingHod = await teacherRepository.findOne({ where: { role: 'HOD', departmentId: depId } as any });
+      if (existingHod) return res.status(409).json({ message: 'This department already has an HOD assigned' });
+    }
+
     const teacherData: Partial<Teacher> = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -84,6 +106,8 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
       phoneNumber: trimmedPhoneNumber,
       address: address?.trim() || null,
       qualification: qualification?.trim() || null,
+      role: normalizedRole,
+      departmentId: normalizedRole === 'HOD' ? depId : null,
       gender: gTrim,
       maritalStatus: normalizeTeacherMaritalStatus(gTrim, maritalStatus)
     };
@@ -114,11 +138,12 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
                    req.user?.email === 'demo@school.com' || 
                    req.user?.username === 'demo@school.com';
     
+    const accountRole = teacher.role === 'HOD' ? UserRole.HOD : UserRole.TEACHER;
     const user = userRepository.create({
       email: null, // Teachers don't require email
       username: tempUsername,
       password: hashedPassword,
-      role: UserRole.TEACHER,
+      role: accountRole,
       mustChangePassword: true,
       isTemporaryAccount: true,
       isDemo: isDemo // Set isDemo flag based on creator
@@ -133,7 +158,7 @@ export const registerTeacher = async (req: AuthRequest, res: Response) => {
     // Load the teacher with relations
     const savedTeacher = await teacherRepository.findOne({
       where: { id: teacher.id },
-      relations: ['subjects', 'classes']
+      relations: ['subjects', 'classes', 'department']
     });
 
     res.status(201).json({ 
@@ -182,6 +207,7 @@ export const getTeachers = async (req: AuthRequest, res: Response) => {
         .createQueryBuilder('teacher')
         .leftJoinAndSelect('teacher.subjects', 'subjects')
         .leftJoinAndSelect('teacher.classes', 'classes')
+        .leftJoinAndSelect('teacher.department', 'department')
         .leftJoinAndSelect('teacher.user', 'user');
       
       teachers = await queryBuilder.getMany();
@@ -201,6 +227,7 @@ export const getTeachers = async (req: AuthRequest, res: Response) => {
           const queryBuilder = teacherRepository
             .createQueryBuilder('teacher')
             .leftJoinAndSelect('teacher.subjects', 'subjects')
+            .leftJoinAndSelect('teacher.department', 'department')
             .leftJoinAndSelect('teacher.user', 'user');
           
           teachers = await queryBuilder.getMany();
@@ -283,8 +310,8 @@ export const getCurrentTeacher = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Not authenticated' });
     }
 
-    if (userRole !== UserRole.TEACHER) {
-      return res.status(403).json({ message: 'Only teachers can access this endpoint' });
+    if (userRole !== UserRole.TEACHER && userRole !== UserRole.HOD) {
+      return res.status(403).json({ message: 'Only teachers and HODs can access this endpoint' });
     }
 
     const teacherRepository = AppDataSource.getRepository(Teacher);
@@ -594,13 +621,16 @@ export const updateTeacher = async (req: AuthRequest, res: Response) => {
       subjectIds,
       isActive,
       gender,
-      maritalStatus
+      maritalStatus,
+      role,
+      departmentId
     } = req.body;
 
     const teacherRepository = AppDataSource.getRepository(Teacher);
+    const departmentRepository = AppDataSource.getRepository(Department);
     const teacher = await teacherRepository.findOne({
       where: { id },
-      relations: ['subjects', 'classes']
+      relations: ['subjects', 'classes', 'department']
     });
 
     if (!teacher) {
@@ -618,6 +648,24 @@ export const updateTeacher = async (req: AuthRequest, res: Response) => {
     }
     if (address !== undefined) teacher.address = address?.trim() || null;
     if (qualification !== undefined) teacher.qualification = qualification?.trim() || null;
+    const nextRole = role !== undefined ? normalizeTeacherRole(role) : teacher.role;
+    const nextDepartmentId = departmentId !== undefined ? normalizeDepartmentId(departmentId) : teacher.departmentId;
+
+    if (nextRole === 'HOD') {
+      if (!nextDepartmentId) return res.status(400).json({ message: 'Department is required when role is HOD' });
+      const dep = await departmentRepository.findOne({ where: { id: nextDepartmentId } as any });
+      if (!dep) return res.status(400).json({ message: 'Selected department does not exist' });
+      const existingHod = await teacherRepository
+        .createQueryBuilder('t')
+        .where('t.role = :r AND t."departmentId" = :d AND t.id <> :id', { r: 'HOD', d: nextDepartmentId, id: teacher.id })
+        .getOne();
+      if (existingHod) return res.status(409).json({ message: 'This department already has an HOD assigned' });
+    }
+
+    if (role !== undefined) teacher.role = nextRole;
+    if (departmentId !== undefined || role !== undefined) {
+      teacher.departmentId = nextRole === 'HOD' ? nextDepartmentId : null;
+    }
     if (isActive !== undefined) {
       teacher.isActive = Boolean(isActive);
     }
@@ -652,9 +700,19 @@ export const updateTeacher = async (req: AuthRequest, res: Response) => {
     // Save teacher
     await teacherRepository.save(teacher);
 
+    // Keep linked user role in sync with teacher role
+    if (teacher.userId) {
+      const userRepo = AppDataSource.getRepository(User);
+      const user = await userRepo.findOne({ where: { id: teacher.userId } });
+      if (user) {
+        user.role = teacher.role === 'HOD' ? UserRole.HOD : UserRole.TEACHER;
+        await userRepo.save(user);
+      }
+    }
+
     const updatedTeacher = await teacherRepository.findOne({
       where: { id },
-      relations: ['subjects', 'classes']
+      relations: ['subjects', 'classes', 'department']
     });
 
     res.json({ message: 'Teacher updated successfully', teacher: updatedTeacher });
@@ -756,7 +814,7 @@ export const getTeacherClasses = async (req: AuthRequest, res: Response) => {
       const user = req.user;
       
       // If user is a teacher, get their teacher profile
-      if (user.role === UserRole.TEACHER) {
+      if (user.role === UserRole.TEACHER || user.role === UserRole.HOD) {
         // Try to find by userId first
         teacher = await teacherRepository.findOne({
           where: { userId: user.id }
@@ -1935,11 +1993,12 @@ export const createTeacherAccount = async (req: AuthRequest, res: Response) => {
                    req.user?.email === 'demo@school.com' || 
                    req.user?.username === 'demo@school.com';
     
+    const accountRole = teacher.role === 'HOD' ? UserRole.HOD : UserRole.TEACHER;
     const user = userRepository.create({
       email: null, // Teachers don't require email
       username: tempUsername,
       password: hashedPassword,
-      role: UserRole.TEACHER,
+      role: accountRole,
       mustChangePassword: true,
       isTemporaryAccount: true,
       isDemo: isDemo // Set isDemo flag based on creator

@@ -24,6 +24,17 @@ import { TimetableSlot } from '../entities/TimetableSlot';
 import { TimetableVersion } from '../entities/TimetableVersion';
 import { ETask } from '../entities/ETask';
 import { ETaskSubmission } from '../entities/ETaskSubmission';
+import { InventorySettings } from '../entities/InventorySettings';
+import { TextbookCatalog } from '../entities/TextbookCatalog';
+import { TextbookCopy } from '../entities/TextbookCopy';
+import { FurnitureItem } from '../entities/FurnitureItem';
+import { TextbookPermanentIssue } from '../entities/TextbookPermanentIssue';
+import { LibraryLoan } from '../entities/LibraryLoan';
+import { FurnitureAssignment } from '../entities/FurnitureAssignment';
+import { InventoryFine } from '../entities/InventoryFine';
+import { InventoryAuditLog } from '../entities/InventoryAuditLog';
+import { TextbookTransfer } from '../entities/TextbookTransfer';
+import { Department } from '../entities/Department';
 
 // Load environment variables (only if not already set, e.g., in production)
 if (process.env.NODE_ENV !== 'production') {
@@ -38,7 +49,43 @@ console.log('[DB Config] Module type check - typeof module:', typeof module);
 
 console.log('[DB Config] Preparing entity list...');
 // Try using entity classes first, fallback to paths if needed
-const entities = [User, Student, Teacher, Class, Subject, Exam, Marks, Invoice, Parent, Settings, ReportCardRemarks, Message, UniformItem, InvoiceUniformItem, Attendance, PromotionRule, RecordBook, StudentTransfer, StudentEnrollment, TimetableConfig, TimetableSlot, TimetableVersion, ETask, ETaskSubmission];
+const entities = [
+  User,
+  Student,
+  Teacher,
+  Department,
+  Class,
+  Subject,
+  Exam,
+  Marks,
+  Invoice,
+  Parent,
+  Settings,
+  ReportCardRemarks,
+  Message,
+  UniformItem,
+  InvoiceUniformItem,
+  Attendance,
+  PromotionRule,
+  RecordBook,
+  StudentTransfer,
+  StudentEnrollment,
+  TimetableConfig,
+  TimetableSlot,
+  TimetableVersion,
+  ETask,
+  ETaskSubmission,
+  InventorySettings,
+  TextbookCatalog,
+  TextbookCopy,
+  FurnitureItem,
+  TextbookPermanentIssue,
+  LibraryLoan,
+  FurnitureAssignment,
+  InventoryFine,
+  InventoryAuditLog,
+  TextbookTransfer,
+];
 console.log('[DB Config] Entity count:', entities.length);
 console.log('[DB Config] Entity names:', entities.map(e => e?.name || 'unknown').join(', '));
 console.log('[DB Config] Checking each entity...');
@@ -118,6 +165,8 @@ try {
     migrations: migrationsPath,
     subscribers: subscribersPath,
     ssl,
+    /** Allows migrations that set `transaction = false` (e.g. PG enum `ALTER TYPE`) to run correctly. */
+    migrationsTransactionMode: 'each' as const,
   };
 
   if (databaseUrl) {

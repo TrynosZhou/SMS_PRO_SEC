@@ -80,7 +80,7 @@ export class TeacherDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    if (!this.authService.hasRole('teacher')) {
+    if (!this.authService.hasRole('teacher') && !this.authService.hasRole('hod')) {
       this.router.navigate(['/dashboard']);
       return;
     }
@@ -183,6 +183,7 @@ export class TeacherDashboardComponent implements OnInit, OnDestroy {
       { key: 'rankings', name: 'Rankings', route: '/rankings', icon: '🏆', description: 'View rankings' },
       { key: 'recordBook', name: 'Record Book', route: '/teacher/elearning-manage/record-book', icon: '📖', description: 'Enter and view marks' },
       { key: 'etask', name: 'Create Task', route: '/teacher/elearning-manage/tasks', icon: '✏️', description: 'E-learning tasks for your classes' },
+      { key: 'inventory', name: 'Inventory Manager', route: '/teacher/inventory_manage', icon: '📦', description: 'Issue textbooks and class furniture' },
       { key: 'attendance', name: 'Attendance', route: '/attendance/mark', icon: '✅', description: 'Mark register & attendance' },
       { key: 'finance', name: 'Finance', route: '/invoices', icon: '💰', description: 'View financial information' },
       { key: 'settings', name: 'Settings', route: '/settings', icon: '⚙️', description: 'School settings (if allowed)' }
@@ -224,8 +225,8 @@ export class TeacherDashboardComponent implements OnInit, OnDestroy {
     const user = this.authService.getCurrentUser();
     
     // Check if user is a teacher
-    if (!user || user.role !== 'teacher') {
-      this.error = 'Only teachers can access this dashboard';
+    if (!user || (user.role !== 'teacher' && user.role !== 'hod')) {
+      this.error = 'Only teachers and HODs can access this dashboard';
       return;
     }
 

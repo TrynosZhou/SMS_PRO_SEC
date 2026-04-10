@@ -26,6 +26,10 @@ export class GeneralManageComponent {
     return this.authService.hasRole('admin') || this.authService.hasRole('superadmin');
   }
 
+  showDepartmentsTab(): boolean {
+    return this.authService.hasRole('admin') || this.authService.hasRole('superadmin');
+  }
+
   showParentManagementTab(): boolean {
     return this.authService.hasRole('admin') || this.authService.hasRole('superadmin');
   }

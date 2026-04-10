@@ -30,6 +30,7 @@ export class ModuleAccessGuard implements CanActivate {
         const role = user.role.toLowerCase();
         switch (role) {
           case 'teacher':
+          case 'hod':
             this.router.navigate(['/teacher/dashboard']);
             break;
           case 'parent':

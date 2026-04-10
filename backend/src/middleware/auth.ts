@@ -34,10 +34,24 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       studentRecordId?: string;
     };
     const userRepository = AppDataSource.getRepository(User);
-    const user = await userRepository.findOne({
-      where: { id: decoded.userId },
-      relations: ['student', 'teacher', 'parent']
-    });
+    let user: User | null = null;
+    try {
+      user = await userRepository.findOne({
+        where: { id: decoded.userId },
+        relations: ['student', 'teacher', 'parent'],
+      });
+    } catch (dbErr: any) {
+      // If DB schema is behind (e.g., missing teachers.role), avoid taking auth down.
+      const code = dbErr?.code || dbErr?.driverError?.code;
+      if (code === '42703') {
+        user = await userRepository.findOne({
+          where: { id: decoded.userId },
+          relations: ['student', 'parent'],
+        });
+      } else {
+        throw dbErr;
+      }
+    }
 
     if (!user || !user.isActive) {
       return res.status(401).json({ message: 'Invalid or inactive user' });

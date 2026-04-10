@@ -1,0 +1,64 @@
+<div class="dep-wrap">
+  <header class="dep-head">
+    <h2 class="dep-title">Departments</h2>
+    <p class="dep-sub">Define departments (used for HOD assignment and inventory issuance).</p>
+  </header>
+
+  <div class="dep-alert dep-alert--error" *ngIf="error">{{ error }}</div>
+  <div class="dep-alert dep-alert--success" *ngIf="success">{{ success }}</div>
+
+  <section class="dep-card" *ngIf="canManage()">
+    <h3 class="dep-card-title">Add department</h3>
+    <div class="dep-row">
+      <input class="dep-input" type="text" [(ngModel)]="newName" placeholder="e.g. Chemistry" />
+      <button class="dep-btn" type="button" (click)="add()">Add</button>
+    </div>
+  </section>
+
+  <section class="dep-card">
+    <h3 class="dep-card-title">All departments</h3>
+    <div *ngIf="loading">Loading…</div>
+
+    <div class="dep-table-wrap" *ngIf="!loading">
+      <table class="dep-table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Active</th>
+            <th scope="col" *ngIf="canManage()">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let d of departments">
+            <td>
+              <input
+                class="dep-input dep-input--inline"
+                [ngModel]="d.name"
+                (ngModelChange)="rename(d, $event)"
+                [disabled]="!canManage()"
+              />
+            </td>
+            <td>
+              <button
+                type="button"
+                class="dep-pill"
+                [class.dep-pill--off]="!d.isActive"
+                (click)="canManage() && toggleActive(d)"
+                [disabled]="!canManage()"
+              >
+                {{ d.isActive ? 'Yes' : 'No' }}
+              </button>
+            </td>
+            <td *ngIf="canManage()">
+              <button type="button" class="dep-btn dep-btn--danger" (click)="remove(d)">Delete</button>
+            </td>
+          </tr>
+          <tr *ngIf="departments.length === 0">
+            <td [attr.colspan]="canManage() ? 3 : 2" class="dep-empty">No departments yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+

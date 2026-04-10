@@ -42,13 +42,6 @@
         <div class="stat-label">Classes Assigned</div>
       </div>
     </div>
-    <div class="stat-card">
-      <div class="stat-icon">⭐</div>
-      <div class="stat-content">
-        <div class="stat-value">{{ getAverageSubjectsPerTeacher() }}</div>
-        <div class="stat-label">Avg Subjects/Teacher</div>
-      </div>
-    </div>
   </div>
 
   <!-- Search and Filter Section -->
@@ -171,6 +164,12 @@
             <span class="info-label">Teacher ID</span>
             <span class="info-value">{{ teacher.teacherId }}</span>
           </div>
+          <div class="info-item">
+            <span class="info-label">Role</span>
+            <span class="info-value clickable-value" (click)="openFieldEdit(teacher, 'role', $event)" title="Click to edit">
+              {{ teacher.role || 'Teacher' }}
+            </span>
+          </div>
           <div class="info-item" *ngIf="isFemaleTeacher(teacher) || isMaleTeacher(teacher)">
             <span class="info-label">Marital status</span>
             <span
@@ -190,6 +189,18 @@
             </span>
           </div>
           <span class="info-text" *ngIf="!teacher.subjects?.length">None — click to assign</span>
+        </div>
+        <div class="departments-section">
+          <div class="section-label">Department memberships (auto from subjects)</div>
+          <div class="dept-memberships" *ngIf="getDerivedDepartmentMemberships(teacher).length > 0; else noDeptMembership">
+            <div class="dept-membership-line" *ngFor="let m of getDerivedDepartmentMemberships(teacher)">
+              <span class="subject-tag">{{ m.department?.name }}</span>
+              <span class="dept-hod">Managed by: {{ getHodDisplayName(m.hod) }}</span>
+            </div>
+          </div>
+          <ng-template #noDeptMembership>
+            <span class="info-text">No subject-based department membership yet.</span>
+          </ng-template>
         </div>
         <div
           class="classes-section editable-section"
@@ -227,6 +238,8 @@
             <th class="col-staff-id" scope="col">Staff ID</th>
             <th class="col-firstname" scope="col">First name</th>
             <th class="col-lastname" scope="col">Last name</th>
+            <th class="col-role" scope="col">Role</th>
+            <th class="col-department" scope="col">Department</th>
             <th class="col-gender" scope="col">Gender</th>
             <th class="col-marital-status" scope="col">Marital status</th>
             <th class="col-actions" scope="col">Actions</th>
@@ -240,6 +253,20 @@
             </td>
             <td class="col-lastname">
               <span class="clickable-value" (click)="openFieldEdit(teacher, 'lastName', $event)" title="Click to edit">{{ teacher.lastName || '—' }}</span>
+            </td>
+            <td class="col-role">
+              <span class="clickable-value" (click)="openFieldEdit(teacher, 'role', $event)" title="Click to edit role">
+                {{ teacher.role || 'Teacher' }}
+              </span>
+            </td>
+            <td class="col-department">
+              <div class="dept-memberships" *ngIf="getDerivedDepartmentMemberships(teacher).length > 0; else noDeptMembershipList">
+                <div class="dept-membership-line" *ngFor="let m of getDerivedDepartmentMemberships(teacher)">
+                  <span class="subject-tag-small">{{ m.department?.name }}</span>
+                  <span class="dept-hod">HOD: {{ getHodDisplayName(m.hod) }}</span>
+                </div>
+              </div>
+              <ng-template #noDeptMembershipList>—</ng-template>
             </td>
             <td class="col-gender">
               <span class="clickable-value" (click)="openFieldEdit(teacher, 'gender', $event)" title="Click to edit gender">
@@ -302,6 +329,11 @@
           </h2>
           <div class="teacher-identity-row">
             <p class="teacher-id-chip">{{ selectedTeacher.teacherId }}</p>
+            <span class="teacher-status-pill clickable-value"
+              (click)="openFieldEdit(selectedTeacher, 'role', $event)"
+              title="Click to edit role">
+              {{ selectedTeacher.role || 'Teacher' }}
+            </span>
             <span
               class="teacher-status-pill clickable-value"
               [class.active]="isTeacherActive(selectedTeacher)"
@@ -343,6 +375,17 @@
           </div>
         </div>
         <div class="detail-section-stack">
+          <div class="detail-section detail-section-card">
+            <h3 class="detail-section-title">Department Memberships (Auto)</h3>
+            <div class="tags-container tags-container-modern" *ngIf="getDerivedDepartmentMemberships(selectedTeacher).length > 0">
+              <span *ngFor="let m of getDerivedDepartmentMemberships(selectedTeacher)" class="subject-tag subject-tag-modern">
+                {{ m.department?.name }} — {{ getHodDisplayName(m.hod) }}
+              </span>
+            </div>
+            <p class="empty-section-hint" *ngIf="!getDerivedDepartmentMemberships(selectedTeacher).length">
+              Memberships appear automatically from subjects assigned to this teacher.
+            </p>
+          </div>
           <div class="detail-section detail-section-card">
             <h3 class="detail-section-title">Teaching Subjects <span class="section-count" *ngIf="selectedTeacher.subjects?.length">({{ selectedTeacher.subjects.length }})</span></h3>
             <div
