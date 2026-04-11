@@ -685,6 +685,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Aggregated stock + furniture summary: center Count column */
+.inv-stock-summary .inv-table td:has(.inv-num),
+.inv-stock-summary .inv-table th.inv-col-num {
+  text-align: center;
+}
+
+/* Textbook catalog (Available / Total) */
+.inv-textbook-catalog .inv-table td:has(.inv-num),
+.inv-textbook-catalog .inv-table th.inv-col-num {
+  text-align: center;
+}
+
 .inv-table--fines .inv-th-amount,
 .inv-table--fines .inv-td-amount {
   text-align: right;

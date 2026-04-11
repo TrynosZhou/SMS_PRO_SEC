@@ -155,6 +155,24 @@ export class InventoryService {
     return this.http.get<any[]>(`${this.base}/reports/furniture-issuance`, { params });
   }
 
+  /** Admin: furniture items in class-teacher pools (`with_teacher`). */
+  reportFurnitureWithClassTeachers(): Observable<{ items: any[] }> {
+    return this.http.get<{ items: any[] }>(`${this.base}/reports/furniture-with-class-teachers`);
+  }
+
+  /** Admin: textbook copies allocated to HODs (`with_hod`). */
+  reportTextbooksAllocatedToHods(): Observable<{ items: any[] }> {
+    return this.http.get<{ items: any[] }>(`${this.base}/reports/textbooks-allocated-to-hods`);
+  }
+
+  /** Admin: return invalid HOD holdings (no dept / no HOD name) to central stock. */
+  clearInvalidHodTextbookHoldings(): Observable<{ cleared: number; copyIds: string[] }> {
+    return this.http.post<{ cleared: number; copyIds: string[] }>(
+      `${this.base}/textbooks/admin/clear-invalid-hod-holdings`,
+      {}
+    );
+  }
+
   /** Teacher: textbooks with students where this teacher is the issuing holder. */
   reportTeacherTextbooksIssued(): Observable<{ textbooks: any[] }> {
     const params = new HttpParams().set('_', String(Date.now()));

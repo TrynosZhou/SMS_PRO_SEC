@@ -4,7 +4,7 @@
       <p class="inv-kicker">Operations</p>
       <h1>Inventory Manager</h1>
       <p class="inv-lead">
-        Stock, textbook custody, furniture, reports, and full audit trail — in one place.
+        Stock, textbook custody, furniture, reports, and audit — in one place.
       </p>
     </div>
     <div class="inv-hero-meta" *ngIf="auth.getCurrentUser() as u">
@@ -89,11 +89,21 @@
       type="button"
       role="tab"
       *ngIf="!isTeacher()"
-      [attr.aria-selected]="activeTab === 'reports'"
-      [class.active]="activeTab === 'reports'"
-      (click)="setTab('reports')"
+      [attr.aria-selected]="activeTab === 'reportsFurniture'"
+      [class.active]="activeTab === 'reportsFurniture'"
+      (click)="setTab('reportsFurniture')"
     >
-      <span class="inv-tab-ico" aria-hidden="true">📊</span> Reports
+      <span class="inv-tab-ico" aria-hidden="true">🪑</span> Report Furniture
+    </button>
+    <button
+      type="button"
+      role="tab"
+      *ngIf="!isTeacher()"
+      [attr.aria-selected]="activeTab === 'reportsTextbooksHod'"
+      [class.active]="activeTab === 'reportsTextbooksHod'"
+      (click)="setTab('reportsTextbooksHod')"
+    >
+      <span class="inv-tab-ico" aria-hidden="true">📚</span> Report Textbook
     </button>
     <button
       type="button"
@@ -154,7 +164,7 @@
         <button type="button" class="inv-btn inv-btn--primary" (click)="createCatalog()">Add title</button>
       </div>
 
-      <div class="inv-table-wrap" *ngIf="filteredCatalog.length">
+      <div class="inv-table-wrap inv-textbook-catalog" *ngIf="filteredCatalog.length">
         <table class="inv-table">
           <thead>
             <tr>
@@ -168,8 +178,8 @@
             <tr *ngFor="let c of filteredCatalog; trackBy: trackById">
               <td><strong>{{ c.title }}</strong></td>
               <td class="inv-td-muted">{{ c.isbn || '—' }}</td>
-              <td><span class="inv-num">{{ c.availableCopies }}</span></td>
-              <td><span class="inv-num">{{ c.totalCopies }}</span></td>
+              <td><span class="inv-num">{{ catalogAvailableCount(c) }}</span></td>
+              <td><span class="inv-num">{{ catalogTotalCount(c) }}</span></td>
             </tr>
           </tbody>
         </table>
@@ -367,7 +377,7 @@
           </thead>
           <tbody>
             <tr *ngFor="let row of stockOverview.textbookCounts">
-              <td>{{ row.title || row.catalogId }}</td>
+              <td>{{ row.title || row.catalogTitle || row.catalogId || '—' }}</td>
               <td><span [class]="statusPillClass(row.status)">{{ statusLabel(row.status) }}</span></td>
               <td><span class="inv-num">{{ row.count }}</span></td>
             </tr>
@@ -388,7 +398,7 @@
           </thead>
           <tbody>
             <tr *ngFor="let row of stockOverview.furnitureCounts">
-              <td>{{ row.itemType }}</td>
+              <td>{{ row.itemType || '—' }}</td>
               <td><span [class]="statusPillClass(row.status)">{{ statusLabel(row.status) }}</span></td>
               <td><span class="inv-num">{{ row.count }}</span></td>
             </tr>
@@ -596,35 +606,13 @@
     <div class="inv-chain-grid">
       <div class="inv-chain-card inv-chain-card--admin-bulk" *ngIf="isAdmin()">
         <h3>Furniture → class teacher (bulk)</h3>
-        <p class="inv-hint">Allocate desks/chairs from central stock to a class teacher pool.</p>
+        <p class="inv-hint">Allocate desks/chairs from central stock to a class teacher pool using auto-pick quantities below.</p>
         <select class="inv-input inv-input--block inv-select-teacher" [(ngModel)]="furAdminTeacherId" name="furAdminTidFurnitureTab">
           <option [ngValue]="''">Select class teacher…</option>
           <option *ngFor="let t of classTeachersForFurniture" [ngValue]="t.id">
             {{ t.lastName }} {{ t.firstName }} ({{ t.teacherId || t.id }})
           </option>
         </select>
-        <div class="inv-textarea-grid">
-          <label class="inv-field inv-field--block">
-            <span class="inv-label">Desk codes (optional)</span>
-            <textarea
-              class="inv-input inv-input--block inv-textarea"
-              rows="3"
-              [(ngModel)]="furAdminDeskText"
-              name="furAdminDesksFurnitureTab"
-              placeholder="DK0001, DK0002 or one per line…"
-            ></textarea>
-          </label>
-          <label class="inv-field inv-field--block">
-            <span class="inv-label">Chair codes (optional)</span>
-            <textarea
-              class="inv-input inv-input--block inv-textarea"
-              rows="3"
-              [(ngModel)]="furAdminChairText"
-              name="furAdminChairsFurnitureTab"
-              placeholder="CH0001…"
-            ></textarea>
-          </label>
-        </div>
         <div class="inv-inline-2">
           <label class="inv-field">
             <span class="inv-label">Auto-pick desks</span>
@@ -967,249 +955,104 @@
     </div>
   </section>
 
-  <!-- Reports -->
-  <section *ngIf="activeTab === 'reports' && !isTeacher()" class="inv-panel inv-panel--elevated">
+  <!-- Report: furniture allocated to class teachers -->
+  <section *ngIf="activeTab === 'reportsFurniture' && !isTeacher()" class="inv-panel inv-panel--elevated">
     <div class="inv-panel-head">
-      <h2>Reports</h2>
-      <p class="inv-panel-desc">Filter by date range, student, or class — then run a report. Use Copy data to export to the clipboard without showing raw JSON.</p>
+      <h2>Report Furniture</h2>
+      <p class="inv-panel-desc">
+        Desks and chairs in <strong>class teacher pools</strong> (allocated by admin from central stock, not yet assigned to students).
+      </p>
     </div>
-    <div class="inv-report-filters">
-      <label class="inv-field"
-        >From
-        <input type="date" [(ngModel)]="reportFrom" name="rfrom" />
-      </label>
-      <label class="inv-field"
-        >To
-        <input type="date" [(ngModel)]="reportTo" name="rto" />
-      </label>
-      <label class="inv-field inv-field--grow"
-        >Student ID
-        <input [(ngModel)]="reportStudentId" name="rsid" placeholder="Student ID" />
-      </label>
-      <label class="inv-field inv-field--grow"
-        >Class ID
-        <input [(ngModel)]="reportClassId" name="rcid" placeholder="Class ID" />
-      </label>
+    <div class="inv-toolbar">
+      <button type="button" class="inv-btn inv-btn--secondary" (click)="loadAdminClassTeacherFurnitureReport()" [disabled]="adminClassTeacherFurnitureLoading">
+        {{ adminClassTeacherFurnitureLoading ? 'Loading…' : 'Refresh' }}
+      </button>
     </div>
-    <div class="inv-chip-actions">
-      <button type="button" class="inv-chip-btn" (click)="runLostReport()">Lost items</button>
-      <button type="button" class="inv-chip-btn" (click)="runIssuanceReport()">Textbook issuance</button>
-      <button type="button" class="inv-chip-btn" (click)="runFurnReport()">Furniture</button>
-      <button type="button" class="inv-chip-btn" (click)="runLoansReport()">Loan history</button>
+    <div class="inv-table-wrap" *ngIf="adminClassTeacherFurnitureItems.length">
+      <table class="inv-table inv-table-sm">
+        <thead>
+          <tr>
+            <th scope="col">Type</th>
+            <th scope="col">Code</th>
+            <th scope="col">Location</th>
+            <th scope="col">Condition</th>
+            <th scope="col">Class teacher</th>
+            <th scope="col">Staff ID</th>
+            <th scope="col">Login</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of adminClassTeacherFurnitureItems; trackBy: trackById">
+            <td>{{ row.itemType }}</td>
+            <td><code class="inv-code">{{ row.itemCode }}</code></td>
+            <td>{{ row.classroomLocation || '—' }}</td>
+            <td>{{ row.condition }}</td>
+            <td>{{ row.teacherLastName }} {{ row.teacherFirstName }}</td>
+            <td><code class="inv-code">{{ row.teacherStaffId || '—' }}</code></td>
+            <td>{{ row.teacherUsername || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+    <div class="inv-empty" *ngIf="!adminClassTeacherFurnitureLoading && !adminClassTeacherFurnitureItems.length">
+      No furniture is currently allocated to class teacher pools.
+    </div>
+  </section>
 
-    <div class="inv-report-blocks">
-      <div class="inv-report-block" *ngIf="reportLost">
-        <div class="inv-report-block-head">
-          <h3>Lost items</h3>
-          <button type="button" class="inv-btn inv-btn--xs inv-btn--ghost" (click)="copyJson('Lost items', reportLost)">Copy data</button>
-        </div>
-        <div *ngIf="!reportLostTextbooks.length && !reportLostFurnitureRows.length" class="inv-empty">No lost items for the current filters.</div>
-
-        <ng-container *ngIf="reportLostTextbooks.length">
-          <h4 class="inv-subhead">Textbooks</h4>
-          <p class="inv-hint inv-report-count">{{ reportLostTextbooks.length }} lost copy(ies)</p>
-          <div class="inv-table-wrap inv-table-wrap--report">
-            <table class="inv-table inv-table-sm">
-              <thead>
-                <tr>
-                  <th scope="col">Lost</th>
-                  <th scope="col">Title</th>
-                  <th scope="col">Accountable</th>
-                  <th scope="col">Class</th>
-                  <th scope="col">Tag</th>
-                  <th scope="col">BookNumber</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let c of reportLostTextbooks; trackBy: trackById">
-                  <td class="inv-td-muted">{{ c.lostAt | date : 'medium' }}</td>
-                  <td><strong>{{ c.catalog?.title || '—' }}</strong></td>
-                  <td>{{ studentLabel(c.accountableStudent) || '—' }}</td>
-                  <td>{{ c.accountableStudent?.classEntity?.name || '—' }}</td>
-                  <td>{{ c.assetTag || '—' }}</td>
-                  <td class="inv-td-issuance-ids">
-                    <div class="inv-id-copy-line">
-                      <code class="inv-code inv-code--uuid-full" [attr.title]="c.assetTag">{{ c.assetTag || '—' }}</code>
-                      <button type="button" class="inv-btn inv-btn--xs inv-btn--ghost" (click)="copyTextbookCopyId(c.assetTag || '')" title="Copy BookNumber">Copy</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </ng-container>
-
-        <ng-container *ngIf="reportLostFurnitureRows.length">
-          <h4 class="inv-subhead">Furniture</h4>
-          <p class="inv-hint inv-report-count">{{ reportLostFurnitureRows.length }} lost item(s)</p>
-          <div class="inv-table-wrap inv-table-wrap--report">
-            <table class="inv-table inv-table-sm">
-              <thead>
-                <tr>
-                  <th scope="col">Lost</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Code</th>
-                  <th scope="col">Location</th>
-                  <th scope="col">Accountable</th>
-                  <th scope="col">Class</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let f of reportLostFurnitureRows; trackBy: trackById">
-                  <td class="inv-td-muted">{{ f.lostAt | date : 'medium' }}</td>
-                  <td>{{ f.itemType }}</td>
-                  <td><code class="inv-code">{{ f.itemCode }}</code></td>
-                  <td>{{ f.classroomLocation || '—' }}</td>
-                  <td>{{ studentLabel(f.accountableStudent) || '—' }}</td>
-                  <td>{{ f.accountableStudent?.classEntity?.name || '—' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </ng-container>
-      </div>
-
-      <div class="inv-report-block" *ngIf="reportIssuance.length">
-        <div class="inv-report-block-head">
-          <h3>Textbook issuance</h3>
-          <button type="button" class="inv-btn inv-btn--xs inv-btn--ghost" (click)="copyJson('Textbook issuance', reportIssuance)">Copy data</button>
-        </div>
-        <p class="inv-hint inv-report-count">{{ reportIssuance.length }} permanent issue(s) for the current filters.</p>
-        <div class="inv-table-wrap inv-table-wrap--report">
-          <table class="inv-table inv-table-sm">
-            <thead>
-              <tr>
-                <th scope="col">Issued</th>
-                <th scope="col">Student</th>
-                <th scope="col">Class</th>
-                <th scope="col">Title</th>
-                <th scope="col">Course</th>
-                <th scope="col">Copy / issue</th>
-                <th scope="col">State</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let row of reportIssuance; trackBy: trackById">
-                <td class="inv-td-muted">{{ row.issuedAt | date : 'medium' }}</td>
-                <td>{{ studentLabel(row.student) }}</td>
-                <td>{{ row.student?.classEntity?.name || '—' }}</td>
-                <td><strong>{{ row.copy?.catalog?.title || '—' }}</strong></td>
-                <td>{{ row.courseLabel || '—' }}</td>
-                <td class="inv-td-issuance-ids">
-                  <div class="inv-id-copy-line">
-                    <span class="inv-copy-id-meta">BookNumber</span>
-                    <code class="inv-code inv-code--uuid-full" [attr.title]="row.copy?.assetTag || row.copyId">{{ row.copy?.assetTag || '—' }}</code>
-                    <button type="button" class="inv-btn inv-btn--xs inv-btn--ghost" (click)="copyTextbookCopyId(row.copy?.assetTag || '')" title="Copy BookNumber">Copy</button>
-                  </div>
-                  <div class="inv-id-copy-line">
-                    <span class="inv-copy-id-meta">Issue</span>
-                    <code class="inv-code inv-code--uuid-full" [attr.title]="row.id">{{ row.id }}</code>
-                    <button type="button" class="inv-btn inv-btn--xs inv-btn--ghost" (click)="copyIssuanceIssueId(row.id)" title="Copy issue ID">Copy</button>
-                  </div>
-                </td>
-                <td>
-                  <span *ngIf="!issuanceRowReturned(row)" class="inv-pill inv-pill--warn">Active</span>
-                  <span *ngIf="issuanceRowReturned(row)" class="inv-pill inv-pill--muted">Returned {{ row.returnedAt | date : 'mediumDate' }}</span>
-                  <div class="inv-td-muted inv-iss-meta">{{ row.copyStatus || row.copy?.status }}</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="inv-report-block" *ngIf="reportFurn.length">
-        <div class="inv-report-block-head">
-          <h3>Furniture issuance</h3>
-          <button type="button" class="inv-btn inv-btn--xs inv-btn--ghost" (click)="copyJson('Furniture issuance', reportFurn)">Copy data</button>
-        </div>
-        <p class="inv-hint inv-report-count">{{ reportFurn.length }} assignment row(s)</p>
-        <div class="inv-table-wrap inv-table-wrap--report">
-          <table class="inv-table inv-table-sm">
-            <thead>
-              <tr>
-                <th scope="col">Issued</th>
-                <th scope="col">Student</th>
-                <th scope="col">Class</th>
-                <th scope="col">Desk</th>
-                <th scope="col">Chair</th>
-                <th scope="col">State</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let row of reportFurn; trackBy: trackById">
-                <td class="inv-td-muted">{{ row.issuedAt | date : 'medium' }}</td>
-                <td>{{ studentLabel(row.student) }}</td>
-                <td>{{ row.student?.classEntity?.name || '—' }}</td>
-                <td>
-                  <ng-container *ngIf="row.deskItem; else noDesk">
-                    <code class="inv-code">{{ row.deskItem.itemCode }}</code>
-                    <span class="inv-td-muted">{{ row.deskItem.classroomLocation }}</span>
-                  </ng-container>
-                  <ng-template #noDesk>—</ng-template>
-                </td>
-                <td>
-                  <ng-container *ngIf="row.chairItem; else noChair">
-                    <code class="inv-code">{{ row.chairItem.itemCode }}</code>
-                    <span class="inv-td-muted">{{ row.chairItem.classroomLocation }}</span>
-                  </ng-container>
-                  <ng-template #noChair>—</ng-template>
-                </td>
-                <td>
-                  <span *ngIf="!row.revokedAt" class="inv-pill inv-pill--warn">Active</span>
-                  <span *ngIf="row.revokedAt" class="inv-pill inv-pill--muted">Revoked {{ row.revokedAt | date : 'mediumDate' }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="inv-report-block" *ngIf="reportLoans.length">
-        <div class="inv-report-block-head">
-          <h3>Loan history</h3>
-          <button type="button" class="inv-btn inv-btn--xs inv-btn--ghost" (click)="copyJson('Loans', reportLoans)">Copy data</button>
-        </div>
-        <p class="inv-hint inv-report-count">{{ reportLoans.length }} loan row(s)</p>
-        <div class="inv-table-wrap inv-table-wrap--report">
-          <table class="inv-table inv-table-sm">
-            <thead>
-              <tr>
-                <th scope="col">Borrowed</th>
-                <th scope="col">Due</th>
-                <th scope="col">Returned</th>
-                <th scope="col">Student</th>
-                <th scope="col">Class</th>
-                <th scope="col">Title</th>
-                <th scope="col">BookNumber</th>
-                <th scope="col">Fines</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let row of reportLoans; trackBy: trackById">
-                <td class="inv-td-muted">{{ row.borrowedAt | date : 'medium' }}</td>
-                <td class="inv-td-muted">{{ row.dueAt | date : 'medium' }}</td>
-                <td>
-                  <span *ngIf="row.returnedAt" class="inv-td-muted">{{ row.returnedAt | date : 'medium' }}</span>
-                  <span *ngIf="!row.returnedAt" class="inv-pill inv-pill--info">Open</span>
-                  <div *ngIf="row.overdueDays != null" class="inv-td-muted inv-iss-meta">{{ row.overdueDays }}d overdue at return</div>
-                </td>
-                <td>{{ studentLabel(row.student) }}</td>
-                <td>{{ row.student?.classEntity?.name || '—' }}</td>
-                <td><strong>{{ row.copy?.catalog?.title || '—' }}</strong></td>
-                <td class="inv-td-issuance-ids">
-                  <div class="inv-id-copy-line">
-                    <code class="inv-code inv-code--uuid-full" [attr.title]="row.copy?.assetTag || row.copyId">{{ row.copy?.assetTag || '—' }}</code>
-                    <button type="button" class="inv-btn inv-btn--xs inv-btn--ghost" (click)="copyTextbookCopyId(row.copy?.assetTag || '')" title="Copy BookNumber">Copy</button>
-                  </div>
-                </td>
-                <td class="inv-td-muted">{{ loanFinesSummary(row) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+  <!-- Report: textbooks allocated to HODs -->
+  <section *ngIf="activeTab === 'reportsTextbooksHod' && !isTeacher()" class="inv-panel inv-panel--elevated">
+    <div class="inv-panel-head">
+      <h2>Report Textbook</h2>
+      <p class="inv-panel-desc">
+        Textbook copies held by <strong>heads of department</strong> after admin transfer (not yet issued to teachers in the chain).
+      </p>
+      <p class="inv-hint" *ngIf="isAdmin()">
+        For administrators, opening this tab automatically returns invalid rows to central stock: HOD has <strong>no department</strong> and/or <strong>no first and last name</strong>. Use
+        <strong>Clear invalid HOD rows</strong> to run that cleanup again without leaving the tab.
+      </p>
+    </div>
+    <div class="inv-toolbar">
+      <button type="button" class="inv-btn inv-btn--secondary" (click)="loadAdminHodTextbooksReport()" [disabled]="adminHodTextbooksLoading">
+        {{ adminHodTextbooksLoading ? 'Loading…' : 'Refresh' }}
+      </button>
+      <button
+        type="button"
+        class="inv-btn inv-btn--primary"
+        *ngIf="isAdmin()"
+        (click)="clearInvalidHodTextbookHoldings()"
+        [disabled]="adminHodTextbooksLoading || adminClearInvalidHodLoading"
+      >
+        {{ adminClearInvalidHodLoading ? 'Clearing…' : 'Clear invalid HOD rows' }}
+      </button>
+    </div>
+    <div class="inv-table-wrap" *ngIf="adminHodTextbookItems.length">
+      <table class="inv-table inv-table-sm">
+        <thead>
+          <tr>
+            <th scope="col">Book number</th>
+            <th scope="col">Title</th>
+            <th scope="col">Condition</th>
+            <th scope="col">HOD</th>
+            <th scope="col">Department</th>
+            <th scope="col">Staff ID</th>
+            <th scope="col">Login</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of adminHodTextbookItems; trackBy: trackById">
+            <td><code class="inv-code">{{ row.bookNumber }}</code></td>
+            <td><strong>{{ row.catalogTitle }}</strong></td>
+            <td>{{ row.condition }}</td>
+            <td>{{ row.hodLastName }} {{ row.hodFirstName }}</td>
+            <td>{{ row.hodDepartmentName || '—' }}</td>
+            <td><code class="inv-code">{{ row.hodTeacherStaffId || '—' }}</code></td>
+            <td>{{ row.hodUsername || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="inv-empty" *ngIf="!adminHodTextbooksLoading && !adminHodTextbookItems.length">
+      No textbook copies are currently allocated to HOD accounts.
     </div>
   </section>
 
@@ -1217,7 +1060,25 @@
   <section *ngIf="activeTab === 'audit'" class="inv-panel inv-panel--elevated">
     <div class="inv-panel-head">
       <h2>Audit trail</h2>
-      <p class="inv-panel-desc">Recent inventory actions (respects report date filters when set).</p>
+      <p class="inv-panel-desc">Recent inventory actions. Optional date range and filters apply to the audit query.</p>
+    </div>
+    <div class="inv-report-filters">
+      <label class="inv-field"
+        >From
+        <input type="date" [(ngModel)]="reportFrom" name="rfromAud" />
+      </label>
+      <label class="inv-field"
+        >To
+        <input type="date" [(ngModel)]="reportTo" name="rtoAud" />
+      </label>
+      <label class="inv-field inv-field--grow"
+        >Student ID
+        <input [(ngModel)]="reportStudentId" name="rsidAud" placeholder="Student ID" />
+      </label>
+      <label class="inv-field inv-field--grow"
+        >Class ID
+        <input [(ngModel)]="reportClassId" name="rcidAud" placeholder="Class ID" />
+      </label>
     </div>
     <div class="inv-toolbar">
       <input class="inv-input inv-input--grow" type="search" [(ngModel)]="auditQuery" name="audQ" placeholder="Filter action, entity, staff…" />

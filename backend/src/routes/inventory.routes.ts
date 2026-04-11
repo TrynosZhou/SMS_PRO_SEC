@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
+import { UserRole } from '../entities/User';
 import {
   getInventorySettings,
   updateInventorySettings,
@@ -33,6 +34,9 @@ import {
   reportLostItems,
   reportTextbookIssuance,
   reportFurnitureIssuance,
+  reportFurnitureWithClassTeachers,
+  reportTextbooksAllocatedToHods,
+  clearInvalidHodTextbookHoldings,
   reportTeacherTextbooksIssued,
   reportTeacherClassFurniture,
   reportLoanHistory,
@@ -83,6 +87,11 @@ router.get('/users/class-teachers-furniture', listClassTeachersForFurniture);
 router.get('/furniture/me/pool', listMyFurniturePool);
 
 // Chain-of-custody textbook transfers (Admin → HOD → Teacher → Student)
+router.post(
+  '/textbooks/admin/clear-invalid-hod-holdings',
+  authorize(UserRole.SUPERADMIN, UserRole.ADMIN),
+  clearInvalidHodTextbookHoldings
+);
 router.post('/textbooks/transfer/admin-to-hod', transferTextbooksAdminToHod);
 router.post('/textbooks/transfer/hod-to-teacher', transferTextbooksHodToTeacher);
 router.post('/textbooks/transfer/teacher-to-student', transferTextbooksTeacherToStudent);
@@ -109,6 +118,8 @@ router.get('/me/summary', getMyInventorySummary);
 router.get('/reports/lost', reportLostItems);
 router.get('/reports/textbook-issuance', reportTextbookIssuance);
 router.get('/reports/furniture-issuance', reportFurnitureIssuance);
+router.get('/reports/furniture-with-class-teachers', reportFurnitureWithClassTeachers);
+router.get('/reports/textbooks-allocated-to-hods', reportTextbooksAllocatedToHods);
 router.get('/reports/teacher-textbooks-issued', reportTeacherTextbooksIssued);
 router.get('/reports/teacher-class-furniture', reportTeacherClassFurniture);
 router.get('/reports/loan-history', reportLoanHistory);

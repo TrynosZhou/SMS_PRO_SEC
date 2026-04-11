@@ -380,19 +380,35 @@ export const stockOverview = async (req: AuthRequest, res: Response) => {
     const furnRepo = AppDataSource.getRepository(FurnitureItem);
     const tb = await copyRepo
       .createQueryBuilder('c')
-      .select('c.status', 'status')
+      .innerJoin('c.catalog', 'cat')
+      .select('c.catalogId', 'catalogId')
+      .addSelect('cat.title', 'title')
+      .addSelect('c.status', 'status')
       .addSelect('COUNT(*)', 'count')
-      .groupBy('c.status')
+      .groupBy('c.catalogId')
+      .addGroupBy('cat.title')
+      .addGroupBy('c.status')
       .getRawMany();
     const fr = await furnRepo
       .createQueryBuilder('f')
-      .select('f.status', 'status')
+      .select('f.itemType', 'itemType')
+      .addSelect('f.status', 'status')
       .addSelect('COUNT(*)', 'count')
-      .groupBy('f.status')
+      .groupBy('f.itemType')
+      .addGroupBy('f.status')
       .getRawMany();
     return res.json({
-      textbookCounts: tb.map((r: any) => ({ status: r.status, count: parseInt(r.count, 10) })),
-      furnitureCounts: fr.map((r: any) => ({ status: r.status, count: parseInt(r.count, 10) })),
+      textbookCounts: tb.map((r: any) => ({
+        catalogId: r.catalogId,
+        title: r.title ?? null,
+        status: r.status,
+        count: parseInt(r.count, 10),
+      })),
+      furnitureCounts: fr.map((r: any) => ({
+        itemType: r.itemType,
+        status: r.status,
+        count: parseInt(r.count, 10),
+      })),
     });
   } catch (e: any) {
     return res.status(500).json({ message: e.message });
@@ -415,7 +431,24 @@ export const listTextbookCatalog = async (req: AuthRequest, res: Response) => {
       .getRawMany();
     const byCat: Record<string, number> = {};
     for (const r of counts) byCat[r.catalogId] = parseInt(r.cnt, 10);
-    return res.json(list.map(c => ({ ...c, copyCount: byCat[c.id] ?? 0 })));
+    const availRows = await copyRepo
+      .createQueryBuilder('c')
+      .select('c.catalogId', 'catalogId')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('c.status = :st', { st: COPY_IN_STOCK })
+      .groupBy('c.catalogId')
+      .getRawMany();
+    const byCatAvail: Record<string, number> = {};
+    for (const r of availRows) byCatAvail[r.catalogId] = parseInt(r.cnt, 10);
+    const total = (id: string) => byCat[id] ?? 0;
+    return res.json(
+      list.map(c => ({
+        ...c,
+        copyCount: total(c.id),
+        totalCopies: total(c.id),
+        availableCopies: byCatAvail[c.id] ?? 0,
+      }))
+    );
   } catch (e: any) {
     return res.status(500).json({ message: e.message });
   }
@@ -1444,6 +1477,147 @@ export const reportFurnitureIssuance = async (req: AuthRequest, res: Response) =
       );
     }
     return res.json(rows);
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ message: e.message });
+  }
+};
+
+/** Desks/chairs in class-teacher pools (`with_teacher`), for admin inventory reports. */
+export const reportFurnitureWithClassTeachers = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user || !canRunInventoryReports(req.user)) return res.status(403).json({ message: 'Forbidden' });
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const rows = await AppDataSource.getRepository(FurnitureItem)
+      .createQueryBuilder('f')
+      .leftJoinAndSelect('f.currentTeacher', 't')
+      .leftJoinAndSelect('t.user', 'u')
+      .where('f.status = :st', { st: FURN_WITH_TEACHER })
+      .andWhere('f.currentTeacherId IS NOT NULL')
+      .orderBy('t.lastName', 'ASC')
+      .addOrderBy('t.firstName', 'ASC')
+      .addOrderBy('f.itemType', 'ASC')
+      .addOrderBy('f.itemCode', 'ASC')
+      .getMany();
+    const items = (rows || []).map((f: any) => ({
+      id: f.id,
+      itemType: f.itemType,
+      itemCode: f.itemCode,
+      condition: f.condition,
+      classroomLocation: f.classroomLocation,
+      status: f.status,
+      teacherRecordId: f.currentTeacherId,
+      teacherStaffId: f.currentTeacher?.teacherId || null,
+      teacherLastName: f.currentTeacher?.lastName || '',
+      teacherFirstName: f.currentTeacher?.firstName || '',
+      teacherUsername: f.currentTeacher?.user?.username || null,
+    }));
+    return res.json({ items });
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ message: e.message });
+  }
+};
+
+/** Textbook copies currently held by HODs (`with_hod`), for admin inventory reports. */
+export const reportTextbooksAllocatedToHods = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user || !canRunInventoryReports(req.user)) return res.status(403).json({ message: 'Forbidden' });
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const rows = await AppDataSource.getRepository(TextbookCopy)
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.catalog', 'cat')
+      .leftJoinAndSelect('c.currentHodUser', 'hodU')
+      .leftJoinAndSelect('hodU.teacher', 'hodT')
+      .leftJoinAndSelect('hodT.department', 'hodDept')
+      .where('c.status = :st', { st: COPY_WITH_HOD })
+      .andWhere('c.currentHodUserId IS NOT NULL')
+      .orderBy('hodT.lastName', 'ASC')
+      .addOrderBy('hodT.firstName', 'ASC')
+      .addOrderBy('cat.title', 'ASC')
+      .addOrderBy('c.assetTag', 'ASC')
+      .getMany();
+    const items = (rows || []).map((c: any) => ({
+      copyId: c.id,
+      bookNumber: c.assetTag || '—',
+      catalogTitle: c.catalog?.title || '—',
+      catalogId: c.catalogId,
+      condition: c.condition,
+      hodUserId: c.currentHodUserId,
+      hodUsername: c.currentHodUser?.username || null,
+      hodTeacherStaffId: c.currentHodUser?.teacher?.teacherId || null,
+      hodLastName: c.currentHodUser?.teacher?.lastName || '',
+      hodFirstName: c.currentHodUser?.teacher?.firstName || '',
+      hodDepartmentName: c.currentHodUser?.teacher?.department?.name || null,
+    }));
+    return res.json({ items });
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ message: e.message });
+  }
+};
+
+function isInvalidHodTextbookHolding(c: TextbookCopy & { currentHodUser?: (User & { teacher?: Teacher | null }) | null }): boolean {
+  const hodUser = (c as any).currentHodUser as (User & { teacher?: Teacher | null }) | null | undefined;
+  if (!c.currentHodUserId || !hodUser) return true;
+  const te = hodUser.teacher;
+  if (!te) return true;
+  const fn = String(te.firstName || '').trim();
+  const ln = String(te.lastName || '').trim();
+  if (!fn && !ln) return true;
+  if (!te.departmentId) return true;
+  return false;
+}
+
+/**
+ * Admin: return `with_hod` copies to central stock when HOD user has no teacher row, no department,
+ * or no first/last name (invalid for the HOD allocation report).
+ */
+export const clearInvalidHodTextbookHoldings = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user || !isElevatedAdmin(req.user)) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const out = await AppDataSource.transaction(async em => {
+      const rows = await em
+        .getRepository(TextbookCopy)
+        .createQueryBuilder('c')
+        .leftJoinAndSelect('c.currentHodUser', 'hodU')
+        .leftJoinAndSelect('hodU.teacher', 'hodT')
+        .leftJoinAndSelect('hodT.department', 'hodDept')
+        .where('c.status = :st', { st: COPY_WITH_HOD })
+        .andWhere('c.currentHodUserId IS NOT NULL')
+        .getMany();
+      const toClear = rows.filter(c => isInvalidHodTextbookHolding(c as any));
+      let cleared = 0;
+      for (const c of toClear) {
+        const prevHod = c.currentHodUserId;
+        c.status = COPY_IN_STOCK;
+        c.currentHodUserId = null;
+        c.currentTeacherId = null;
+        c.currentStudentId = null;
+        await em.getRepository(TextbookCopy).save(c);
+        await logTextbookTransfer(em, {
+          copyId: c.id,
+          fromType: 'hod',
+          fromUserId: prevHod,
+          toType: 'store',
+          authorizedByUserId: req.user!.id,
+          conditionAtTransfer: c.condition,
+        });
+        await audit(em, {
+          action: 'textbook_clear_invalid_hod_holding',
+          entityType: 'textbook_copy',
+          entityId: c.id,
+          performedByUserId: req.user!.id,
+          payload: { previousHodUserId: prevHod },
+        });
+        cleared += 1;
+      }
+      return { cleared, copyIds: toClear.map(c => c.id) };
+    });
+    return res.json(out);
   } catch (e: any) {
     console.error(e);
     return res.status(500).json({ message: e.message });

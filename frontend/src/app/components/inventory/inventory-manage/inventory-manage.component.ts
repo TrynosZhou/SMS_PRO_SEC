@@ -12,7 +12,8 @@ type InvTab =
   | 'custody'
   | 'furnitureAllocation'
   | 'tx'
-  | 'reports'
+  | 'reportsFurniture'
+  | 'reportsTextbooksHod'
   | 'audit'
   | 'textbookReport'
   | 'furnitureReport';
@@ -105,10 +106,11 @@ export class InventoryManageComponent implements OnInit {
   reportStudentId = '';
   reportClassId = '';
 
-  reportLost: any = null;
-  reportIssuance: any[] = [];
-  reportFurn: any[] = [];
-  reportLoans: any[] = [];
+  adminClassTeacherFurnitureLoading = false;
+  adminClassTeacherFurnitureItems: any[] = [];
+  adminHodTextbooksLoading = false;
+  adminHodTextbookItems: any[] = [];
+  adminClearInvalidHodLoading = false;
 
   auditRows: any[] = [];
   auditQuery = '';
@@ -124,8 +126,6 @@ export class InventoryManageComponent implements OnInit {
 
   classTeachersForFurniture: any[] = [];
   furAdminTeacherId: string | '' = '';
-  furAdminDeskText = '';
-  furAdminChairText = '';
   furAdminDeskCount: number | null = null;
   furAdminChairCount: number | null = null;
   furAdminTransferLoading = false;
@@ -277,8 +277,8 @@ export class InventoryManageComponent implements OnInit {
     if (tabStr === 'issues' || tabStr === 'fines' || tabStr === 'settings') {
       t = 'stock';
     }
-    if (this.isTeacherNavRestricted() && tab === 'reports') {
-      t = 'textbookReport';
+    if (tabStr === 'reports') {
+      t = this.isTeacherNavRestricted() ? 'textbookReport' : 'reportsFurniture';
     }
     if (!this.isTeacher() && t === 'tx') {
       t = 'stock';
@@ -311,9 +311,77 @@ export class InventoryManageComponent implements OnInit {
     if (t === 'furnitureReport') {
       this.loadTeacherFurnitureReport();
     }
+    if (t === 'reportsFurniture') {
+      this.loadAdminClassTeacherFurnitureReport();
+    }
+    if (t === 'reportsTextbooksHod') {
+      if (this.isAdmin()) {
+        this.clearInvalidHodTextbookHoldings(true);
+      } else {
+        this.loadAdminHodTextbooksReport();
+      }
+    }
     if (t === 'audit') {
       this.loadAudit();
     }
+  }
+
+  loadAdminClassTeacherFurnitureReport(): void {
+    if (this.isTeacher()) return;
+    this.adminClassTeacherFurnitureLoading = true;
+    this.inv.reportFurnitureWithClassTeachers().subscribe({
+      next: res => {
+        this.adminClassTeacherFurnitureItems = res?.items || [];
+        this.adminClassTeacherFurnitureLoading = false;
+      },
+      error: () => {
+        this.adminClassTeacherFurnitureItems = [];
+        this.adminClassTeacherFurnitureLoading = false;
+        this.flushMsg('err', 'Failed to load furniture report.');
+      },
+    });
+  }
+
+  loadAdminHodTextbooksReport(): void {
+    if (this.isTeacher()) return;
+    this.adminHodTextbooksLoading = true;
+    this.inv.reportTextbooksAllocatedToHods().subscribe({
+      next: res => {
+        this.adminHodTextbookItems = res?.items || [];
+        this.adminHodTextbooksLoading = false;
+      },
+      error: () => {
+        this.adminHodTextbookItems = [];
+        this.adminHodTextbooksLoading = false;
+        this.flushMsg('err', 'Failed to load HOD textbook report.');
+      },
+    });
+  }
+
+  /**
+   * @param silentWhenZero If true (e.g. auto-run on tab open), no toast when nothing to clear.
+   */
+  clearInvalidHodTextbookHoldings(silentWhenZero = false): void {
+    if (!this.isAdmin()) return;
+    this.adminClearInvalidHodLoading = true;
+    this.inv.clearInvalidHodTextbookHoldings().subscribe({
+      next: r => {
+        this.adminClearInvalidHodLoading = false;
+        const n = Number(r?.cleared ?? 0);
+        if (n > 0) {
+          this.flushMsg('ok', `Returned ${n} textbook copy/copies to central stock (missing HOD department or HOD name).`);
+        } else if (!silentWhenZero) {
+          this.flushMsg('ok', 'No invalid HOD holdings to clear.');
+        }
+        this.loadAdminHodTextbooksReport();
+        if (!this.isTeacher()) this.loadStock();
+      },
+      error: err => {
+        this.adminClearInvalidHodLoading = false;
+        this.flushMsg('err', err.error?.message || 'Clear failed');
+        this.loadAdminHodTextbooksReport();
+      },
+    });
   }
 
   flushMsg(kind: 'ok' | 'err', text: string, ms = 5000): void {
@@ -341,7 +409,7 @@ export class InventoryManageComponent implements OnInit {
   }
 
   trackById(_i: number, row: any): string {
-    return row?.id ?? String(_i);
+    return row?.id ?? row?.copyId ?? String(_i);
   }
 
   trackByPairKey(_i: number, row: any): string {
@@ -402,23 +470,16 @@ export class InventoryManageComponent implements OnInit {
     );
   }
 
-  copyIssuanceIssueId(id: string): void {
-    const t = String(id || '').trim();
-    if (!t) return;
-    navigator.clipboard?.writeText(t).then(
-      () => this.flushMsg('ok', 'Issue ID copied.'),
-      () => this.flushMsg('err', 'Copy failed.')
-    );
+  catalogAvailableCount(c: any): number {
+    const n = c?.availableCopies;
+    if (n == null || Number.isNaN(Number(n))) return 0;
+    return Number(n);
   }
 
-  issuanceRowReturned(row: any): boolean {
-    return !!row?.returnedAt;
-  }
-
-  loanFinesSummary(row: any): string {
-    const fs = row?.fineStatus;
-    if (!Array.isArray(fs) || !fs.length) return '—';
-    return fs.map((f: any) => `${f.fineType || 'fine'}: ${f.amount} (${f.status})`).join('; ');
+  catalogTotalCount(c: any): number {
+    const n = c?.totalCopies ?? c?.copyCount;
+    if (n == null || Number.isNaN(Number(n))) return 0;
+    return Number(n);
   }
 
   get kpiBooksInStock(): number {
@@ -1154,42 +1215,6 @@ export class InventoryManageComponent implements OnInit {
     return p;
   }
 
-  get reportLostTextbooks(): any[] {
-    return this.reportLost?.textbooks || [];
-  }
-
-  get reportLostFurnitureRows(): any[] {
-    return this.reportLost?.furniture || [];
-  }
-
-  runLostReport(): void {
-    this.inv.reportLost(this.reportParams()).subscribe({
-      next: data => (this.reportLost = data),
-      error: () => this.flushMsg('err', 'Lost report failed'),
-    });
-  }
-
-  runIssuanceReport(): void {
-    this.inv.reportTextbookIssuance(this.reportParams()).subscribe({
-      next: rows => (this.reportIssuance = rows || []),
-      error: () => this.flushMsg('err', 'Issuance report failed'),
-    });
-  }
-
-  runFurnReport(): void {
-    this.inv.reportFurnitureIssuance(this.reportParams()).subscribe({
-      next: rows => (this.reportFurn = rows || []),
-      error: () => this.flushMsg('err', 'Furniture report failed'),
-    });
-  }
-
-  runLoansReport(): void {
-    this.inv.reportLoans(this.reportParams()).subscribe({
-      next: rows => (this.reportLoans = rows || []),
-      error: () => this.flushMsg('err', 'Loans report failed'),
-    });
-  }
-
   loadTeacherTextbookReport(): void {
     this.teacherTextbookReportLoading = true;
     this.inv.reportTeacherTextbooksIssued().subscribe({
@@ -1352,30 +1377,22 @@ export class InventoryManageComponent implements OnInit {
     return pairs.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true, sensitivity: 'base' }));
   }
 
-  private parseFurnitureCodeList(text: string): string[] {
-    return this.parseBookNumberList(text);
-  }
-
   doAdminFurniturePoolTransfer(): void {
     const teacherId = String(this.furAdminTeacherId || '').trim();
     if (!teacherId) {
       this.flushMsg('err', 'Select a class teacher.');
       return;
     }
-    const deskRefs = this.parseFurnitureCodeList(this.furAdminDeskText);
-    const chairRefs = this.parseFurnitureCodeList(this.furAdminChairText);
     const deskCount = this.furAdminDeskCount != null && this.furAdminDeskCount > 0 ? this.furAdminDeskCount : undefined;
     const chairCount = this.furAdminChairCount != null && this.furAdminChairCount > 0 ? this.furAdminChairCount : undefined;
-    if (!deskRefs.length && !chairRefs.length && !deskCount && !chairCount) {
-      this.flushMsg('err', 'Enter desk/chair codes or counts.');
+    if (!deskCount && !chairCount) {
+      this.flushMsg('err', 'Enter auto-pick desk and/or chair quantities.');
       return;
     }
     this.furAdminTransferLoading = true;
     this.inv
       .transferFurnitureAdminToClassTeacher({
         teacherId,
-        deskRefs: deskRefs.length ? deskRefs : undefined,
-        chairRefs: chairRefs.length ? chairRefs : undefined,
         deskCount,
         chairCount,
       })
@@ -1384,8 +1401,6 @@ export class InventoryManageComponent implements OnInit {
           this.furAdminTransferLoading = false;
           const n = r?.transferred ?? 0;
           this.flushMsg('ok', n ? `Transferred ${n} item(s) to class teacher pool.` : 'Transfer completed.');
-          this.furAdminDeskText = '';
-          this.furAdminChairText = '';
           this.furAdminDeskCount = null;
           this.furAdminChairCount = null;
           this.loadFurniture();
