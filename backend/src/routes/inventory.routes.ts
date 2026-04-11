@@ -47,6 +47,8 @@ import {
   listHodUsers,
   listDepartmentTeachersForHod,
   listMyHeldTextbooks,
+  countHodIssuedToTeachers,
+  listBlockedStudentsForTextbookIssue,
 } from '../controllers/inventory.controller';
 
 const router = Router();
@@ -90,6 +92,8 @@ router.post('/textbooks/return/student-to-teacher', returnTextbooksStudentToTeac
 router.get('/users/hods', listHodUsers);
 router.get('/users/department-teachers', listDepartmentTeachersForHod);
 router.get('/textbooks/me/held', listMyHeldTextbooks);
+router.get('/textbooks/hod/issued-to-teachers-count', countHodIssuedToTeachers);
+router.get('/textbooks/issue/blocked-students-in-class', listBlockedStudentsForTextbookIssue);
 
 router.post('/items/textbook/:id/mark-lost', markTextbookLost);
 router.post('/items/furniture/:id/mark-lost', markFurnitureLost);

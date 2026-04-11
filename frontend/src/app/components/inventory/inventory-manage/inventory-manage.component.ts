@@ -70,13 +70,20 @@ export class InventoryManageComponent implements OnInit {
 
   teacherHeldCopies: any[] = [];
   hodAllocatedCopies: any[] = [];
+  /** HOD: copies currently with teachers under this HOD (from API). */
+  hodIssuedToTeachersCount = 0;
   private hodBookSelection = new Set<string>();
 
   quickIssueOpen = false;
   quickIssueBookNumber = '';
+  /** Catalog for the copy being issued (one title per student). */
+  quickIssueCatalogId = '';
+  quickIssueCatalogTitle = '';
   quickIssueClassId: string | '' = '';
   quickIssueStudentId: string | '' = '';
   quickIssueClassStudents: any[] = [];
+  /** Students in selected class who already hold this catalog title. */
+  quickIssueBlockedStudentIds = new Set<string>();
   quickIssueLoading = false;
   recentQuickIssue: { bookNumber: string; studentLabel: string; issuedAt: Date } | null = null;
 
@@ -711,6 +718,20 @@ export class InventoryManageComponent implements OnInit {
     return this.parseBookNumberList(this.custodyCopyIdsText);
   }
 
+  /** HOD → teacher: table checkboxes plus optional pasted BookNumbers (deduped). */
+  hodToTeacherBookNumbers(): string[] {
+    const set = new Set<string>();
+    for (const b of this.selectedHodBookNumberList) {
+      const k = String(b || '').trim();
+      if (k) set.add(k);
+    }
+    for (const b of this.custodyBookNumbers()) {
+      const k = String(b || '').trim();
+      if (k) set.add(k);
+    }
+    return [...set];
+  }
+
   get selectedHodBookNumberList(): string[] {
     return [...this.hodBookSelection];
   }
@@ -742,13 +763,6 @@ export class InventoryManageComponent implements OnInit {
     }
   }
 
-  doHodBulkAllocateSelected(): void {
-    const nums = this.selectedHodBookNumberList;
-    if (!nums.length) return;
-    this.custodyCopyIdsText = nums.join('\n');
-    this.flushMsg('ok', `${nums.length} book number(s) copied to the bulk field. Choose a teacher, then Transfer.`);
-  }
-
   doAdminToHod(): void {
     const hodUserId = String(this.custodyHodUserId || '').trim();
     if (!hodUserId) {
@@ -769,9 +783,12 @@ export class InventoryManageComponent implements OnInit {
 
   doHodToTeacher(): void {
     const teacherId = String(this.custodyTeacherId || '').trim();
-    const bookNumbers = this.custodyBookNumbers();
+    const bookNumbers = this.hodToTeacherBookNumbers();
     if (!teacherId || !bookNumbers.length) {
-      this.flushMsg('err', 'Select a teacher and enter at least one BookNumber.');
+      const hint = this.isTeacherNavRestricted()
+        ? 'Select a teacher in your department and tick at least one textbook in the table above.'
+        : 'Select a teacher in your department and at least one textbook (use the checkboxes and/or the optional BookNumbers field).';
+      this.flushMsg('err', hint);
       return;
     }
     this.inv.transferHodToTeacher({ teacherId, bookNumbers }).subscribe({
@@ -795,6 +812,12 @@ export class InventoryManageComponent implements OnInit {
         },
         error: () => (this.hodAllocatedCopies = []),
       });
+      this.inv.getHodIssuedToTeachersCount().subscribe({
+        next: res => (this.hodIssuedToTeachersCount = Number(res?.issuedToTeachers ?? 0)),
+        error: () => (this.hodIssuedToTeachersCount = 0),
+      });
+    } else {
+      this.hodIssuedToTeachersCount = 0;
     }
     if (String(u?.role || '').toLowerCase() === 'teacher') {
       this.inv.listMyHeldTextbooks().subscribe({
@@ -810,15 +833,44 @@ export class InventoryManageComponent implements OnInit {
     const tag = String(c?.assetTag || '').trim();
     if (!tag) return;
     this.quickIssueBookNumber = tag;
+    this.quickIssueCatalogId = String(c?.catalogId || c?.catalog?.id || '').trim();
+    this.quickIssueCatalogTitle = String(c?.catalog?.title || '').trim();
     this.quickIssueClassId = '';
     this.quickIssueStudentId = '';
     this.quickIssueClassStudents = [];
+    this.quickIssueBlockedStudentIds = new Set();
     this.quickIssueOpen = true;
   }
 
   closeQuickIssueModal(): void {
     this.quickIssueOpen = false;
     this.quickIssueLoading = false;
+    this.quickIssueBlockedStudentIds = new Set();
+    this.quickIssueCatalogId = '';
+    this.quickIssueCatalogTitle = '';
+  }
+
+  studentBlockedForQuickIssue(studentId: string): boolean {
+    return this.quickIssueBlockedStudentIds.has(String(studentId || '').trim());
+  }
+
+  private refreshQuickIssueBlockedStudents(classId: string): void {
+    const cat = String(this.quickIssueCatalogId || '').trim();
+    if (!cat) {
+      this.quickIssueBlockedStudentIds = new Set();
+      return;
+    }
+    this.inv.getBlockedStudentsForTextbookIssue(classId, cat).subscribe({
+      next: res => {
+        this.quickIssueBlockedStudentIds = new Set(
+          (res?.blockedStudentIds || []).map((x: string) => String(x))
+        );
+        if (this.quickIssueStudentId && this.studentBlockedForQuickIssue(this.quickIssueStudentId)) {
+          this.quickIssueStudentId = '';
+        }
+      },
+      error: () => (this.quickIssueBlockedStudentIds = new Set()),
+    });
   }
 
   get teacherClassOptions(): any[] {
@@ -830,11 +882,13 @@ export class InventoryManageComponent implements OnInit {
     const cid = String(this.quickIssueClassId || '').trim();
     this.quickIssueStudentId = '';
     this.quickIssueClassStudents = [];
+    this.quickIssueBlockedStudentIds = new Set();
     if (!cid) return;
     this.studentsApi.getStudents({ classId: cid, limit: 500 }).subscribe({
       next: (data: any) => {
         const raw = Array.isArray(data) ? data : data?.students || data?.data || [];
         this.quickIssueClassStudents = (raw || []).filter((s: any) => s.isActive !== false);
+        this.refreshQuickIssueBlockedStudents(cid);
       },
       error: () => (this.quickIssueClassStudents = []),
     });
@@ -845,6 +899,10 @@ export class InventoryManageComponent implements OnInit {
     const bn = String(this.quickIssueBookNumber || '').trim();
     if (!studentId || !bn) {
       this.flushMsg('err', 'Select a student.');
+      return;
+    }
+    if (this.studentBlockedForQuickIssue(studentId)) {
+      this.flushMsg('err', 'This student already has a textbook for this title. Only one copy per title is allowed.');
       return;
     }
     this.quickIssueLoading = true;

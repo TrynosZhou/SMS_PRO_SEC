@@ -452,6 +452,52 @@
   color: #334155;
 }
 
+.inv-hod-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+.inv-hod-stats-row .inv-hod-remaining-count {
+  flex: 1 1 220px;
+  margin: 0;
+  min-width: 0;
+}
+.inv-hod-issued-count {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+.inv-teacher-from-hod-count {
+  margin-bottom: 0.85rem;
+}
+
+.inv-hod-remaining-count {
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #334155;
+}
+.inv-hod-remaining-count__label {
+  font-weight: 600;
+  margin-right: 0.35rem;
+}
+.inv-hod-remaining-count__num {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: #1e293b;
+  min-width: 1.5rem;
+  text-align: center;
+}
+.inv-hod-remaining-count__hint {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
 /* Buttons */
 .inv-btn {
   display: inline-flex;
@@ -910,6 +956,13 @@
 .inv-student-pick-item:hover:not(:disabled) {
   background: #eef2ff;
   border-color: #a5b4fc;
+}
+
+.inv-student-pick-item--blocked,
+.inv-student-pick-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #f1f5f9;
 }
 
 .inv-furniture-pool-wrap {

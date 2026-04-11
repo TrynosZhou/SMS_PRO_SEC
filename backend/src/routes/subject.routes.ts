@@ -3,7 +3,6 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { UserRole } from '../entities/User';
 import { AppDataSource } from '../config/database';
 import { Subject, SubjectCategory } from '../entities/Subject';
-import { Department } from '../entities/Department';
 import { isDemoUser } from '../utils/demoDataFilter';
 import { Teacher } from '../entities/Teacher';
 import { In } from 'typeorm';
@@ -44,35 +43,6 @@ function parseCategoryFromBody(raw: unknown, mode: 'create' | 'update'): Subject
   if (s === 'O_LEVEL' || s === 'IGCSE') return 'O_LEVEL';
   if (s === 'A_LEVEL' || s === 'AS_A_LEVEL') return 'A_LEVEL';
   return 'INVALID';
-}
-
-function normalizeDepartmentName(input: unknown): string {
-  return String(input ?? '')
-    .trim()
-    .replace(/\s+/g, ' ');
-}
-
-async function ensureDepartmentForSubjectName(rawName: unknown): Promise<void> {
-  const depName = normalizeDepartmentName(rawName);
-  if (!depName) return;
-
-  const depRepo = AppDataSource.getRepository(Department);
-  const key = depName.toLowerCase();
-  const existing = await depRepo
-    .createQueryBuilder('d')
-    .where('LOWER(d.name) = :key', { key })
-    .getOne();
-
-  if (existing) {
-    if (existing.isActive === false) {
-      existing.isActive = true;
-      await depRepo.save(existing);
-    }
-    return;
-  }
-
-  const row = depRepo.create({ name: depName, isActive: true });
-  await depRepo.save(row);
 }
 
 router.get('/', authenticate, async (req: AuthRequest, res) => {
@@ -203,35 +173,6 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-router.post(
-  '/backfill-departments',
-  authenticate,
-  authorize(UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.DEMO_USER),
-  async (_req, res) => {
-    try {
-      if (!AppDataSource.isInitialized) {
-        await AppDataSource.initialize();
-      }
-
-      const subjectRepository = AppDataSource.getRepository(Subject);
-      const allSubjects = await subjectRepository.find({ select: ['id', 'name'] });
-
-      let processed = 0;
-      for (const s of allSubjects || []) {
-        await ensureDepartmentForSubjectName(s.name);
-        processed += 1;
-      }
-
-      return res.json({
-        message: 'Department backfill completed successfully',
-        processedSubjects: processed,
-      });
-    } catch (error: any) {
-      return res.status(500).json({ message: 'Server error', error: error?.message || 'Unknown error' });
-    }
-  }
-);
-
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -286,7 +227,6 @@ router.post('/', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, Us
       category: parsedCat as SubjectCategory,
     });
     await subjectRepository.save(subject);
-    await ensureDepartmentForSubjectName(subject.name);
     res.status(201).json({ message: 'Subject created successfully', subject });
   } catch (error: any) {
     if (error.code === '23505') {
@@ -342,9 +282,6 @@ router.put('/:id', authenticate, authorize(UserRole.SUPERADMIN, UserRole.ADMIN, 
     }
 
     await subjectRepository.save(subject);
-    if (name !== undefined) {
-      await ensureDepartmentForSubjectName(subject.name);
-    }
     res.json({ message: 'Subject updated successfully', subject });
   } catch (error: any) {
     if (error.code === '23505') {

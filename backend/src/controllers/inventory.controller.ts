@@ -27,6 +27,9 @@ const COPY_WITH_HOD = 'with_hod';
 const COPY_WITH_TEACHER = 'with_teacher';
 const COPY_WITH_STUDENT = 'with_student';
 
+/** Student already holds a copy of this catalog while in one of these statuses (one title per student). */
+const STUDENT_HOLDS_COPY_STATUSES = [COPY_WITH_STUDENT, COPY_PERM, COPY_LOAN];
+
 const FURN_IN_STOCK = 'in_stock';
 const FURN_ASSIGNED = 'assigned';
 const FURN_WITH_TEACHER = 'with_teacher';
@@ -58,6 +61,63 @@ async function getActorTeacherByUserId(userId: string): Promise<Teacher | null> 
     where: { userId } as any,
     relations: ['classes', 'department'],
   });
+}
+
+async function studentIdsInActiveClass(em: EntityManager, classId: string): Promise<string[]> {
+  const idSet = new Set<string>();
+  const direct = await em.getRepository(Student).find({
+    where: { classId, isActive: true } as any,
+    select: ['id'],
+  });
+  for (const s of direct) idSet.add(s.id);
+  const enrolled = await em
+    .getRepository(Student)
+    .createQueryBuilder('st')
+    .select('st.id')
+    .innerJoin('st.enrollments', 'e')
+    .where('e.classId = :cid', { cid: classId })
+    .andWhere('e.isActive = :ea', { ea: true })
+    .andWhere('st.isActive = :act', { act: true })
+    .getMany();
+  for (const s of enrolled) idSet.add(s.id);
+  return [...idSet];
+}
+
+function assertSingleCatalogPerTeacherIssueBatch(copies: TextbookCopy[]): void {
+  const seen = new Set<string>();
+  for (const c of copies) {
+    const cat = String(c.catalogId || '').trim();
+    if (!cat) continue;
+    if (seen.has(cat)) {
+      throw Object.assign(
+        new Error('You cannot issue two copies of the same textbook title to the same student in one step.'),
+        { status: 400 }
+      );
+    }
+    seen.add(cat);
+  }
+}
+
+async function assertStudentDoesNotHoldCatalogTitle(
+  em: EntityManager,
+  studentId: string,
+  catalogId: string
+): Promise<void> {
+  const row = await em
+    .getRepository(TextbookCopy)
+    .createQueryBuilder('c')
+    .leftJoinAndSelect('c.catalog', 'cat')
+    .where('c.currentStudentId = :sid', { sid: studentId })
+    .andWhere('c.catalogId = :cid', { cid: catalogId })
+    .andWhere('c.status IN (:...sts)', { sts: STUDENT_HOLDS_COPY_STATUSES })
+    .getOne();
+  if (row) {
+    const title = (row as any).catalog?.title || 'this title';
+    throw Object.assign(
+      new Error(`This student already has a copy of "${title}". Only one textbook per title is allowed per student.`),
+      { status: 400 }
+    );
+  }
 }
 
 async function resolveFurnitureByRef(em: EntityManager, ref: string): Promise<FurnitureItem | null> {
@@ -99,6 +159,12 @@ function canIssueOrRevokeFurnitureAsStaff(user: AuthRequest['user']): boolean {
 
 function isTeacherEntityHod(teacher: Teacher | null | undefined): boolean {
   return String(teacher?.role || '').toLowerCase() === 'hod';
+}
+
+/** User account role is teacher or HOD (both map to a Teacher profile for "me" inventory APIs). */
+function isTeacherOrHodActor(user: AuthRequest['user']): boolean {
+  const r = roleStr(user);
+  return r === UserRole.TEACHER || r === UserRole.HOD;
 }
 
 export function canManageInventory(user: AuthRequest['user']): boolean {
@@ -651,7 +717,7 @@ export const listClassTeachersForFurniture = async (req: AuthRequest, res: Respo
 
 export const listMyFurniturePool = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || roleStr(req.user) !== UserRole.TEACHER) return res.status(403).json({ message: 'Forbidden' });
+    if (!req.user || !isTeacherOrHodActor(req.user)) return res.status(403).json({ message: 'Forbidden' });
     if (!AppDataSource.isInitialized) await AppDataSource.initialize();
     const teacher = await getActorTeacherByUserId(req.user.id);
     if (!teacher) return res.status(400).json({ message: 'Teacher profile not linked' });
@@ -1122,7 +1188,7 @@ export const recordLostItemFine = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
     const isInventoryStaff = canManageInventory(req.user);
-    const isTeacherActor = roleStr(req.user) === UserRole.TEACHER;
+    const isTeacherActor = isTeacherOrHodActor(req.user);
     if (!isInventoryStaff && !isTeacherActor) return res.status(403).json({ message: 'Forbidden' });
     if (!AppDataSource.isInitialized) await AppDataSource.initialize();
     const { studentId, amount, textbookCopyId, notes } = req.body || {};
@@ -1387,7 +1453,7 @@ export const reportFurnitureIssuance = async (req: AuthRequest, res: Response) =
 /** Textbooks currently with students where this teacher is the issuing holder (`currentTeacherId`). */
 export const reportTeacherTextbooksIssued = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || roleStr(req.user) !== UserRole.TEACHER) return res.status(403).json({ message: 'Forbidden' });
+    if (!req.user || !isTeacherOrHodActor(req.user)) return res.status(403).json({ message: 'Forbidden' });
     if (!AppDataSource.isInitialized) await AppDataSource.initialize();
     const teacher = await AppDataSource.getRepository(Teacher).findOne({
       where: { userId: req.user.id } as any,
@@ -1590,7 +1656,7 @@ export const reportTeacherTextbooksIssued = async (req: AuthRequest, res: Respon
 /** Active desk/chair assignments this user recorded as class teacher, for students in those classes only. */
 export const reportTeacherClassFurniture = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || roleStr(req.user) !== UserRole.TEACHER) return res.status(403).json({ message: 'Forbidden' });
+    if (!req.user || !isTeacherOrHodActor(req.user)) return res.status(403).json({ message: 'Forbidden' });
     if (!AppDataSource.isInitialized) await AppDataSource.initialize();
     const teacher = await AppDataSource.getRepository(Teacher).findOne({
       where: { userId: req.user.id } as any,
@@ -1957,6 +2023,10 @@ export const transferTextbooksTeacherToStudent = async (req: AuthRequest, res: R
       if (missing.length) throw Object.assign(new Error('Some BookNumbers could not be found'), { status: 400 });
       const notHeld = copies.filter(c => c.status !== COPY_WITH_TEACHER || c.currentTeacherId !== teacher.id);
       if (notHeld.length) throw Object.assign(new Error('Some copies are not held by this teacher'), { status: 400 });
+      assertSingleCatalogPerTeacherIssueBatch(copies);
+      for (const c of copies) {
+        await assertStudentDoesNotHoldCatalogTitle(em, student.id, c.catalogId);
+      }
       for (const c of copies) {
         c.status = COPY_WITH_STUDENT;
         c.currentTeacherId = teacher.id;
@@ -1994,7 +2064,7 @@ export const transferTextbooksTeacherToStudent = async (req: AuthRequest, res: R
 
 export const returnTextbooksStudentToTeacher = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || roleStr(req.user) !== UserRole.TEACHER) return res.status(403).json({ message: 'Forbidden' });
+    if (!req.user || !isTeacherOrHodActor(req.user)) return res.status(403).json({ message: 'Forbidden' });
     if (!AppDataSource.isInitialized) await AppDataSource.initialize();
     const teacher = await AppDataSource.getRepository(Teacher).findOne({
       where: { userId: req.user.id } as any,
@@ -2177,7 +2247,7 @@ export const listDepartmentTeachersForHod = async (req: AuthRequest, res: Respon
 
 export const listMyHeldTextbooks = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || roleStr(req.user) !== UserRole.TEACHER) return res.status(403).json({ message: 'Forbidden' });
+    if (!req.user || !isTeacherOrHodActor(req.user)) return res.status(403).json({ message: 'Forbidden' });
     if (!AppDataSource.isInitialized) await AppDataSource.initialize();
     const teacher = await AppDataSource.getRepository(Teacher).findOne({ where: { userId: req.user.id } as any });
     if (!teacher) return res.status(400).json({ message: 'Teacher profile not linked' });
@@ -2187,6 +2257,57 @@ export const listMyHeldTextbooks = async (req: AuthRequest, res: Response) => {
       order: { assetTag: 'ASC' },
     });
     return res.json(rows);
+  } catch (e: any) {
+    return res.status(500).json({ message: e.message });
+  }
+};
+
+/** Students in a class who already hold an active copy of this catalog (for quick-issue UI). */
+export const listBlockedStudentsForTextbookIssue = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user || !isTeacherOrHodActor(req.user)) return res.status(403).json({ message: 'Forbidden' });
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const classId = String(req.query.classId || '').trim();
+    const catalogId = String(req.query.catalogId || '').trim();
+    if (!classId || !catalogId) {
+      return res.status(400).json({ message: 'classId and catalogId query parameters are required' });
+    }
+    const actor = await getActorTeacherByUserId(req.user.id);
+    if (!actor) return res.status(400).json({ message: 'Teacher profile not linked' });
+    const teaches = (actor.classes || []).some((cl: Class) => String(cl.id) === classId);
+    if (!teaches) return res.status(403).json({ message: 'You do not teach this class' });
+    const out = await AppDataSource.transaction(async em => {
+      const sids = await studentIdsInActiveClass(em, classId);
+      if (!sids.length) return { blockedStudentIds: [] as string[] };
+      const rows = await em.getRepository(TextbookCopy).find({
+        where: {
+          catalogId,
+          currentStudentId: In(sids),
+          status: In(STUDENT_HOLDS_COPY_STATUSES),
+        } as any,
+        select: ['currentStudentId'],
+      });
+      const blocked = [...new Set(rows.map(r => r.currentStudentId).filter(Boolean) as string[])];
+      return { blockedStudentIds: blocked };
+    });
+    return res.json(out);
+  } catch (e: any) {
+    return res.status(500).json({ message: e.message });
+  }
+};
+
+/** Copies currently with teachers under this HOD's chain (`with_teacher` + this HOD user on the copy). */
+export const countHodIssuedToTeachers = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const actorTeacher = await getActorTeacherByUserId(req.user.id);
+    const actorUserIsHod = roleStr(req.user) === UserRole.HOD || isTeacherEntityHod(actorTeacher);
+    if (!actorUserIsHod) return res.status(403).json({ message: 'Forbidden' });
+    const issuedToTeachers = await AppDataSource.getRepository(TextbookCopy).count({
+      where: { status: COPY_WITH_TEACHER, currentHodUserId: req.user.id } as any,
+    });
+    return res.json({ issuedToTeachers });
   } catch (e: any) {
     return res.status(500).json({ message: e.message });
   }

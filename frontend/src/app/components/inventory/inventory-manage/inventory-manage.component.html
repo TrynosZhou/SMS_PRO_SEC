@@ -408,8 +408,12 @@
       </p>
     </div>
 
-    <label class="inv-field inv-field--block" *ngIf="!isAdmin() && (!isTeacher() || isHod())">
-      <span class="inv-label">BookNumbers (bulk)</span>
+    <!-- BookNumbers paste field: not on /teacher/inventory_manage (HOD uses table checkboxes only). -->
+    <label
+      class="inv-field inv-field--block"
+      *ngIf="!isTeacherNavRestricted() && !isAdmin() && (!isTeacher() || isHod())"
+    >
+      <span class="inv-label">{{ isHod() ? 'BookNumbers (optional)' : 'BookNumbers (bulk)' }}</span>
       <textarea
         class="inv-input inv-input--block inv-textarea"
         [(ngModel)]="custodyCopyIdsText"
@@ -419,9 +423,67 @@
       ></textarea>
       <span class="inv-hint">Tip: use the BookNumber shown in stock list (e.g. BK0001).</span>
       <span class="inv-hint" *ngIf="isHod()">
-        For HOD: clicking Bulk Allocate auto-fills this box with your admin-allocated textbooks (teacher selection required).
+        As HOD: tick one or more textbooks in the table below (or paste extra numbers here), choose a teacher in your department, then click Transfer to teacher.
       </span>
     </label>
+
+    <div class="inv-table-wrap" *ngIf="isHod()">
+      <h3 class="inv-subhead">My allocated textbooks (from Admin)</h3>
+      <div class="inv-hod-stats-row">
+        <p class="inv-hod-remaining-count" role="status" aria-live="polite">
+          <span class="inv-hod-remaining-count__label">Textbooks remaining with you</span>
+          <span class="inv-hod-remaining-count__num">{{ hodAllocatedCopies.length }}</span>
+          <span class="inv-hod-remaining-count__hint">
+            — in your custody from Admin; updates after each Transfer to teacher.
+          </span>
+        </p>
+        <p class="inv-hod-remaining-count inv-hod-issued-count" role="status" aria-live="polite">
+          <span class="inv-hod-remaining-count__label">Issued by you to teachers</span>
+          <span class="inv-hod-remaining-count__num">{{ hodIssuedToTeachersCount }}</span>
+          <span class="inv-hod-remaining-count__hint">
+            — with teachers now (not yet given to students); updates after each transfer.
+          </span>
+        </p>
+      </div>
+      <table class="inv-table inv-table-sm" *ngIf="hodAllocatedCopies.length; else noHodAllocatedTop">
+        <thead>
+          <tr>
+            <th scope="col" class="inv-col-num">
+              <input
+                type="checkbox"
+                [checked]="allHodBooksSelected"
+                (change)="toggleAllHodBooks($any($event.target).checked)"
+                aria-label="Select all textbooks"
+              />
+            </th>
+            <th scope="col">BookNumber</th>
+            <th scope="col">Title</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let c of hodAllocatedCopies; trackBy: trackById">
+            <td>
+              <input
+                type="checkbox"
+                [checked]="isHodBookSelected(c.assetTag || '')"
+                (change)="toggleHodBookSelection(c.assetTag || '', $any($event.target).checked)"
+                [attr.aria-label]="'Select ' + (c.assetTag || 'textbook')"
+              />
+            </td>
+            <td><code class="inv-code">{{ c.assetTag || '—' }}</code></td>
+            <td>{{ c.catalog?.title || '—' }}</td>
+            <td><span [class]="statusPillClass(c.status)">{{ statusLabel(c.status) }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <ng-template #noHodAllocatedTop>
+        <div class="inv-empty">No textbooks currently allocated to this HOD account.</div>
+      </ng-template>
+      <p class="inv-hint" *ngIf="isHod() && selectedHodBookNumberList.length">
+        {{ selectedHodBookNumberList.length }} textbook(s) selected — pick a teacher below and use Transfer to teacher.
+      </p>
+    </div>
 
     <div class="inv-chain-grid">
       <div class="inv-chain-card" *ngIf="isAdmin()">
@@ -459,16 +521,24 @@
           type="button"
           class="inv-btn inv-btn--primary"
           (click)="doHodToTeacher()"
-          [disabled]="!custodyTeacherId || !custodyBookNumbers().length"
+          [disabled]="!custodyTeacherId || !hodToTeacherBookNumbers().length"
         >
           Transfer to teacher
         </button>
+        <p class="inv-hint" *ngIf="isHod() && custodyTeacherId && hodToTeacherBookNumbers().length">
+          Sending {{ hodToTeacherBookNumbers().length }} BookNumber(s) to the selected teacher.
+        </p>
       </div>
 
     </div>
 
     <div class="inv-table-wrap" *ngIf="isTeacher()">
       <h3 class="inv-subhead">My allocated textbooks (from HOD)</h3>
+      <p class="inv-hod-remaining-count inv-teacher-from-hod-count" *ngIf="!isHod()" role="status" aria-live="polite">
+        <span class="inv-hod-remaining-count__label">Textbooks issued to you by your HOD</span>
+        <span class="inv-hod-remaining-count__num">{{ teacherHeldCopies.length }}</span>
+        <span class="inv-hod-remaining-count__hint"> — in your custody to issue to students.</span>
+      </p>
       <table class="inv-table inv-table-sm" *ngIf="teacherHeldCopies.length; else noTeacherHeld">
         <thead>
           <tr>
@@ -509,58 +579,10 @@
       <p class="inv-hint" *ngIf="teacherHeldCopies.length">
         Click a BookNumber to open quick issue modal and allocate it to a student in one of your classes.
       </p>
-    </div>
-
-    <div class="inv-table-wrap" *ngIf="isHod()">
-      <div class="inv-actions-row">
-        <button
-          type="button"
-          class="inv-btn inv-btn--primary"
-          (click)="doHodBulkAllocateSelected()"
-          [disabled]="!custodyTeacherId || !selectedHodBookNumberList.length"
-        >
-          Bulk Allocate
-        </button>
-        <span class="inv-hint" *ngIf="selectedHodBookNumberList.length">
-          {{ selectedHodBookNumberList.length }} selected
-        </span>
-      </div>
-      <h3 class="inv-subhead">My allocated textbooks (from Admin)</h3>
-      <table class="inv-table inv-table-sm" *ngIf="hodAllocatedCopies.length; else noHodAllocated">
-        <thead>
-          <tr>
-            <th scope="col" class="inv-col-num">
-              <input
-                type="checkbox"
-                [checked]="allHodBooksSelected"
-                (change)="toggleAllHodBooks($any($event.target).checked)"
-                aria-label="Select all textbooks"
-              />
-            </th>
-            <th scope="col">BookNumber</th>
-            <th scope="col">Title</th>
-            <th scope="col">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let c of hodAllocatedCopies; trackBy: trackById">
-            <td>
-              <input
-                type="checkbox"
-                [checked]="isHodBookSelected(c.assetTag || '')"
-                (change)="toggleHodBookSelection(c.assetTag || '', $any($event.target).checked)"
-                [attr.aria-label]="'Select ' + (c.assetTag || 'textbook')"
-              />
-            </td>
-            <td><code class="inv-code">{{ c.assetTag || '—' }}</code></td>
-            <td>{{ c.catalog?.title || '—' }}</td>
-            <td><span [class]="statusPillClass(c.status)">{{ statusLabel(c.status) }}</span></td>
-          </tr>
-        </tbody>
-      </table>
-      <ng-template #noHodAllocated>
-        <div class="inv-empty">No textbooks currently allocated to this HOD account.</div>
-      </ng-template>
+      <p class="inv-hint" *ngIf="isTeacher() && teacherHeldCopies.length">
+        Rule: each student can receive only <strong>one</strong> textbook per title (same catalog). The system blocks a second
+        copy of the same title to the same student.
+      </p>
     </div>
   </section>
 
@@ -672,6 +694,11 @@
       <div class="inv-panel-head">
         <h2>Issue textbook to student</h2>
         <p class="inv-panel-desc">BookNumber: <code class="inv-code">{{ quickIssueBookNumber }}</code></p>
+        <p class="inv-panel-desc" *ngIf="quickIssueCatalogTitle">Title: <strong>{{ quickIssueCatalogTitle }}</strong></p>
+        <p class="inv-hint">
+          Each student may have only <strong>one</strong> copy per textbook title. Students who already have this title are
+          disabled below.
+        </p>
       </div>
 
       <label class="inv-field inv-field--block">
@@ -691,7 +718,13 @@
         <span class="inv-label">Student (selected class)</span>
         <select class="inv-input inv-input--block" [(ngModel)]="quickIssueStudentId" name="quickIssueStudent">
           <option [ngValue]="''">Select student…</option>
-          <option *ngFor="let s of quickIssueClassStudents" [ngValue]="s.id">{{ studentLabel(s) }}</option>
+          <option
+            *ngFor="let s of quickIssueClassStudents"
+            [ngValue]="s.id"
+            [disabled]="studentBlockedForQuickIssue(s.id)"
+          >
+            {{ studentLabel(s) }}{{ studentBlockedForQuickIssue(s.id) ? ' (already has this title)' : '' }}
+          </option>
         </select>
       </label>
 
@@ -700,10 +733,12 @@
           type="button"
           class="inv-student-pick-item"
           *ngFor="let s of quickIssueClassStudents; trackBy: trackById"
-          [disabled]="quickIssueLoading"
+          [class.inv-student-pick-item--blocked]="studentBlockedForQuickIssue(s.id)"
+          [disabled]="quickIssueLoading || studentBlockedForQuickIssue(s.id)"
           (click)="issueQuickToStudent(s.id)"
         >
-          {{ studentLabel(s) }}
+          {{ studentLabel(s)
+          }}{{ studentBlockedForQuickIssue(s.id) ? ' — already has this title' : '' }}
         </button>
       </div>
       <div class="inv-empty" *ngIf="quickIssueClassId && !quickIssueClassStudents.length">
@@ -716,7 +751,12 @@
           type="button"
           class="inv-btn inv-btn--primary"
           (click)="issueQuickToStudent()"
-          [disabled]="quickIssueLoading || !quickIssueClassId || !quickIssueStudentId"
+          [disabled]="
+            quickIssueLoading ||
+            !quickIssueClassId ||
+            !quickIssueStudentId ||
+            studentBlockedForQuickIssue(quickIssueStudentId)
+          "
         >
           {{ quickIssueLoading ? 'Issuing…' : 'Issue selected textbook' }}
         </button>

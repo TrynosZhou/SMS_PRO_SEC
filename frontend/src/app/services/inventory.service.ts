@@ -209,4 +209,17 @@ export class InventoryService {
   listMyHeldTextbooks(): Observable<any[]> {
     return this.http.get<any[]>(`${this.base}/textbooks/me/held`);
   }
+
+  /** HOD: count of textbook copies currently with teachers (transferred by this HOD, not yet to students). */
+  getHodIssuedToTeachersCount(): Observable<{ issuedToTeachers: number }> {
+    return this.http.get<{ issuedToTeachers: number }>(`${this.base}/textbooks/hod/issued-to-teachers-count`);
+  }
+
+  /** Students in class who already hold this catalog title (cannot receive a second copy). */
+  getBlockedStudentsForTextbookIssue(classId: string, catalogId: string): Observable<{ blockedStudentIds: string[] }> {
+    const params = new HttpParams().set('classId', classId).set('catalogId', catalogId);
+    return this.http.get<{ blockedStudentIds: string[] }>(`${this.base}/textbooks/issue/blocked-students-in-class`, {
+      params,
+    });
+  }
 }
