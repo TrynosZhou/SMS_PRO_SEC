@@ -208,19 +208,34 @@ export class TeacherFormComponent implements OnInit {
       return;
     }
 
-    const role = String(this.teacher?.role || 'Teacher').trim();
-    if (role === 'HOD' && !String(this.teacher?.departmentId || '').trim()) {
-      this.error = 'Please select a department for this HOD.';
+    if (!String(this.teacher?.departmentId || '').trim()) {
+      this.error = 'Please select a department (from Settings → Departments).';
       this.submitting = false;
       return;
     }
 
     if (this.isEdit) {
-      // Don't send teacherId in update (it cannot be changed)
-      const updateData = { ...this.teacher };
-      delete updateData.teacherId;
-      delete updateData.id;
-      
+      // Don't send teacherId in update (it cannot be changed). Omit nested entities so the API
+      // always receives an explicit scalar `role` (demotion HOD → Teacher was not persisting when
+      // large spread objects were sent).
+      const updateData: Record<string, unknown> = { ...this.teacher };
+      delete updateData['teacherId'];
+      delete updateData['id'];
+      delete updateData['user'];
+      delete updateData['subjects'];
+      delete updateData['classes'];
+      delete updateData['department'];
+      updateData['role'] =
+        String(this.teacher?.role ?? '')
+          .trim()
+          .toLowerCase() === 'hod'
+          ? 'HOD'
+          : 'Teacher';
+      const dep =
+        String(this.teacher?.departmentId ?? '').trim() ||
+        String(this.teacher?.department?.id ?? '').trim();
+      updateData['departmentId'] = dep || null;
+
       this.teacherService.updateTeacher(this.teacher.id, updateData).subscribe({
         next: () => {
           this.success = 'Teacher updated successfully';

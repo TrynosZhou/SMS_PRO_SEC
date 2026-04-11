@@ -190,16 +190,19 @@
           </div>
           <span class="info-text" *ngIf="!teacher.subjects?.length">None — click to assign</span>
         </div>
-        <div class="departments-section">
-          <div class="section-label">Department memberships (auto from subjects)</div>
-          <div class="dept-memberships" *ngIf="getDerivedDepartmentMemberships(teacher).length > 0; else noDeptMembership">
-            <div class="dept-membership-line" *ngFor="let m of getDerivedDepartmentMemberships(teacher)">
+        <div
+          class="departments-section editable-section"
+          (click)="openFieldEdit(teacher, 'departmentId', $event)"
+          title="Click to edit department">
+          <div class="section-label">Department (Settings)</div>
+          <div class="dept-memberships" *ngIf="getTeacherDepartmentRows(teacher).length > 0; else noDeptMembership">
+            <div class="dept-membership-line" *ngFor="let m of getTeacherDepartmentRows(teacher)">
               <span class="subject-tag">{{ m.department?.name }}</span>
-              <span class="dept-hod">Managed by: {{ getHodDisplayName(m.hod) }}</span>
+              <span class="dept-hod">{{ getHodLineLabel(teacher, m.hod) }}</span>
             </div>
           </div>
           <ng-template #noDeptMembership>
-            <span class="info-text">No subject-based department membership yet.</span>
+            <span class="info-text">None — click to assign a department.</span>
           </ng-template>
         </div>
         <div
@@ -260,13 +263,19 @@
               </span>
             </td>
             <td class="col-department">
-              <div class="dept-memberships" *ngIf="getDerivedDepartmentMemberships(teacher).length > 0; else noDeptMembershipList">
-                <div class="dept-membership-line" *ngFor="let m of getDerivedDepartmentMemberships(teacher)">
+              <div
+                class="dept-memberships clickable-value"
+                *ngIf="getTeacherDepartmentRows(teacher).length > 0; else noDeptMembershipList"
+                (click)="openFieldEdit(teacher, 'departmentId', $event)"
+                title="Click to edit department">
+                <div class="dept-membership-line" *ngFor="let m of getTeacherDepartmentRows(teacher)">
                   <span class="subject-tag-small">{{ m.department?.name }}</span>
-                  <span class="dept-hod">HOD: {{ getHodDisplayName(m.hod) }}</span>
+                  <span class="dept-hod">{{ getHodLineLabel(teacher, m.hod) }}</span>
                 </div>
               </div>
-              <ng-template #noDeptMembershipList>—</ng-template>
+              <ng-template #noDeptMembershipList>
+                <span class="clickable-value" (click)="openFieldEdit(teacher, 'departmentId', $event)" title="Click to assign department">—</span>
+              </ng-template>
             </td>
             <td class="col-gender">
               <span class="clickable-value" (click)="openFieldEdit(teacher, 'gender', $event)" title="Click to edit gender">
@@ -376,14 +385,22 @@
         </div>
         <div class="detail-section-stack">
           <div class="detail-section detail-section-card">
-            <h3 class="detail-section-title">Department Memberships (Auto)</h3>
-            <div class="tags-container tags-container-modern" *ngIf="getDerivedDepartmentMemberships(selectedTeacher).length > 0">
-              <span *ngFor="let m of getDerivedDepartmentMemberships(selectedTeacher)" class="subject-tag subject-tag-modern">
-                {{ m.department?.name }} — {{ getHodDisplayName(m.hod) }}
+            <h3 class="detail-section-title">Department</h3>
+            <div
+              class="tags-container tags-container-modern modal-editable-block"
+              *ngIf="getTeacherDepartmentRows(selectedTeacher).length > 0"
+              (click)="openFieldEdit(selectedTeacher, 'departmentId', $event)"
+              title="Click to edit department">
+              <span *ngFor="let m of getTeacherDepartmentRows(selectedTeacher)" class="subject-tag subject-tag-modern">
+                {{ m.department?.name }} — {{ getHodLineLabel(selectedTeacher, m.hod) }}
               </span>
             </div>
-            <p class="empty-section-hint" *ngIf="!getDerivedDepartmentMemberships(selectedTeacher).length">
-              Memberships appear automatically from subjects assigned to this teacher.
+            <p
+              class="empty-section-hint clickable-value"
+              *ngIf="!getTeacherDepartmentRows(selectedTeacher).length"
+              (click)="openFieldEdit(selectedTeacher, 'departmentId', $event)"
+              title="Click to assign department">
+              No department yet — click to select (from Settings → Departments).
             </p>
           </div>
           <div class="detail-section detail-section-card">
@@ -437,6 +454,19 @@
         <select *ngIf="fieldEditInputMode === 'select'" class="field-edit-select" [(ngModel)]="fieldEditValue" [name]="'tfe_' + fieldEditKey">
           <option *ngFor="let o of fieldEditSelectOptions" [value]="o.value">{{ o.label }}</option>
         </select>
+        <div *ngIf="fieldEditKey === 'role' && fieldEditValue === 'HOD'" class="field-edit-hod-dept">
+          <label class="field-edit-sub-label" for="fieldEditHodDepartmentId">Department <span class="required">*</span></label>
+          <select
+            id="fieldEditHodDepartmentId"
+            class="field-edit-select field-edit-select--block"
+            [(ngModel)]="fieldEditHodDepartmentId"
+            name="fieldEditHodDepartmentId">
+            <option value="">— Select department —</option>
+            <option *ngFor="let d of allDepartments" [value]="d.id">{{ d.name }}</option>
+          </select>
+          <p class="field-edit-hint" *ngIf="!allDepartments.length">Add departments under Settings first.</p>
+          <p class="field-edit-hint" *ngIf="allDepartments.length">If this department already has an HOD, the previous HOD becomes a regular teacher in that department when you save.</p>
+        </div>
         <div *ngIf="fieldEditInputMode === 'multiselect'" class="field-edit-multiselect-list">
           <label *ngFor="let item of fieldEditCheckboxOptions" class="field-edit-checkbox-row">
             <input

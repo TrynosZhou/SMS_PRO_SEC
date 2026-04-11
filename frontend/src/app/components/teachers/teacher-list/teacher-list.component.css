@@ -1413,3 +1413,27 @@
   font-size: 13px;
   color: #64748b;
 }
+
+.field-edit-hod-dept {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.field-edit-sub-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.field-edit-hod-dept .field-edit-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.field-edit-select.field-edit-select--block {
+  display: block;
+}

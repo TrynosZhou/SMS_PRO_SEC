@@ -63,6 +63,8 @@ export class TeacherListComponent implements OnInit {
   fieldEditMultiIds: string[] = [];
   fieldEditCheckboxOptions: { id: string; label: string }[] = [];
   fieldEditSaving = false;
+  /** When editing role: department chosen for HOD (required if role is HOD). */
+  fieldEditHodDepartmentId = '';
   maxDobDate = '';
   private readonly phoneRegex = /^\+?\d{9,15}$/;
   readonly phoneValidationMessage = 'Enter a valid number, e.g. +263771234567 (9–15 digits, optional +).';
@@ -121,6 +123,7 @@ export class TeacherListComponent implements OnInit {
         }
         this.rebuildDepartmentIndexes();
         this.applyLocalFilters();
+        this.syncSelectedTeacherFromLoaded();
         this.loading = false;
       },
       error: (err: any) => {
@@ -144,6 +147,12 @@ export class TeacherListComponent implements OnInit {
       .replace(/\s+/g, ' ');
   }
 
+  private isTeacherHodRole(t: any): boolean {
+    return String(t?.role ?? '')
+      .trim()
+      .toLowerCase() === 'hod';
+  }
+
   private rebuildDepartmentIndexes(): void {
     this.departmentByName.clear();
     this.hodByDepartmentId.clear();
@@ -154,7 +163,7 @@ export class TeacherListComponent implements OnInit {
     }
 
     for (const t of this.teachers || []) {
-      if (String(t?.role || '').toUpperCase() !== 'HOD') continue;
+      if (!this.isTeacherHodRole(t)) continue;
       const depId = String(t?.departmentId || t?.department?.id || '').trim();
       if (depId) this.hodByDepartmentId.set(depId, t);
     }
@@ -181,6 +190,40 @@ export class TeacherListComponent implements OnInit {
     }
 
     return out;
+  }
+
+  /**
+   * Stored department (Settings) + HOD for that department; falls back to legacy subject-name matching.
+   */
+  getTeacherDepartmentRows(teacher: any): Array<{ department: any; hod: any | null }> {
+    const depId = String(teacher?.departmentId || teacher?.department?.id || '').trim();
+    if (depId) {
+      const dept =
+        teacher?.department ||
+        this.allDepartments.find((d: any) => String(d?.id) === depId) ||
+        { id: depId, name: '—' };
+      let hod = this.hodByDepartmentId.get(depId) || null;
+      if (!hod && this.isTeacherHodRole(teacher)) {
+        hod = teacher;
+      }
+      return [{ department: dept, hod }];
+    }
+    const derived = this.getDerivedDepartmentMemberships(teacher);
+    if (derived.length === 1 && this.isTeacherHodRole(teacher)) {
+      const row = derived[0];
+      return [{ department: row.department, hod: row.hod || teacher }];
+    }
+    return derived;
+  }
+
+  getHodLineLabel(teacher: any, hod: any | null): string {
+    if (!hod) {
+      return 'HOD not assigned';
+    }
+    if (teacher?.id && hod?.id && String(teacher.id) === String(hod.id)) {
+      return 'Head of department (this teacher)';
+    }
+    return `HOD: ${this.getHodDisplayName(hod)}`;
   }
 
   getHodDisplayName(hod: any): string {
@@ -299,13 +342,14 @@ export class TeacherListComponent implements OnInit {
         this.fieldEditValue = (teacher.gender || '').trim();
         break;
       case 'role':
-        this.fieldEditLabel = 'Role';
+        this.fieldEditLabel = 'Role & department (required for HOD)';
         this.fieldEditInputMode = 'select';
         this.fieldEditSelectOptions = [
           { value: 'Teacher', label: 'Teacher' },
           { value: 'HOD', label: 'HOD' }
         ];
-        this.fieldEditValue = teacher.role === 'HOD' ? 'HOD' : 'Teacher';
+        this.fieldEditValue = this.isTeacherHodRole(teacher) ? 'HOD' : 'Teacher';
+        this.fieldEditHodDepartmentId = String(teacher.departmentId || teacher.department?.id || '').trim();
         break;
       case 'maritalStatus':
         this.fieldEditLabel = 'Marital status';
@@ -380,7 +424,7 @@ export class TeacherListComponent implements OnInit {
         this.fieldEditMultiIds = (teacher.classes || []).map((c: any) => c.id);
         break;
       case 'departmentId':
-        this.fieldEditLabel = 'Department (for HOD)';
+        this.fieldEditLabel = 'Department';
         this.fieldEditInputMode = 'select';
         this.fieldEditSelectOptions = [
           { value: '', label: '— None —' },
@@ -399,6 +443,7 @@ export class TeacherListComponent implements OnInit {
     this.fieldEditTeacher = null;
     this.fieldEditKey = '';
     this.fieldEditValue = '';
+    this.fieldEditHodDepartmentId = '';
     this.fieldEditMultiIds = [];
     this.fieldEditCheckboxOptions = [];
     this.fieldEditSaving = false;
@@ -469,9 +514,19 @@ export class TeacherListComponent implements OnInit {
       case 'gender':
         payload['gender'] = this.fieldEditValue.trim() || null;
         break;
-      case 'role':
-        payload['role'] = this.fieldEditValue === 'HOD' ? 'HOD' : 'Teacher';
+      case 'role': {
+        const newRole = this.fieldEditValue === 'HOD' ? 'HOD' : 'Teacher';
+        payload['role'] = newRole;
+        if (newRole === 'HOD') {
+          const depPick = String(this.fieldEditHodDepartmentId || '').trim();
+          if (!depPick) {
+            this.error = 'Select the department this HOD will lead (from Settings → Departments).';
+            return;
+          }
+          payload['departmentId'] = depPick;
+        }
         break;
+      }
       case 'maritalStatus':
         payload['maritalStatus'] = this.fieldEditValue.trim() || null;
         break;
@@ -516,7 +571,9 @@ export class TeacherListComponent implements OnInit {
       next: (res: any) => {
         this.fieldEditSaving = false;
         const updated = res?.teacher;
-        if (updated) {
+        if (field === 'role') {
+          this.loadTeachers();
+        } else if (updated) {
           this.applyTeacherPatch(updated);
         } else {
           this.loadTeachers();
@@ -539,6 +596,18 @@ export class TeacherListComponent implements OnInit {
     this.teachers = this.teachers.map((t) => (t.id === uid ? { ...t, ...updated } : t));
     if (this.selectedTeacher?.id === uid) {
       this.selectedTeacher = { ...this.selectedTeacher, ...updated };
+    }
+    this.syncSelectedTeacherFromLoaded();
+  }
+
+  /** Modal / detail view keeps an object reference; refresh it after list reload or patch. */
+  private syncSelectedTeacherFromLoaded(): void {
+    const sid = this.selectedTeacher?.id;
+    if (!sid) return;
+    const fresh =
+      this.filteredTeachers.find((t) => t.id === sid) || this.teachers.find((t) => t.id === sid);
+    if (fresh) {
+      this.selectedTeacher = { ...fresh };
     }
   }
 
