@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, OneToMany } from 'typeorm';
+import { Subject } from './Subject';
 
 @Entity('departments')
 @Index(['name'], { unique: true })
@@ -14,5 +15,8 @@ export class Department {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @OneToMany(() => Subject, (subject) => subject.department)
+  subjects: Subject[];
 }
 

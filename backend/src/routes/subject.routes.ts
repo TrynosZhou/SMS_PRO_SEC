@@ -9,6 +9,7 @@ import { Teacher } from '../entities/Teacher';
 import { In } from 'typeorm';
 import { ensureDemoDataAvailable } from '../utils/demoDataEnsurer';
 import { buildPaginationResponse, parsePaginationParams } from '../utils/pagination';
+import { ensureSubjectDepartmentIdColumn } from '../utils/ensureSubjectDepartmentIdColumn';
 
 const router = Router();
 
@@ -104,6 +105,11 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
       
       if (isColumnError) {
         console.log('[getSubjects] Column error detected, trying to fix schema...');
+        try {
+          await ensureSubjectDepartmentIdColumn(AppDataSource);
+        } catch (depColErr: any) {
+          console.warn('[getSubjects] ensureSubjectDepartmentIdColumn:', depColErr?.message || depColErr);
+        }
         // Try to add the category column if it doesn't exist
         try {
           const queryRunner = AppDataSource.createQueryRunner();

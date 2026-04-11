@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Teacher } from './Teacher';
 import { Class } from './Class';
 import { Exam } from './Exam';
+import { Department } from './Department';
 
 export type SubjectCategory = 'O_LEVEL' | 'A_LEVEL';
 
@@ -30,6 +31,13 @@ export class Subject {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @ManyToOne(() => Department, (department) => department.subjects, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'departmentId' })
+  department: Department | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  departmentId: string | null;
 
   @ManyToMany(() => Teacher, teacher => teacher.subjects)
   teachers: Teacher[];

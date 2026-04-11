@@ -20,6 +20,7 @@ import {
   createDepartment,
   updateDepartment,
   deleteDepartment,
+  updateDepartmentSubjects,
 } from '../controllers/department.controller';
 
 const router = Router();
@@ -37,6 +38,12 @@ router.delete('/uniform-items/:id', authenticate, authorize(UserRole.ADMIN, User
 // Departments (school structure)
 router.get('/departments', authenticate, listDepartments);
 router.post('/departments', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), createDepartment);
+router.put(
+  '/departments/:id/subjects',
+  authenticate,
+  authorize(UserRole.ADMIN, UserRole.SUPERADMIN),
+  updateDepartmentSubjects
+);
 router.put('/departments/:id', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), updateDepartment);
 router.delete('/departments/:id', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), deleteDepartment);
 router.post('/opening-day', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), processOpeningDay);

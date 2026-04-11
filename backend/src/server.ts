@@ -24,6 +24,7 @@ import { ensureETaskSubmissionTable } from './utils/ensureETaskSubmissionTable';
 import { ensureTeacherGenderColumn } from './utils/ensureTeacherGenderColumn';
 import { ensureTeacherMaritalStatusColumn } from './utils/ensureTeacherMaritalStatusColumn';
 import { ensureSubjectShortTitleColumn } from './utils/ensureSubjectShortTitleColumn';
+import { ensureSubjectDepartmentIdColumn } from './utils/ensureSubjectDepartmentIdColumn';
 import { ensureSchoolMottoColumns } from './utils/ensureSchoolMottoColumns';
 import { ensureMessageAttachmentUrlColumn } from './utils/ensureMessageAttachmentUrlColumn';
 import { ensureClassTimeOffGridColumn } from './utils/ensureClassTimeOffGridColumn';
@@ -303,6 +304,12 @@ async function bootstrap() {
       await ensureSubjectShortTitleColumn(AppDataSource);
     } catch (stErr: any) {
       console.warn('[Server] ensureSubjectShortTitleColumn:', stErr?.message || stErr);
+    }
+
+    try {
+      await ensureSubjectDepartmentIdColumn(AppDataSource);
+    } catch (sdErr: any) {
+      console.warn('[Server] ensureSubjectDepartmentIdColumn:', sdErr?.message || sdErr);
     }
 
     try {

@@ -26,5 +26,10 @@ export class DepartmentsService {
   delete(id: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/settings/departments/${id}`);
   }
+
+  /** Assign subjects to a department (each subject can belong to only one department). */
+  setDepartmentSubjects(id: string, subjectIds: string[]): Observable<any> {
+    return this.http.put(`${this.apiUrl}/settings/departments/${id}/subjects`, { subjectIds });
+  }
 }
 
