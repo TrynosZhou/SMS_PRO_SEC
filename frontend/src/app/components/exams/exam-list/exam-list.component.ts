@@ -48,6 +48,9 @@ export class ExamListComponent implements OnInit, OnDestroy {
   marks: any = {};
   currentExam: any = null;
   
+  /** Quick list filter above the marks table (desktop admin workflow). */
+  marksViewFilter: 'all' | 'entered' | 'missing' = 'all';
+
   // UI state
   loading = false;
   loadingStudents = false;
@@ -310,6 +313,7 @@ export class ExamListComponent implements OnInit, OnDestroy {
     this.showMarksEntry = false;
     this.students = [];
     this.filteredStudents = [];
+    this.marksViewFilter = 'all';
     this.marks = {};
     this.currentExam = null;
     this.studentSearchQuery = '';
@@ -562,6 +566,57 @@ export class ExamListComponent implements OnInit, OnDestroy {
     return `${className} | ${this.selectedTerm} | ${examTypeLabel} | ${subjectName}`;
   }
 
+  /** Rows shown in the table: search filter, then marks status chip. */
+  get displayStudents(): any[] {
+    const base = this.filteredStudents;
+    if (this.marksViewFilter === 'entered') {
+      return base.filter((s) => this.hasMarks(s.id));
+    }
+    if (this.marksViewFilter === 'missing') {
+      return base.filter((s) => !this.hasMarks(s.id));
+    }
+    return base;
+  }
+
+  get missingMarksCount(): number {
+    return this.filteredStudents.filter((s) => !this.hasMarks(s.id)).length;
+  }
+
+  setMarksViewFilter(mode: 'all' | 'entered' | 'missing'): void {
+    this.marksViewFilter = mode;
+  }
+
+  trackByStudentId(_index: number, student: any): string {
+    return student?.id ?? String(_index);
+  }
+
+  /**
+   * Focus the next student in the search list with no score, starting after the focused mark field (wraps).
+   * Helps rapid desktop entry without scrolling.
+   */
+  focusNextEmptyScore(): void {
+    const list = this.filteredStudents;
+    let start = 0;
+    const active = document.activeElement as HTMLInputElement | null;
+    if (active?.id?.startsWith('mc-score-')) {
+      const sid = active.id.slice('mc-score-'.length);
+      const idx = list.findIndex((s) => s.id === sid);
+      if (idx >= 0) {
+        start = idx + 1;
+      }
+    }
+    const ordered = [...list.slice(start), ...list.slice(0, start)];
+    const next = ordered.find((s) => !this.hasMarks(s.id));
+    if (!next) {
+      return;
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`mc-score-${next.id}`) as HTMLInputElement | null;
+      el?.focus({ preventScroll: false });
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+  }
+
   cancelMarksEntry() {
     // Save any pending marks before canceling
     if (this.pendingSaves.size > 0) {
@@ -571,6 +626,7 @@ export class ExamListComponent implements OnInit, OnDestroy {
     this.showMarksEntry = false;
     this.students = [];
     this.filteredStudents = [];
+    this.marksViewFilter = 'all';
     this.marks = {};
     this.studentSearchQuery = '';
     this.lastSavedStudentId = null;

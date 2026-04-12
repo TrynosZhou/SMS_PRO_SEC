@@ -42,6 +42,8 @@ export class TimetableViewComponent implements OnInit, OnDestroy {
   timetableGrid: Map<string, TimetableSlot[]> = new Map();
 
   loading = false;
+  /** Version id currently being deleted (disables that row’s Delete control). */
+  deletingVersionId: string | null = null;
   generating = false;
   generationProgress = 0;
   saving = false;
@@ -105,6 +107,10 @@ export class TimetableViewComponent implements OnInit, OnDestroy {
                 ? this.selectedVersion!.id
                 : (versions.find((v) => v.isActive) || versions[0]).id;
           this.selectVersion(pick);
+        } else {
+          this.selectedVersion = null;
+          this.slots = [];
+          this.timetableGrid.clear();
         }
         this.loading = false;
       },
@@ -196,7 +202,20 @@ export class TimetableViewComponent implements OnInit, OnDestroy {
       }
     });
 
-    this.daysOfWeek = Array.from(daysSet).sort();
+    const dayRank = (d: string) => {
+      const order = [
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
+      ];
+      const i = order.indexOf(d);
+      return i >= 0 ? i : 999;
+    };
+    this.daysOfWeek = Array.from(daysSet).sort((a, b) => dayRank(a) - dayRank(b));
     this.periods = Array.from(periodsSet).sort((a, b) => a - b);
 
     // Build grid map
@@ -371,6 +390,37 @@ export class TimetableViewComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Error activating version:', err);
         this.error = err.error?.message || 'Failed to activate timetable version';
+      }
+    });
+  }
+
+  deleteVersion(version: TimetableVersion): void {
+    const label = version.name?.trim() || 'this version';
+    if (
+      !confirm(
+        `Delete timetable version "${label}"? All lessons in this version will be removed. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    this.deletingVersionId = version.id;
+    this.timetableService.deleteVersion(version.id).subscribe({
+      next: () => {
+        this.deletingVersionId = null;
+        if (this.previewVersionId === version.id) {
+          this.closeTimetablePreview();
+        }
+        this.success = 'Timetable version deleted';
+        this.loadVersions();
+        setTimeout(() => {
+          this.success = null;
+        }, 3000);
+      },
+      error: (err) => {
+        this.deletingVersionId = null;
+        console.error('Error deleting version:', err);
+        this.error = err.error?.message || 'Failed to delete timetable version';
       }
     });
   }

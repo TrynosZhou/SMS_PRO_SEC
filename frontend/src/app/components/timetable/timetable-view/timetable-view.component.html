@@ -87,6 +87,14 @@
                   (click)="downloadConsolidatedPDF(version.id); $event.stopPropagation()">
             Download PDF
           </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-danger"
+            [disabled]="deletingVersionId === version.id"
+            (click)="deleteVersion(version); $event.stopPropagation()"
+          >
+            {{ deletingVersionId === version.id ? 'Deleting…' : 'Delete' }}
+          </button>
         </div>
       </div>
     </div>
@@ -184,17 +192,17 @@
 
     <!-- Timetable Grid -->
     <div class="timetable-grid-container" *ngIf="daysOfWeek.length > 0 && periods.length > 0">
-      <table class="timetable-table">
+      <table class="timetable-table timetable-table--landscape">
         <thead>
           <tr>
-            <th>Period</th>
-            <th *ngFor="let day of daysOfWeek">{{ day }}</th>
+            <th class="timetable-corner-th">Day</th>
+            <th *ngFor="let period of periods">Period {{ period }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let period of periods">
-            <td class="period-cell">Period {{ period }}</td>
-            <td *ngFor="let day of daysOfWeek" class="slot-cell" 
+          <tr *ngFor="let day of daysOfWeek">
+            <td class="day-cell">{{ day }}</td>
+            <td *ngFor="let period of periods" class="slot-cell"
                 [class.has-slot]="getSlot(day, period).length > 0"
                 [class.editing]="isCellBeingEdited(day, period)">
               <div *ngFor="let slot of getSlot(day, period)" class="slot-content">

@@ -47,11 +47,15 @@ export class PayrollService {
   }
 
   // Runs
-  /** Server always generates for the current calendar month; optional notes only. */
-  generateRun(body?: { notes?: string }): Observable<any> {
-    const payload: { notes?: string } = {};
+  /** Generates for the given month/year (defaults to current month on the server if omitted). */
+  generateRun(body?: { notes?: string; month?: number; year?: number }): Observable<any> {
+    const payload: { notes?: string; month?: number; year?: number } = {};
     if (body?.notes != null && String(body.notes).trim() !== '') {
       payload.notes = String(body.notes).trim();
+    }
+    if (body?.month != null && body?.year != null) {
+      payload.month = Number(body.month);
+      payload.year = Number(body.year);
     }
     return this.http.post(`${this.apiUrl}/payroll/runs/generate`, payload);
   }

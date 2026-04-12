@@ -156,6 +156,49 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
     private router: Router
   ) { }
 
+  /** True when rendered inside `/payroll/manage/...` (parent shell owns the main nav). */
+  inPayrollManageShell(): boolean {
+    return this.router.url.split('?')[0].includes('/payroll/manage');
+  }
+
+  /**
+   * Link segments for payroll routes — stays under `/payroll/manage/...` when already in the hub.
+   */
+  payrollSegments(
+    page:
+      | 'overview'
+      | 'employees'
+      | 'structures'
+      | 'structuresNew'
+      | 'process'
+      | 'payslips'
+      | 'reports'
+      | 'assignments'
+  ): string[] {
+    if (page === 'assignments') {
+      return this.inPayrollManageShell() ? ['/payroll', 'manage', 'assignments'] : ['/payroll', 'assignments'];
+    }
+    const m = this.inPayrollManageShell();
+    switch (page) {
+      case 'overview':
+        return m ? ['/payroll', 'manage', 'overview'] : ['/payroll'];
+      case 'employees':
+        return m ? ['/payroll', 'manage', 'employees'] : ['/payroll', 'employees'];
+      case 'structures':
+        return m ? ['/payroll', 'manage', 'structures'] : ['/payroll', 'structures'];
+      case 'structuresNew':
+        return m ? ['/payroll', 'manage', 'structures', 'new'] : ['/payroll', 'structures', 'new'];
+      case 'process':
+        return m ? ['/payroll', 'manage', 'process'] : ['/payroll', 'process'];
+      case 'payslips':
+        return m ? ['/payroll', 'manage', 'payslips'] : ['/payroll', 'payslips'];
+      case 'reports':
+        return m ? ['/payroll', 'manage', 'reports'] : ['/payroll', 'reports'];
+      default:
+        return ['/payroll'];
+    }
+  }
+
   ngOnInit(): void {
     this.applyRouteTab();
     this.routeEventsSub = this.router.events
@@ -206,7 +249,6 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
       this.refreshOverview();
     }
     if (tab === 'process') {
-      this.syncProcessMonthYearToCurrent();
       this.refreshProcessKpis();
       this.refreshPayslipRunsList();
       const runIdProcess = this.route.snapshot.queryParamMap.get('runId');
@@ -235,7 +277,7 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
   }
 
   navigateToAssignments(): void {
-    this.router.navigate(['/payroll/assignments']);
+    this.router.navigate(this.payrollSegments('assignments'));
   }
 
   @HostListener('document:keydown.escape')
@@ -250,23 +292,34 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
   }
 
   navigateToTab(nextTab: PayrollTab): void {
-    const map: Record<PayrollTab, string> = {
-      overview: '/payroll',
-      employees: '/payroll/employees',
-      structures: '/payroll/structures',
-      process: '/payroll/process',
-      payslips: '/payroll/payslips',
-      reports: '/payroll/reports'
-    };
-    this.tab = nextTab;
-    const path = map[nextTab];
-    if (nextTab === 'process' && this.selectedRun?.id) {
-      this.router.navigate([path], { queryParams: { runId: this.selectedRun.id } });
-    } else if (nextTab === 'payslips' && this.selectedRun?.id) {
-      this.router.navigate([path], { queryParams: { runId: this.selectedRun.id } });
-    } else {
-      this.router.navigate([path]);
+    let path: string[];
+    switch (nextTab) {
+      case 'overview':
+        path = this.payrollSegments('overview');
+        break;
+      case 'employees':
+        path = this.payrollSegments('employees');
+        break;
+      case 'structures':
+        path = this.payrollSegments('structures');
+        break;
+      case 'process':
+        path = this.payrollSegments('process');
+        break;
+      case 'payslips':
+        path = this.payrollSegments('payslips');
+        break;
+      case 'reports':
+        path = this.payrollSegments('reports');
+        break;
+      default:
+        path = this.payrollSegments('overview');
     }
+    const qp =
+      (nextTab === 'process' || nextTab === 'payslips') && this.selectedRun?.id
+        ? { queryParams: { runId: this.selectedRun.id } }
+        : undefined;
+    this.router.navigate(path, qp);
   }
 
   refreshOverview(): void {
@@ -306,7 +359,7 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
   }
 
   openRunInProcess(runId: string): void {
-    this.router.navigate(['/payroll/process'], { queryParams: { runId } });
+    this.router.navigate(this.payrollSegments('process'), { queryParams: { runId } });
   }
 
   openProcessFirstRun(): void {
@@ -314,7 +367,7 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
   }
 
   navigateToPayslipsWithRun(runId: string): void {
-    this.router.navigate(['/payroll/payslips'], { queryParams: { runId } });
+    this.router.navigate(this.payrollSegments('payslips'), { queryParams: { runId } });
   }
 
   onPayslipRunChange(runId: string | null | undefined): void {
@@ -323,10 +376,10 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
       this.runLines = [];
       this.payslips = [];
       this.payslipRunSelectId = null;
-      this.router.navigate(['/payroll/payslips']);
+      this.router.navigate(this.payrollSegments('payslips'));
       return;
     }
-    this.router.navigate(['/payroll/payslips'], { queryParams: { runId } });
+    this.router.navigate(this.payrollSegments('payslips'), { queryParams: { runId } });
   }
 
   refreshPayslipRunsList(): void {
@@ -772,12 +825,12 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
 
   /** Navigate to full-page “add salary structure” (`/payroll/structures/new`). */
   openAddStructure(): void {
-    this.router.navigate(['/payroll/structures/new']);
+    this.router.navigate(this.payrollSegments('structuresNew'));
   }
 
   navigateToStructuresList(): void {
     this.structureError = '';
-    this.router.navigate(['/payroll/structures']);
+    this.router.navigate(this.payrollSegments('structures'));
   }
 
   backFromStructures(): void {
@@ -928,7 +981,7 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
         document.body.style.overflow = '';
         this.refreshSalaryStructures();
         if (this.structurePage === 'new') {
-          this.router.navigate(['/payroll/structures']);
+          this.router.navigate(this.payrollSegments('structures'));
         }
       },
       error: (err: any) => {
@@ -987,6 +1040,18 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
   get processMonthLabel(): string {
     const m = this.monthOptions.find((x) => x.value === this.process.month);
     return m?.label ?? `Month ${this.process.month}`;
+  }
+
+  /** True when selected payroll month is after the current calendar month (blocked on server). */
+  get processPeriodIsFuture(): boolean {
+    const m = Number(this.process.month);
+    const y = Number(this.process.year);
+    if (!Number.isFinite(m) || !Number.isFinite(y) || m < 1 || m > 12 || y < 2000 || y > 2100) {
+      return false;
+    }
+    const now = new Date();
+    const maxKey = now.getFullYear() * 12 + (now.getMonth() + 1);
+    return y * 12 + m > maxKey;
   }
 
   /** Payroll generation always uses server “today”; keep UI aligned when visiting this tab. */
@@ -1056,10 +1121,10 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
       this.selectedRun = null;
       this.runLines = [];
       this.payslipRunSelectId = null;
-      this.router.navigate(['/payroll/process']);
+      this.router.navigate(this.payrollSegments('process'));
       return;
     }
-    this.router.navigate(['/payroll/process'], { queryParams: { runId } });
+    this.router.navigate(this.payrollSegments('process'), { queryParams: { runId } });
   }
 
   copyProcessPageLink(): void {
@@ -1076,7 +1141,6 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
   }
 
   generateRun(): void {
-    this.syncProcessMonthYearToCurrent();
     this.runError = '';
     this.runSuccess = '';
     this.runWarning = '';
@@ -1087,7 +1151,9 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
 
     this.payrollService
       .generateRun({
-        notes: this.process.notes?.trim() ? String(this.process.notes).trim() : undefined
+        notes: this.process.notes?.trim() ? String(this.process.notes).trim() : undefined,
+        month: this.process.month,
+        year: this.process.year,
       })
       .subscribe({
         next: (res: any) => {
@@ -1105,7 +1171,7 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
           this.refreshProcessKpis();
           this.refreshPayslipRunsList();
           if (res?.run?.id) {
-            this.router.navigate(['/payroll/process'], { queryParams: { runId: res.run.id }, replaceUrl: true });
+            this.router.navigate(this.payrollSegments('process'), { queryParams: { runId: res.run.id }, replaceUrl: true });
           }
         },
         error: (err: any) => {
@@ -1175,7 +1241,7 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
         this.refreshProcessKpis();
         const rid = data?.runId || this.selectedRun?.id;
         if (rid) {
-          this.router.navigate(['/payroll/payslips'], { queryParams: { runId: rid } });
+          this.router.navigate(this.payrollSegments('payslips'), { queryParams: { runId: rid } });
         }
       },
       error: (err: any) => {

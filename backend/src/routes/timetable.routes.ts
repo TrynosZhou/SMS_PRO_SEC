@@ -9,6 +9,7 @@ import {
   updateTimetableSlot,
   deleteTimetableSlot,
   activateTimetableVersion,
+  deleteTimetableVersion,
   generateTeacherTimetablePDF,
   generateClassTimetablePDF,
   generateConsolidatedTimetablePDF,
@@ -29,6 +30,7 @@ router.post('/generate', authenticate, generateTimetable);
 // Version routes
 router.get('/versions', authenticate, getTimetableVersions);
 router.post('/versions/:versionId/activate', authenticate, activateTimetableVersion);
+router.delete('/versions/:versionId', authenticate, deleteTimetableVersion);
 
 // Slot routes
 router.get('/versions/:versionId/slots', authenticate, getTimetableSlots);

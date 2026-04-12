@@ -1186,6 +1186,41 @@ export const activateTimetableVersion = async (req: AuthRequest, res: Response) 
   }
 };
 
+/** Deletes a timetable version and its slots (DB CASCADE). If the deleted row was active, activates the newest remaining version if any. */
+export const deleteTimetableVersion = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
+
+    const { versionId } = req.params;
+    const versionRepository = AppDataSource.getRepository(TimetableVersion);
+
+    const target = await versionRepository.findOne({ where: { id: versionId } });
+    if (!target) {
+      return res.status(404).json({ message: 'Timetable version not found' });
+    }
+
+    const wasActive = target.isActive;
+    await versionRepository.remove(target);
+
+    if (wasActive) {
+      const remaining = await versionRepository.find({
+        order: { createdAt: 'DESC' },
+        take: 1,
+      });
+      if (remaining.length > 0) {
+        await setSingleActiveTimetableVersion(remaining[0].id);
+      }
+    }
+
+    res.json({ message: 'Timetable version deleted successfully' });
+  } catch (error: any) {
+    console.error('[deleteTimetableVersion] Error:', error);
+    res.status(500).json({ message: 'Failed to delete timetable version', error: error.message });
+  }
+};
+
 // Generate PDF for teacher timetable
 export const generateTeacherTimetablePDF = async (req: AuthRequest, res: Response) => {
   try {

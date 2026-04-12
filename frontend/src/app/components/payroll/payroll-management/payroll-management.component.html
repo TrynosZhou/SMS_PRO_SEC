@@ -1,21 +1,5 @@
 <div class="payroll-wrapper">
   <div class="payroll-card">
-    <div class="payroll-header">
-      <div>
-        <h2>{{ tab === 'overview' ? 'Payroll' : 'Payroll Management' }}</h2>
-        <div class="subtitle" *ngIf="tab==='overview'">Payroll overview — employees, structures, runs, and period summary.</div>
-        <div class="subtitle" *ngIf="tab!=='overview'">Manage employees, salary structures, payroll runs, payslips, and reports.</div>
-      </div>
-      <div class="tab-buttons">
-        <button class="tab-btn" [class.active]="tab==='overview'" (click)="navigateToTab('overview')">Payroll Overview</button>
-        <button class="tab-btn" [class.active]="tab==='employees'" (click)="navigateToTab('employees')">Employees</button>
-        <button class="tab-btn" [class.active]="tab==='structures'" (click)="navigateToTab('structures')">Salary Structures</button>
-        <button class="tab-btn" [class.active]="tab==='process'" (click)="navigateToTab('process')">Process Payroll</button>
-        <button class="tab-btn" [class.active]="tab==='payslips'" (click)="navigateToTab('payslips')">Payslips</button>
-        <button class="tab-btn" [class.active]="tab==='reports'" (click)="navigateToTab('reports')">Reports</button>
-      </div>
-    </div>
-
     <div class="alert alert-error" *ngIf="overviewError && tab==='overview'">
       {{ overviewError }}
     </div>
@@ -131,7 +115,7 @@
             <h2 class="employees-page-title"><span class="employees-title-icon">👥</span> Employees</h2>
             <p class="employees-desc">
               Ancillary and support staff (non-teaching) — assign salaries in
-              <a routerLink="/payroll/assignments" class="employees-inline-link">Assignments</a>.
+              <a [routerLink]="payrollSegments('assignments')" class="employees-inline-link">Assignments</a>.
             </p>
           </div>
           <div class="employees-header-actions">
@@ -179,7 +163,7 @@
         <div class="employees-info-box" *ngIf="!employeeLoading">
           Payroll covers <strong>ancillary and support roles</strong> only. Teaching staff are not listed here.
           Assign salary structures on the
-          <a routerLink="/payroll/assignments" class="employees-inline-link">Assignments</a> page.
+          <a [routerLink]="payrollSegments('assignments')" class="employees-inline-link">Assignments</a> page.
         </div>
       </div>
 
@@ -427,7 +411,7 @@
               <div class="structures-empty-icon" aria-hidden="true">📋</div>
               <p class="structures-empty-title">No salary structures yet</p>
               <p class="structures-empty-text">Create a template to use in payroll and assignments.</p>
-              <a routerLink="/payroll/structures/new" class="btn btn-primary structures-empty-cta">Add the first structure</a>
+              <a [routerLink]="payrollSegments('structuresNew')" class="btn btn-primary structures-empty-cta">Add the first structure</a>
             </div>
           </ng-container>
 
@@ -668,7 +652,7 @@
           <div>
             <h3 class="process-section-title">Generate payroll run</h3>
             <p class="muted process-section-desc">
-              Creates a run for <strong>this calendar month</strong> (server date) for active employees with a matching salary structure.
+              Choose the payroll month, then generate a <strong>draft</strong> run for active employees with a matching salary structure.
             </p>
           </div>
           <button
@@ -682,21 +666,55 @@
         </div>
         <div class="process-rules-block" *ngIf="processRulesOpen">
           <ul class="process-rules-list">
-            <li>Only the <strong>current month</strong> can be generated — not past or future months.</li>
-            <li>The <strong>previous month’s</strong> run must be <strong>Paid</strong> before a new month unlocks (unless there are no runs yet).</li>
-            <li>Duplicate runs for the same month are blocked.</li>
+            <li>Select the <strong>payroll month</strong> (up to and including the current calendar month — future months are not allowed).</li>
+            <li>After the <strong>first</strong> run exists, the <strong>previous calendar month’s</strong> run must be <strong>Paid</strong> before you can generate the next period.</li>
+            <li>Only <strong>one run per month</strong>; pick another month if this period already exists.</li>
           </ul>
         </div>
         <div class="process-generate-inner">
-          <div class="process-period-box">
-            <span class="process-period-label">Payroll period</span>
-            <div class="process-period-value">
-              <strong>{{ processMonthLabel }}</strong> {{ process.year }}
+          <div class="process-period-box process-period-box--editable">
+            <span class="process-period-label">Payroll period to generate</span>
+            <div class="process-period-pickers">
+              <div class="process-period-field">
+                <label for="processGenMonth">Month</label>
+                <select
+                  id="processGenMonth"
+                  class="form-control process-gen-select"
+                  [(ngModel)]="process.month"
+                  name="processGenMonth"
+                  [disabled]="runLoading"
+                >
+                  <option *ngFor="let m of monthOptions" [ngValue]="m.value">{{ m.label }}</option>
+                </select>
+              </div>
+              <div class="process-period-field">
+                <label for="processGenYear">Year</label>
+                <input
+                  id="processGenYear"
+                  type="number"
+                  class="form-control process-gen-year"
+                  [(ngModel)]="process.year"
+                  name="processGenYear"
+                  min="2000"
+                  max="2100"
+                  [disabled]="runLoading"
+                />
+              </div>
             </div>
-            <p class="muted process-period-hint">Synced when you open this page; Generate uses the server’s current month.</p>
+            <p class="muted process-period-hint">
+              Generate will create <strong>{{ processMonthLabel }} {{ process.year }}</strong> if allowed by the rules above.
+            </p>
+            <p class="process-period-warn" *ngIf="processPeriodIsFuture">
+              Choose the current month or an earlier month — future periods cannot be generated.
+            </p>
           </div>
           <div class="process-generate-actions">
-            <button type="button" class="btn btn-generate-payroll" [disabled]="runLoading" (click)="generateRun()">
+            <button
+              type="button"
+              class="btn btn-generate-payroll"
+              [disabled]="runLoading || processPeriodIsFuture"
+              (click)="generateRun()"
+            >
               {{ runLoading ? 'Generating…' : 'Generate payroll' }}
             </button>
           </div>
@@ -910,7 +928,7 @@
       </div>
 
       <div class="payslips-quick-links" *ngIf="selectedRun && !payslipRunDetailLoading">
-        <a routerLink="/payroll/process" [queryParams]="{ runId: selectedRun.id }" class="payslips-chip-link">Process Payroll</a>
+        <a [routerLink]="payrollSegments('process')" [queryParams]="{ runId: selectedRun.id }" class="payslips-chip-link">Process Payroll</a>
         <button type="button" class="payslips-chip-link payslips-chip-btn" (click)="openReportsForSelectedRun()">
           Payroll report (this period)
         </button>
@@ -1200,7 +1218,7 @@
           <a
             *ngIf="monthlySummary?.runId"
             class="reports-link-process"
-            routerLink="/payroll/process"
+            [routerLink]="payrollSegments('process')"
             [queryParams]="{ runId: monthlySummary.runId }"
           >
             Open this run in Process Payroll →

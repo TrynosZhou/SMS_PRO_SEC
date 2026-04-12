@@ -11,43 +11,11 @@
   padding: 18px;
 }
 
-.payroll-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-
 .subtitle {
   color: #6b7280;
   font-size: 13px;
   margin-top: 6px;
   font-weight: 700;
-}
-
-.tab-buttons {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.tab-btn {
-  padding: 10px 14px;
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
-  font-weight: 900;
-  color: #111827;
-  cursor: pointer;
-}
-
-.tab-btn.active {
-  background: #4A90E2;
-  border-color: #4A90E2;
-  color: #ffffff;
 }
 
 .tab-panel {
@@ -2006,6 +1974,13 @@ a.structures-link-anchor:hover {
   color: #0f172a;
 }
 
+.process-period-warn {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b45309;
+}
+
 .process-period-hint {
   margin: 8px 0 0;
   font-size: 12px;
@@ -2332,6 +2307,44 @@ a.structures-link-anchor:hover {
   font-size: 1.15rem;
   font-weight: 900;
   color: #0f172a;
+}
+
+.process-period-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+}
+
+.process-period-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.process-period-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.process-gen-select,
+.process-gen-year {
+  min-width: 160px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
+  font-weight: 600;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.process-gen-year {
+  width: 112px;
+  min-width: 112px;
 }
 
 .process-generate-actions {

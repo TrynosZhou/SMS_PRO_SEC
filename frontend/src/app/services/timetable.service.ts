@@ -110,6 +110,10 @@ export class TimetableService {
     );
   }
 
+  deleteVersion(versionId: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/versions/${versionId}`);
+  }
+
   getSlots(versionId: string, teacherId?: string, classId?: string): Observable<TimetableSlot[]> {
     let url = `${this.apiUrl}/versions/${versionId}/slots`;
     const params: string[] = [];

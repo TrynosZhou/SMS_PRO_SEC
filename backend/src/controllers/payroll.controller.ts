@@ -491,10 +491,38 @@ export const generatePayrollRun = async (req: AuthRequest, res: Response) => {
 
     const notes = req.body?.notes ? String(req.body.notes).trim() : null;
 
-    // Always use server calendar "now" — ignore client month/year to prevent backdating or future runs.
     const now = new Date();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
+    const serverMonth = now.getMonth() + 1;
+    const serverYear = now.getFullYear();
+    const serverPeriodKey = serverYear * 12 + serverMonth;
+
+    const rawM = req.body?.month;
+    const rawY = req.body?.year;
+    const hasM = rawM !== undefined && rawM !== null && String(rawM).trim() !== '';
+    const hasY = rawY !== undefined && rawY !== null && String(rawY).trim() !== '';
+    let month: number;
+    let year: number;
+
+    if (hasM !== hasY) {
+      return res.status(400).json({
+        message: 'Send both month and year for the payroll period, or omit both to use the current calendar month.',
+      });
+    }
+
+    if (hasM && hasY) {
+      month = Math.floor(Number(rawM));
+      year = Math.floor(Number(rawY));
+      if (!Number.isFinite(month) || !Number.isFinite(year) || month < 1 || month > 12 || year < 2000 || year > 2100) {
+        return res.status(400).json({ message: 'Provide a valid month (1–12) and year (2000–2100) for the payroll run.' });
+      }
+      const selectedKey = year * 12 + month;
+      if (selectedKey > serverPeriodKey) {
+        return res.status(400).json({ message: 'Cannot generate a payroll run for a future month.' });
+      }
+    } else {
+      month = serverMonth;
+      year = serverYear;
+    }
 
     const employeeRepo = AppDataSource.getRepository(PayrollEmployee);
     const structureRepo = AppDataSource.getRepository(PayrollSalaryStructure);
@@ -511,7 +539,7 @@ export const generatePayrollRun = async (req: AuthRequest, res: Response) => {
     const existingRun = await runRepo.findOne({ where: { runMonth: month, runYear: year } });
     if (existingRun) {
       return res.status(409).json({
-        message: `A payroll run already exists for ${periodLabel}. Use the existing run from Payroll Overview or wait until next month to generate a new run.`,
+        message: `A payroll run already exists for ${periodLabel}. Open it from the run list above, or choose a different month to generate another period.`,
         existingRunId: existingRun.id,
       });
     }

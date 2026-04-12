@@ -576,12 +576,174 @@
   gap: 10px;
 }
 
+.mc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mc-session-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.mc-session-bar__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.mc-session-bar__value {
+  flex: 1;
+  min-width: 200px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.mc-session-bar__meta {
+  font-size: 12px;
+  color: #475569;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #e2e8f0;
+}
+
+.mc-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.mc-filter-chips__hint {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin-right: 4px;
+}
+
+.mc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mc-chip:hover {
+  border-color: #c7d2fe;
+  background: #f8fafc;
+}
+
+.mc-chip--active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+}
+
+.mc-chip__count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+.mc-chip--active .mc-chip__count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.mc-filter-empty {
+  padding: 28px 20px;
+  margin-bottom: 16px;
+  text-align: center;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  color: #92400e;
+  font-size: 14px;
+}
+
+.mc-filter-empty__reset {
+  margin-left: 8px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mc-filter-empty__reset:hover {
+  background: #334155;
+}
+
+.mc-btn-ghost {
+  background: rgba(102, 126, 234, 0.12) !important;
+  color: #4f46e5 !important;
+  border: 1px solid rgba(102, 126, 234, 0.35) !important;
+  box-shadow: none !important;
+}
+
+.mc-btn-ghost:hover:not(:disabled) {
+  background: rgba(102, 126, 234, 0.2) !important;
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
+}
+
+.btn-success:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(5, 150, 105, 0.4);
+}
+
 /* Marks Entry Table */
 .table-wrapper {
   overflow-x: auto;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   margin-bottom: 20px;
+}
+
+.mc-table-scroll {
+  max-height: min(72vh, 820px);
+  overflow: auto;
+  border-radius: 12px;
 }
 
 .marks-entry-table {
@@ -593,12 +755,12 @@
 .marks-entry-table thead {
   background: #2563eb;
   color: white;
-  position: sticky;
-  top: 0;
-  z-index: 10;
 }
 
 .marks-entry-table th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   padding: 15px 12px;
   text-align: left;
   font-weight: 700;
@@ -634,6 +796,52 @@
 
 .marks-entry-table tbody tr.no-marks {
   background: #fff;
+}
+
+/* Sticky # and Student ID while scrolling wide sheet */
+.marks-entry-table .col-sticky-rank {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  width: 52px;
+  min-width: 52px;
+  box-shadow: 4px 0 12px -6px rgba(15, 23, 42, 0.2);
+}
+
+.marks-entry-table .col-sticky-id {
+  position: sticky;
+  left: 52px;
+  z-index: 3;
+  min-width: 112px;
+  box-shadow: 4px 0 12px -6px rgba(15, 23, 42, 0.15);
+}
+
+.marks-entry-table thead .col-sticky-rank {
+  z-index: 30;
+}
+
+.marks-entry-table thead .col-sticky-id {
+  z-index: 29;
+}
+
+.marks-entry-table tbody td.col-sticky-rank,
+.marks-entry-table tbody td.col-sticky-id {
+  background: #fff;
+}
+
+.marks-entry-table tbody tr.has-marks td.col-sticky-rank,
+.marks-entry-table tbody tr.has-marks td.col-sticky-id {
+  background: #f0f9ff;
+}
+
+.marks-entry-table tbody tr:hover td.col-sticky-rank,
+.marks-entry-table tbody tr:hover td.col-sticky-id {
+  background: #f8f9fa;
+}
+
+.marks-entry-table tbody tr.has-marks:hover td.col-sticky-rank,
+.marks-entry-table tbody tr.has-marks:hover td.col-sticky-id {
+  background: #e0f2fe;
 }
 
 .row-number {

@@ -150,31 +150,80 @@
 
     <!-- Marks Entry Section -->
     <div *ngIf="showMarksEntry && students.length > 0" class="marks-entry-section">
+      <div class="mc-session-bar" role="status" aria-live="polite">
+        <span class="mc-session-bar__label">Active session</span>
+        <span class="mc-session-bar__value">{{ getSelectionSummary() }}</span>
+        <span class="mc-session-bar__meta" *ngIf="isPublished">Published · read-only</span>
+        <span class="mc-session-bar__meta" *ngIf="!isPublished">Auto-save on change</span>
+      </div>
+
       <!-- Search and Quick Actions -->
       <div class="table-controls">
         <div class="search-box">
+          <label class="mc-sr-only" for="mc-student-search">Search students</label>
           <input 
-            type="text" 
+            id="mc-student-search"
+            type="search" 
             [(ngModel)]="studentSearchQuery"
             [ngModelOptions]="{standalone: true}"
-            placeholder="🔍 Search students by name or ID..."
+            placeholder="Search by name or student number…"
             class="search-input"
+            autocomplete="off"
             (input)="filterStudents()">
         </div>
         <div class="quick-actions">
+          <button
+            type="button"
+            class="btn btn-sm btn-primary mc-btn-ghost"
+            (click)="focusNextEmptyScore()"
+            [disabled]="isPublished || missingMarksCount === 0"
+            title="Jump to the next student without a mark (in the current search list)">
+            Next empty
+          </button>
           <button 
             class="btn btn-sm btn-secondary" 
             (click)="clearAllMarks()"
             [disabled]="loading || getEnteredMarksCount() === 0 || isPublished">
-            🗑️ Clear All
+            Clear all
           </button>
           <button 
             class="btn btn-sm btn-secondary" 
             (click)="fillRemainingWithZero()"
             [disabled]="loading || isPublished">
-            🔢 Fill Empty with 0
+            Fill empty with 0
           </button>
         </div>
+      </div>
+
+      <div class="mc-filter-chips" *ngIf="!isPublished" role="group" aria-label="Filter students by mark status">
+        <span class="mc-filter-chips__hint">Show:</span>
+        <button
+          type="button"
+          class="mc-chip"
+          [class.mc-chip--active]="marksViewFilter === 'all'"
+          (click)="setMarksViewFilter('all')"
+        >
+          All
+          <span class="mc-chip__count">{{ filteredStudents.length }}</span>
+        </button>
+        <button
+          type="button"
+          class="mc-chip"
+          [class.mc-chip--active]="marksViewFilter === 'entered'"
+          (click)="setMarksViewFilter('entered')"
+        >
+          With mark
+          <span class="mc-chip__count">{{ getEnteredMarksCount() }}</span>
+        </button>
+        <button
+          type="button"
+          class="mc-chip"
+          [class.mc-chip--active]="marksViewFilter === 'missing'"
+          (click)="setMarksViewFilter('missing')"
+        >
+          Missing mark
+          <span class="mc-chip__count">{{ missingMarksCount }}</span>
+        </button>
       </div>
 
       <!-- Completion progress -->
@@ -195,24 +244,37 @@
 
       <!-- Marks Entry Form -->
       <form (ngSubmit)="onSubmit()" class="marks-form">
-        <div class="table-wrapper">
+        <div
+          *ngIf="filteredStudents.length > 0 && displayStudents.length === 0"
+          class="mc-filter-empty"
+          role="status"
+        >
+          <p>
+            No students match this filter.
+            <button type="button" class="mc-filter-empty__reset" (click)="setMarksViewFilter('all')">
+              Show all students
+            </button>
+          </p>
+        </div>
+
+        <div class="table-wrapper mc-table-scroll" *ngIf="displayStudents.length > 0">
           <table class="marks-entry-table">
             <thead>
               <tr>
-                <th style="width: 60px;">#</th>
-                <th style="min-width: 120px;">Student ID</th>
-                <th style="min-width: 150px;">Last Name</th>
-                <th style="min-width: 150px;">First Name</th>
-                <th style="min-width: 140px;">Marks</th>
-                <th style="min-width: 200px;">Remarks</th>
+                <th class="col-sticky-rank" scope="col">#</th>
+                <th class="col-sticky-id" scope="col">Student ID</th>
+                <th scope="col">Last name</th>
+                <th scope="col">First name</th>
+                <th scope="col">Mark /100</th>
+                <th scope="col">Remarks</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let student of filteredStudents; let i = index" 
+              <tr *ngFor="let student of displayStudents; let i = index; trackBy: trackByStudentId" 
                   [class.has-marks]="hasMarks(student.id)"
                   [class.no-marks]="!hasMarks(student.id)">
-                <td class="row-number">{{ i + 1 }}</td>
-                <td>
+                <td class="row-number col-sticky-rank">{{ i + 1 }}</td>
+                <td class="col-sticky-id">
                   <strong class="student-id">{{ student.studentNumber }}</strong>
                 </td>
                 <td>{{ student.lastName }}</td>
@@ -221,15 +283,17 @@
                   <div class="marks-input-wrapper" style="position: relative;">
                     <input 
                       type="number" 
+                      [id]="'mc-score-' + student.id"
                       [(ngModel)]="marks[getMarkKey(student.id, selectedSubjectId)].score"
                       [name]="'score_' + student.id"
-                      placeholder="0"
+                      placeholder="—"
                       min="0"
                       max="100"
                       step="1"
                       class="marks-input"
                       [disabled]="isPublished"
                       [readonly]="isPublished"
+                      [attr.aria-label]="'Mark out of 100 for ' + student.firstName + ' ' + student.lastName"
                       (input)="onMarkChange(student.id)"
                       (blur)="validateMark(student.id); onStudentBlur(student.id)"
                       (focus)="onStudentFocus(student.id)">
@@ -252,12 +316,13 @@
                       <textarea 
                         [(ngModel)]="marks[getMarkKey(student.id, selectedSubjectId)].comments"
                         [name]="'comments_' + student.id"
-                        [placeholder]="isGeneratingRemark(student.id) ? 'Generating AI remark...' : 'Enter remarks'"
+                        [placeholder]="isGeneratingRemark(student.id) ? 'Generating AI remark…' : 'Remarks (optional, AI can suggest from mark)'"
                         class="remarks-input"
                         rows="2"
                         maxlength="200"
                         [disabled]="isPublished || isGeneratingRemark(student.id)"
                         [readonly]="isPublished || isGeneratingRemark(student.id)"
+                        [attr.aria-label]="'Remarks for ' + student.firstName + ' ' + student.lastName"
                         (input)="onCommentsChange(student.id)"
                         (blur)="onStudentBlur(student.id)"
                         (focus)="onStudentFocus(student.id)"></textarea>
@@ -295,23 +360,27 @@
         <!-- Statistics Footer -->
         <div class="marks-statistics">
           <div class="stat-item">
-            <span class="stat-label">Total Students:</span>
+            <span class="stat-label">In view</span>
+            <span class="stat-value">{{ displayStudents.length }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Class total</span>
             <span class="stat-value">{{ filteredStudents.length }}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Marks Entered:</span>
+            <span class="stat-label">Marks entered</span>
             <span class="stat-value success">{{ getEnteredMarksCount() }}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Pending:</span>
-            <span class="stat-value warning">{{ filteredStudents.length - getEnteredMarksCount() }}</span>
+            <span class="stat-label">Pending</span>
+            <span class="stat-value warning">{{ missingMarksCount }}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Remarks Entered:</span>
+            <span class="stat-label">Remarks entered</span>
             <span class="stat-value success">{{ getEnteredRemarksCount() }}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Average Score:</span>
+            <span class="stat-label">Average (entered)</span>
             <span class="stat-value">{{ getAverageScore() | number:'1.0-0' }}</span>
           </div>
         </div>
