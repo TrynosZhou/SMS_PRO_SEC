@@ -118,5 +118,100 @@ export class PayrollService {
     if (params.department) httpParams = httpParams.set('department', params.department);
     return this.http.get(`${this.apiUrl}/payroll/reports/department`, { params: httpParams });
   }
+
+  // Leave management
+  getLeaveDashboard(params?: {
+    asOfDate?: string;
+    from?: string;
+    to?: string;
+    category?: 'all' | 'teaching' | 'ancillary';
+    employeeId?: string;
+  }): Observable<any> {
+    let httpParams = new HttpParams();
+    if (params?.asOfDate) httpParams = httpParams.set('asOfDate', params.asOfDate);
+    if (params?.from) httpParams = httpParams.set('from', params.from);
+    if (params?.to) httpParams = httpParams.set('to', params.to);
+    if (params?.category) httpParams = httpParams.set('category', params.category);
+    if (params?.employeeId) httpParams = httpParams.set('employeeId', params.employeeId);
+    return this.http.get(`${this.apiUrl}/payroll/leave/dashboard`, { params: httpParams });
+  }
+
+  createLeaveRecord(body: {
+    staffType: 'teaching' | 'ancillary';
+    staffId: string;
+    leaveDate: string;
+    days: number;
+    reason?: string;
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/payroll/leave/records`, body);
+  }
+
+  getLeaveRecords(params?: {
+    staffType?: 'all' | 'teaching' | 'ancillary';
+    staffId?: string;
+    from?: string;
+    to?: string;
+  }): Observable<any> {
+    let httpParams = new HttpParams();
+    if (params?.staffType) httpParams = httpParams.set('staffType', params.staffType);
+    if (params?.staffId) httpParams = httpParams.set('staffId', params.staffId);
+    if (params?.from) httpParams = httpParams.set('from', params.from);
+    if (params?.to) httpParams = httpParams.set('to', params.to);
+    return this.http.get(`${this.apiUrl}/payroll/leave/records`, { params: httpParams });
+  }
+
+  getLeaveDepartmentSummary(params?: {
+    asOfDate?: string;
+    from?: string;
+    to?: string;
+    category?: 'all' | 'teaching' | 'ancillary';
+  }): Observable<any> {
+    let httpParams = new HttpParams();
+    if (params?.asOfDate) httpParams = httpParams.set('asOfDate', params.asOfDate);
+    if (params?.from) httpParams = httpParams.set('from', params.from);
+    if (params?.to) httpParams = httpParams.set('to', params.to);
+    if (params?.category) httpParams = httpParams.set('category', params.category);
+    return this.http.get(`${this.apiUrl}/payroll/leave/reports/department-summary`, { params: httpParams });
+  }
+
+  getLeaveLiabilityReport(params?: {
+    asOfDate?: string;
+    category?: 'all' | 'teaching' | 'ancillary';
+    employeeId?: string;
+  }): Observable<any> {
+    let httpParams = new HttpParams();
+    if (params?.asOfDate) httpParams = httpParams.set('asOfDate', params.asOfDate);
+    if (params?.category) httpParams = httpParams.set('category', params.category);
+    if (params?.employeeId) httpParams = httpParams.set('employeeId', params.employeeId);
+    return this.http.get(`${this.apiUrl}/payroll/leave/reports/liability`, { params: httpParams });
+  }
+
+  getLeavePolicy(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/payroll/leave/policy`);
+  }
+
+  updateLeavePolicy(body: {
+    annualLeaveDaysPerYear: number;
+    excessAccruedThresholdDays: number;
+    maxAccrualDays?: number | null;
+    carryForwardCapDays?: number | null;
+    teachingTermMonths?: number[];
+    notes?: string;
+  }): Observable<any> {
+    return this.http.put(`${this.apiUrl}/payroll/leave/policy`, body);
+  }
+
+  createLeaveLiabilityAudit(body?: { asOfDate?: string; category?: string; employeeId?: string; notes?: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/payroll/leave/reports/liability/audit`, body || {});
+  }
+
+  getLeaveLiabilityAudits(params?: { from?: string; to?: string; category?: string; employeeId?: string }): Observable<any> {
+    let httpParams = new HttpParams();
+    if (params?.from) httpParams = httpParams.set('from', params.from);
+    if (params?.to) httpParams = httpParams.set('to', params.to);
+    if (params?.category) httpParams = httpParams.set('category', params.category);
+    if (params?.employeeId) httpParams = httpParams.set('employeeId', params.employeeId);
+    return this.http.get(`${this.apiUrl}/payroll/leave/reports/liability/audits`, { params: httpParams });
+  }
 }
 

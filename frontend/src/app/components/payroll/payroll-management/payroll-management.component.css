@@ -3671,3 +3671,112 @@ a.payslips-chip-link:hover {
   border-radius: 14px;
   background: linear-gradient(135deg, #e2e8f0, #f1f5f9);
 }
+
+/* ---------------- Leave module ---------------- */
+.leave-hero {
+  margin-bottom: 12px;
+}
+
+.leave-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.leave-subtitle {
+  margin: 4px 0 0;
+  color: #475569;
+  font-size: 13px;
+}
+
+.leave-filter-grid,
+.leave-record-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.leave-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.leave-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.leave-field input,
+.leave-field select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.leave-field-wide {
+  grid-column: span 2;
+}
+
+.leave-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.leave-actions-inline {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.leave-summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.leave-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.leave-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.leave-table th,
+.leave-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  text-align: left;
+}
+
+.leave-table th {
+  background: #eff6ff;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.leave-table .col-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.leave-liability-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #334155;
+}

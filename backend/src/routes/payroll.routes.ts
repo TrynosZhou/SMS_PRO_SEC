@@ -19,6 +19,15 @@ import {
   previewPayrollPayslipPdf,
   getPayrollMonthlySummary,
   getPayrollDepartmentReport,
+  getLeaveDashboard,
+  createLeaveRecord,
+  getLeaveRecords,
+  getLeaveDepartmentSummary,
+  getLeaveLiabilityReport,
+  getLeavePolicy,
+  updateLeavePolicy,
+  createLeaveLiabilityAudit,
+  getLeaveLiabilityAudits,
 } from '../controllers/payroll.controller';
 
 const router = Router();
@@ -55,6 +64,15 @@ router.get('/payslips/:id/download', authenticate, authorize(UserRole.ADMIN, Use
 // Payroll reports
 router.get('/reports/monthly-summary', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), getPayrollMonthlySummary);
 router.get('/reports/department', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), getPayrollDepartmentReport);
+router.get('/leave/dashboard', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), getLeaveDashboard);
+router.post('/leave/records', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), createLeaveRecord);
+router.get('/leave/records', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), getLeaveRecords);
+router.get('/leave/reports/department-summary', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), getLeaveDepartmentSummary);
+router.get('/leave/reports/liability', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), getLeaveLiabilityReport);
+router.get('/leave/policy', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), getLeavePolicy);
+router.put('/leave/policy', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), updateLeavePolicy);
+router.post('/leave/reports/liability/audit', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN), createLeaveLiabilityAudit);
+router.get('/leave/reports/liability/audits', authenticate, authorize(UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.ACCOUNTANT), getLeaveLiabilityAudits);
 
 export default router;
 

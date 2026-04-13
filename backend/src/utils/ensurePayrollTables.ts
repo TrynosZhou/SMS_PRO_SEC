@@ -10,7 +10,11 @@ export async function ensurePayrollTables(): Promise<void> {
     await AppDataSource.initialize();
   }
 
-  await AppDataSource.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
+  // Serialize payroll schema bootstrap to avoid concurrent CREATE TABLE races
+  // (seen as duplicate pg_type entries under high parallel API calls).
+  await AppDataSource.query(`SELECT pg_advisory_lock(hashtext('ensurePayrollTables_v2'));`);
+  try {
+    await AppDataSource.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
 
   // Enums
   await AppDataSource.query(`
@@ -169,6 +173,75 @@ export async function ensurePayrollTables(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS "IDX_payroll_payslips_payrollRunLineId" ON payroll_payslips ("payrollRunLineId");
     `);
+  }
+
+  if (!(await tableExists('payroll_leave_records'))) {
+    await AppDataSource.query(`
+      CREATE TABLE IF NOT EXISTS payroll_leave_records (
+        id uuid NOT NULL DEFAULT uuid_generate_v4(),
+        "staffType" varchar NOT NULL,
+        "staffId" uuid NOT NULL,
+        "staffName" varchar NOT NULL,
+        "department" varchar,
+        "leaveDate" date NOT NULL,
+        "days" decimal(8,2) NOT NULL,
+        "reason" text,
+        "createdBy" uuid,
+        "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "PK_payroll_leave_records_id" PRIMARY KEY (id)
+      );
+      CREATE INDEX IF NOT EXISTS "IDX_payroll_leave_records_staffType_staffId" ON payroll_leave_records ("staffType", "staffId");
+      CREATE INDEX IF NOT EXISTS "IDX_payroll_leave_records_leaveDate" ON payroll_leave_records ("leaveDate");
+    `);
+  }
+
+  if (!(await tableExists('payroll_leave_policies'))) {
+    await AppDataSource.query(`
+      CREATE TABLE IF NOT EXISTS payroll_leave_policies (
+        id uuid NOT NULL DEFAULT uuid_generate_v4(),
+        "annualLeaveDaysPerYear" decimal(8,2) NOT NULL DEFAULT 30,
+        "excessAccruedThresholdDays" decimal(8,2) NOT NULL DEFAULT 45,
+        "maxAccrualDays" decimal(8,2),
+        "carryForwardCapDays" decimal(8,2),
+        "teachingTermMonths" json,
+        "notes" text,
+        "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "PK_payroll_leave_policies_id" PRIMARY KEY (id)
+      );
+    `);
+    await AppDataSource.query(`
+      INSERT INTO payroll_leave_policies
+      ("annualLeaveDaysPerYear","excessAccruedThresholdDays","teachingTermMonths")
+      VALUES (30,45,'[1,2,3,4,5,6,7,8,9,10,11]'::json)
+      ON CONFLICT DO NOTHING;
+    `);
+  }
+
+    if (!(await tableExists('payroll_leave_payout_audits'))) {
+      await AppDataSource.query(`
+        CREATE TABLE IF NOT EXISTS payroll_leave_payout_audits (
+          id uuid NOT NULL DEFAULT uuid_generate_v4(),
+          "staffType" varchar NOT NULL,
+          "staffId" uuid NOT NULL,
+          "employeeNumber" varchar NOT NULL,
+          "fullName" varchar NOT NULL,
+          "department" varchar,
+          "asOfDate" date NOT NULL,
+          "remainingDays" decimal(8,2) NOT NULL,
+          "dailyRate" decimal(12,2) NOT NULL,
+          "payoutAmount" decimal(14,2) NOT NULL,
+          "notes" text,
+          "createdBy" uuid,
+          "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "PK_payroll_leave_payout_audits_id" PRIMARY KEY (id)
+        );
+        CREATE INDEX IF NOT EXISTS "IDX_payroll_leave_payout_audits_staffType_staffId" ON payroll_leave_payout_audits ("staffType","staffId");
+        CREATE INDEX IF NOT EXISTS "IDX_payroll_leave_payout_audits_asOfDate" ON payroll_leave_payout_audits ("asOfDate");
+      `);
+    }
+  } finally {
+    await AppDataSource.query(`SELECT pg_advisory_unlock(hashtext('ensurePayrollTables_v2'));`);
   }
 }
 

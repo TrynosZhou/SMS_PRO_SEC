@@ -1,10 +1,11 @@
 import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { PayrollService } from '../../../services/payroll.service';
+import { AuthService } from '../../../services/auth.service';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { Subscription, forkJoin, of } from 'rxjs';
 import { catchError, filter } from 'rxjs/operators';
 
-type PayrollTab = 'overview' | 'employees' | 'structures' | 'process' | 'payslips' | 'reports';
+type PayrollTab = 'overview' | 'employees' | 'structures' | 'process' | 'leave' | 'payslips' | 'reports';
 
 @Component({
   selector: 'app-payroll-management',
@@ -150,8 +151,43 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
   private reportsBootstrapSkipOnce = false;
   readonly reportSkeletonSlots = [1, 2, 3, 4];
 
+  // Leave management
+  leaveLoading = false;
+  leaveError = '';
+  leaveSuccess = '';
+  leaveRows: any[] = [];
+  leaveHistoryRows: any[] = [];
+  leaveDeptRows: any[] = [];
+  leaveLiabilityRows: any[] = [];
+  leaveLiabilityTotals: any = null;
+  leaveLiabilityAuditRows: any[] = [];
+  leavePolicy = {
+    annualLeaveDaysPerYear: 30,
+    excessAccruedThresholdDays: 45,
+    maxAccrualDays: null as number | null,
+    carryForwardCapDays: null as number | null,
+    teachingTermMonthsText: '1,2,3,4,5,6,7,8,9,10,11',
+    notes: '',
+  };
+  canEditLeaveCompliance = false;
+  leaveFilters = {
+    asOfDate: new Date().toISOString().slice(0, 10),
+    from: '',
+    to: '',
+    category: 'all' as 'all' | 'teaching' | 'ancillary',
+    employeeId: '',
+  };
+  leaveForm = {
+    staffType: 'ancillary' as 'teaching' | 'ancillary',
+    staffId: '',
+    leaveDate: new Date().toISOString().slice(0, 10),
+    days: 1,
+    reason: '',
+  };
+
   constructor(
     private payrollService: PayrollService,
+    private authService: AuthService,
     private route: ActivatedRoute,
     private router: Router
   ) { }
@@ -171,6 +207,7 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
       | 'structures'
       | 'structuresNew'
       | 'process'
+      | 'leave'
       | 'payslips'
       | 'reports'
       | 'assignments'
@@ -190,6 +227,8 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
         return m ? ['/payroll', 'manage', 'structures', 'new'] : ['/payroll', 'structures', 'new'];
       case 'process':
         return m ? ['/payroll', 'manage', 'process'] : ['/payroll', 'process'];
+      case 'leave':
+        return m ? ['/payroll', 'manage', 'leave'] : ['/payroll', 'leave'];
       case 'payslips':
         return m ? ['/payroll', 'manage', 'payslips'] : ['/payroll', 'payslips'];
       case 'reports':
@@ -200,6 +239,8 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    const role = this.authService.getCurrentUser()?.role || '';
+    this.canEditLeaveCompliance = role === 'admin' || role === 'superadmin';
     this.applyRouteTab();
     this.routeEventsSub = this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
@@ -256,6 +297,9 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
         this.loadRun(runIdProcess);
       }
     }
+    if (tab === 'leave') {
+      this.loadLeaveModuleData();
+    }
     if (tab === 'payslips') {
       this.refreshPayslipRunsList();
       const runIdPayslip = this.route.snapshot.queryParamMap.get('runId');
@@ -305,6 +349,9 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
         break;
       case 'process':
         path = this.payrollSegments('process');
+        break;
+      case 'leave':
+        path = this.payrollSegments('leave');
         break;
       case 'payslips':
         path = this.payrollSegments('payslips');
@@ -1467,6 +1514,297 @@ export class PayrollManagementComponent implements OnInit, OnDestroy {
         this.runError = err?.error?.message || err?.message || 'Failed to download payslip';
       }
     });
+  }
+
+  // ---------------- Leave ----------------
+  get leaveStaffOptions(): any[] {
+    return this.leaveRows || [];
+  }
+
+  get leaveSelectedStaff(): any | null {
+    if (!this.leaveForm.staffId) return null;
+    return this.leaveRows.find((r: any) => r.staffId === this.leaveForm.staffId && r.staffType === this.leaveForm.staffType) || null;
+  }
+
+  private loadLeaveModuleData(): void {
+    this.leaveError = '';
+    this.leaveSuccess = '';
+    this.leaveLoading = true;
+    this.payrollService
+      .getLeavePolicy()
+      .subscribe({
+        next: (data: any) => {
+          const p = data?.policy || {};
+          this.leavePolicy.annualLeaveDaysPerYear = Number(p.annualLeaveDaysPerYear || 30);
+          this.leavePolicy.excessAccruedThresholdDays = Number(p.excessAccruedThresholdDays || 45);
+          this.leavePolicy.maxAccrualDays = p.maxAccrualDays != null ? Number(p.maxAccrualDays) : null;
+          this.leavePolicy.carryForwardCapDays = p.carryForwardCapDays != null ? Number(p.carryForwardCapDays) : null;
+          const months = Array.isArray(p.teachingTermMonths) ? p.teachingTermMonths : [1,2,3,4,5,6,7,8,9,10,11];
+          this.leavePolicy.teachingTermMonthsText = months.join(',');
+          this.leavePolicy.notes = p.notes || '';
+        },
+      });
+
+    this.payrollService
+      .getLeaveDashboard({
+        asOfDate: this.leaveFilters.asOfDate || undefined,
+        from: this.leaveFilters.from || undefined,
+        to: this.leaveFilters.to || undefined,
+        category: this.leaveFilters.category,
+        employeeId: this.leaveFilters.employeeId || undefined,
+      })
+      .subscribe({
+        next: (data: any) => {
+          this.leaveRows = data?.rows || [];
+          this.leaveLoading = false;
+          this.loadLeaveReports();
+          this.loadLeaveHistory();
+        },
+        error: (err: any) => {
+          this.leaveLoading = false;
+          this.leaveError = err?.error?.message || err?.message || 'Failed to load leave balances';
+        },
+      });
+  }
+
+  loadLeaveDashboard(): void {
+    this.loadLeaveModuleData();
+  }
+
+  private loadLeaveHistory(): void {
+    this.payrollService
+      .getLeaveRecords({
+        from: this.leaveFilters.from || undefined,
+        to: this.leaveFilters.to || undefined,
+        staffType: this.leaveFilters.category,
+        staffId: this.leaveFilters.employeeId || undefined,
+      })
+      .subscribe({
+        next: (data: any) => {
+          this.leaveHistoryRows = data?.records || [];
+        },
+        error: () => {
+          this.leaveHistoryRows = [];
+        },
+      });
+  }
+
+  private loadLeaveReports(): void {
+    this.payrollService
+      .getLeaveDepartmentSummary({
+        asOfDate: this.leaveFilters.asOfDate || undefined,
+        from: this.leaveFilters.from || undefined,
+        to: this.leaveFilters.to || undefined,
+        category: this.leaveFilters.category,
+      })
+      .subscribe({
+        next: (data: any) => {
+          this.leaveDeptRows = data?.rows || [];
+        },
+        error: () => {
+          this.leaveDeptRows = [];
+        },
+      });
+
+    this.payrollService
+      .getLeaveLiabilityReport({
+        asOfDate: this.leaveFilters.asOfDate || undefined,
+        category: this.leaveFilters.category,
+        employeeId: this.leaveFilters.employeeId || undefined,
+      })
+      .subscribe({
+        next: (data: any) => {
+          this.leaveLiabilityRows = data?.rows || [];
+          this.leaveLiabilityTotals = data?.totals || null;
+        },
+        error: () => {
+          this.leaveLiabilityRows = [];
+          this.leaveLiabilityTotals = null;
+        },
+      });
+
+    this.payrollService
+      .getLeaveLiabilityAudits({
+        from: this.leaveFilters.from || undefined,
+        to: this.leaveFilters.to || undefined,
+        category: this.leaveFilters.category,
+        employeeId: this.leaveFilters.employeeId || undefined,
+      })
+      .subscribe({
+        next: (data: any) => {
+          this.leaveLiabilityAuditRows = data?.rows || [];
+        },
+        error: () => {
+          this.leaveLiabilityAuditRows = [];
+        },
+      });
+  }
+
+  onLeaveStaffTypeChange(): void {
+    this.leaveForm.staffId = '';
+  }
+
+  recordLeave(): void {
+    this.leaveError = '';
+    this.leaveSuccess = '';
+    if (!this.leaveForm.staffId || !this.leaveForm.leaveDate || !this.leaveForm.days) {
+      this.leaveError = 'Select employee, date, and days before recording leave.';
+      return;
+    }
+    this.leaveLoading = true;
+    this.payrollService
+      .createLeaveRecord({
+        staffType: this.leaveForm.staffType,
+        staffId: this.leaveForm.staffId,
+        leaveDate: this.leaveForm.leaveDate,
+        days: Number(this.leaveForm.days),
+        reason: this.leaveForm.reason || undefined,
+      })
+      .subscribe({
+        next: () => {
+          this.leaveSuccess = 'Leave recorded and balances updated.';
+          this.leaveForm.reason = '';
+          this.leaveForm.days = 1;
+          this.loadLeaveModuleData();
+          this.leaveLoading = false;
+        },
+        error: (err: any) => {
+          this.leaveLoading = false;
+          this.leaveError = err?.error?.message || err?.message || 'Failed to record leave';
+        },
+      });
+  }
+
+  exportLeaveCsv(which: 'balances' | 'history' | 'department' | 'liability'): void {
+    let rows: any[] = [];
+    let headers: string[] = [];
+    if (which === 'balances') {
+      headers = ['Category', 'Employee Number', 'Name', 'Department', 'Accrued Days', 'Taken Days', 'Remaining Days', 'Excess Accrued', 'Estimated Payout'];
+      rows = this.leaveRows.map((r: any) => [
+        r.staffType,
+        r.employeeNumber,
+        r.fullName,
+        r.department || '',
+        r.accruedDays,
+        r.takenDays,
+        r.remainingDays,
+        r.excessAccrued ? 'Yes' : 'No',
+        r.leaveLiabilityPayout ?? 0,
+      ]);
+    } else if (which === 'history') {
+      headers = ['Date', 'Category', 'Name', 'Department', 'Days', 'Reason'];
+      rows = this.leaveHistoryRows.map((r: any) => [String(r.leaveDate || '').slice(0, 10), r.staffType, r.staffName, r.department || '', r.days, r.reason || '']);
+    } else if (which === 'department') {
+      headers = ['Category', 'Department', 'Employees', 'Leave Used', 'Outstanding Days'];
+      rows = this.leaveDeptRows.map((r: any) => [r.category, r.department, r.employees, r.usedDays, r.outstandingDays]);
+    } else {
+      headers = ['Category', 'Employee Number', 'Name', 'Department', 'Remaining Days', 'Daily Rate', 'Payout Amount'];
+      rows = this.leaveLiabilityRows.map((r: any) => [r.staffType, r.employeeNumber, r.fullName, r.department || '', r.remainingDays, r.dailyRate, r.payoutAmount]);
+    }
+    if (!rows.length) return;
+    const csv = [headers, ...rows]
+      .map((line: any[]) => line.map((c: any) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `leave-${which}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
+  exportLeavePdf(which: 'balances' | 'liability'): void {
+    const win = window.open('', '_blank', 'noopener,noreferrer');
+    if (!win) return;
+    const title = which === 'balances' ? 'Leave Balances Statement' : 'Leave Liability Report';
+    const rows = which === 'balances' ? this.leaveRows : this.leaveLiabilityRows;
+    const bodyRows = rows
+      .map((r: any) => {
+        if (which === 'balances') {
+          return `<tr><td>${r.fullName}</td><td>${r.staffType}</td><td>${r.accruedDays}</td><td>${r.takenDays}</td><td>${r.remainingDays}</td><td>${r.leaveLiabilityPayout ?? 0}</td></tr>`;
+        }
+        return `<tr><td>${r.fullName}</td><td>${r.staffType}</td><td>${r.remainingDays}</td><td>${r.dailyRate}</td><td>${r.payoutAmount}</td></tr>`;
+      })
+      .join('');
+    win.document.write(`
+      <html><head><title>${title}</title></head>
+      <body>
+        <h2>${title}</h2>
+        <p>Generated: ${new Date().toLocaleString()}</p>
+        <table border="1" cellspacing="0" cellpadding="6">
+          <thead>${which === 'balances'
+            ? '<tr><th>Name</th><th>Category</th><th>Accrued</th><th>Taken</th><th>Remaining</th><th>Payout</th></tr>'
+            : '<tr><th>Name</th><th>Category</th><th>Remaining Days</th><th>Daily Rate</th><th>Payout</th></tr>'}
+          </thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </body></html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
+  saveLeavePolicy(): void {
+    this.leaveError = '';
+    this.leaveSuccess = '';
+    if (!this.canEditLeaveCompliance) {
+      this.leaveError = 'Only admin or superadmin can update compliance policy.';
+      return;
+    }
+    const months = this.leavePolicy.teachingTermMonthsText
+      .split(',')
+      .map((x) => Number(String(x).trim()))
+      .filter((x) => Number.isFinite(x) && x >= 1 && x <= 12);
+    if (this.leavePolicy.annualLeaveDaysPerYear < 30) {
+      this.leaveError = 'Annual leave days must be at least 30.';
+      return;
+    }
+    this.payrollService
+      .updateLeavePolicy({
+        annualLeaveDaysPerYear: Number(this.leavePolicy.annualLeaveDaysPerYear),
+        excessAccruedThresholdDays: Number(this.leavePolicy.excessAccruedThresholdDays),
+        maxAccrualDays: this.leavePolicy.maxAccrualDays != null ? Number(this.leavePolicy.maxAccrualDays) : null,
+        carryForwardCapDays: this.leavePolicy.carryForwardCapDays != null ? Number(this.leavePolicy.carryForwardCapDays) : null,
+        teachingTermMonths: months,
+        notes: this.leavePolicy.notes || '',
+      })
+      .subscribe({
+        next: () => {
+          this.leaveSuccess = 'Leave compliance policy saved.';
+          this.loadLeaveModuleData();
+        },
+        error: (err: any) => {
+          this.leaveError = err?.error?.message || err?.message || 'Failed to save leave policy';
+        },
+      });
+  }
+
+  createLiabilityAuditSnapshot(): void {
+    this.leaveError = '';
+    this.leaveSuccess = '';
+    if (!this.canEditLeaveCompliance) {
+      this.leaveError = 'Only admin or superadmin can create liability audit snapshots.';
+      return;
+    }
+    this.payrollService
+      .createLeaveLiabilityAudit({
+        asOfDate: this.leaveFilters.asOfDate,
+        category: this.leaveFilters.category,
+        employeeId: this.leaveFilters.employeeId || undefined,
+      })
+      .subscribe({
+        next: (data: any) => {
+          this.leaveSuccess = data?.message || 'Liability audit snapshot saved.';
+          this.loadLeaveReports();
+        },
+        error: (err: any) => {
+          this.leaveError = err?.error?.message || err?.message || 'Failed to save liability audit snapshot';
+        },
+      });
   }
 
   // ---------------- Reports ----------------

@@ -26,6 +26,14 @@ export interface PayrollPayslipPDFData {
   deductions: SalaryLine[];
   extraAllowances: number;
   extraDeductions: number;
+  /** Leave days accrued as of this payroll period end. */
+  leaveAccruedDays?: number;
+  /** Leave days taken up to this payroll period end. */
+  leaveTakenDays?: number;
+  /** Leave balance (accrued - taken, policy-capped where applicable). */
+  leaveBalanceDays?: number;
+  /** Date used for leave accrual snapshot (yyyy-mm-dd). */
+  leaveAsOfDate?: string;
 }
 
 function loadSchoolLogo(logo?: string | null): Buffer | null {
@@ -176,6 +184,10 @@ export function createPayslipPDF(data: PayrollPayslipPDFData): Promise<Buffer> {
         deductions,
         extraAllowances,
         extraDeductions,
+        leaveAccruedDays,
+        leaveTakenDays,
+        leaveBalanceDays,
+        leaveAsOfDate,
       } = data;
 
       const doc = new PDFDocument({ size: 'A4', margin: 40 });
@@ -260,7 +272,48 @@ export function createPayslipPDF(data: PayrollPayslipPDFData): Promise<Buffer> {
       doc.font('Helvetica-Bold').text('Department:', rightX, metaTop + 36);
       doc.font('Helvetica').text(department, rightX + 100, metaTop + 36, { width: contentW / 2 - 100 });
 
-      y = metaTop + 62;
+      doc.font('Helvetica-Bold').text('Leave Accrued:', margin, metaTop + 54);
+      doc
+        .font('Helvetica')
+        .text(
+          `${money(leaveAccruedDays ?? 0)} days`,
+          margin + 100,
+          metaTop + 54,
+          { width: leftColW - 100 }
+        );
+
+      doc.font('Helvetica-Bold').text('Leave Taken:', rightX, metaTop + 54);
+      doc
+        .font('Helvetica')
+        .text(
+          `${money(leaveTakenDays ?? 0)} days`,
+          rightX + 100,
+          metaTop + 54,
+          { width: contentW / 2 - 100 }
+        );
+
+      doc.font('Helvetica-Bold').text('Leave Balance:', margin, metaTop + 72);
+      doc
+        .font('Helvetica')
+        .text(
+          `${money(leaveBalanceDays ?? 0)} days`,
+          margin + 100,
+          metaTop + 72,
+          { width: leftColW - 100 }
+        );
+
+      if (leaveAsOfDate) {
+        doc
+          .font('Helvetica')
+          .fontSize(9)
+          .fillColor('#555555')
+          .text(`Leave figures as of ${leaveAsOfDate}`, rightX, metaTop + 74, {
+            width: contentW / 2,
+            align: 'left',
+          });
+      }
+
+      y = metaTop + 98;
 
       // Build table rows
       const basic = toNum(runLine.basicSalary);

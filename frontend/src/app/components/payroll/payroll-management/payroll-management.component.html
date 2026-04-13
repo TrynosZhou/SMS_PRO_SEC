@@ -1063,6 +1063,261 @@
       </div>
     </div>
 
+    <!-- ---------------- Leave (integrated) ---------------- -->
+    <div *ngIf="tab==='leave'" class="tab-panel leave-page">
+      <div class="leave-hero">
+        <h2 class="leave-title">Staff Leave Management</h2>
+        <p class="leave-subtitle">
+          Unified leave balances from existing teacher + ancillary staff records (Zimbabwe Labour Act minimum: 30 days/year).
+        </p>
+      </div>
+
+      <div class="panel leave-filter-panel">
+        <div class="leave-filter-grid">
+          <div class="leave-field">
+            <label>As of date</label>
+            <input type="date" [(ngModel)]="leaveFilters.asOfDate" name="leaveAsOfDate" />
+          </div>
+          <div class="leave-field">
+            <label>From</label>
+            <input type="date" [(ngModel)]="leaveFilters.from" name="leaveFromDate" />
+          </div>
+          <div class="leave-field">
+            <label>To</label>
+            <input type="date" [(ngModel)]="leaveFilters.to" name="leaveToDate" />
+          </div>
+          <div class="leave-field">
+            <label>Staff category</label>
+            <select [(ngModel)]="leaveFilters.category" name="leaveCategory">
+              <option value="all">All</option>
+              <option value="teaching">Teaching</option>
+              <option value="ancillary">Ancillary</option>
+            </select>
+          </div>
+          <div class="leave-field leave-field-wide">
+            <label>Employee (optional)</label>
+            <select [(ngModel)]="leaveFilters.employeeId" name="leaveEmployeeFilter">
+              <option value="">All employees</option>
+              <option *ngFor="let s of leaveStaffOptions" [value]="s.staffId">{{ s.fullName }} ({{ s.staffType }})</option>
+            </select>
+          </div>
+        </div>
+        <div class="leave-actions">
+          <button type="button" class="btn btn-primary" (click)="loadLeaveDashboard()" [disabled]="leaveLoading">
+            {{ leaveLoading ? 'Loading…' : 'Refresh leave balances' }}
+          </button>
+          <button type="button" class="btn btn-secondary" (click)="exportLeaveCsv('balances')" [disabled]="leaveRows.length===0">Export Excel (CSV)</button>
+          <button type="button" class="btn btn-secondary" (click)="exportLeavePdf('balances')" [disabled]="leaveRows.length===0">Export PDF</button>
+        </div>
+      </div>
+
+      <div class="alert alert-error" *ngIf="leaveError">{{ leaveError }}</div>
+      <div class="alert alert-success" *ngIf="leaveSuccess">{{ leaveSuccess }}</div>
+
+      <div class="panel leave-policy-panel">
+        <div class="leave-summary-head">
+          <h3 class="leave-section-title">Compliance policy (Zimbabwe Labour Act)</h3>
+          <button type="button" class="btn btn-primary btn-compact" (click)="saveLeavePolicy()" [disabled]="!canEditLeaveCompliance">Save policy</button>
+        </div>
+        <p class="muted" *ngIf="!canEditLeaveCompliance">View-only mode: only admin/superadmin can edit policy and create payout audit snapshots.</p>
+        <div class="leave-record-grid">
+          <div class="leave-field">
+            <label>Annual leave days / year (min 30)</label>
+            <input type="number" min="30" step="0.5" [(ngModel)]="leavePolicy.annualLeaveDaysPerYear" name="leavePolicyAnnual" [disabled]="!canEditLeaveCompliance" />
+          </div>
+          <div class="leave-field">
+            <label>Excess accrued alert threshold</label>
+            <input type="number" min="1" step="1" [(ngModel)]="leavePolicy.excessAccruedThresholdDays" name="leavePolicyExcess" [disabled]="!canEditLeaveCompliance" />
+          </div>
+          <div class="leave-field">
+            <label>Max accrual cap (optional)</label>
+            <input type="number" min="0" step="0.5" [(ngModel)]="leavePolicy.maxAccrualDays" name="leavePolicyMaxAccrual" [disabled]="!canEditLeaveCompliance" />
+          </div>
+          <div class="leave-field">
+            <label>Carry-forward cap (optional)</label>
+            <input type="number" min="0" step="0.5" [(ngModel)]="leavePolicy.carryForwardCapDays" name="leavePolicyCarry" [disabled]="!canEditLeaveCompliance" />
+          </div>
+          <div class="leave-field leave-field-wide">
+            <label>Teaching term months (comma separated, 1-12)</label>
+            <input type="text" [(ngModel)]="leavePolicy.teachingTermMonthsText" name="leavePolicyMonths" placeholder="1,2,3,4,5,6,7,8,9,10,11" [disabled]="!canEditLeaveCompliance" />
+          </div>
+          <div class="leave-field leave-field-wide">
+            <label>Policy notes</label>
+            <input type="text" [(ngModel)]="leavePolicy.notes" name="leavePolicyNotes" placeholder="e.g. Carry-forward applies from Jan payroll close" [disabled]="!canEditLeaveCompliance" />
+          </div>
+        </div>
+      </div>
+
+      <div class="panel leave-record-panel">
+        <h3 class="leave-section-title">Record leave taken</h3>
+        <div class="leave-record-grid">
+          <div class="leave-field">
+            <label>Staff type</label>
+            <select [(ngModel)]="leaveForm.staffType" name="leaveRecordType" (ngModelChange)="onLeaveStaffTypeChange()">
+              <option value="teaching">Teaching</option>
+              <option value="ancillary">Ancillary</option>
+            </select>
+          </div>
+          <div class="leave-field leave-field-wide">
+            <label>Employee</label>
+            <select [(ngModel)]="leaveForm.staffId" name="leaveRecordStaff">
+              <option value="">Select employee</option>
+              <option *ngFor="let s of leaveStaffOptions" [value]="s.staffId" [hidden]="s.staffType!==leaveForm.staffType">{{ s.fullName }} ({{ s.employeeNumber }})</option>
+            </select>
+          </div>
+          <div class="leave-field">
+            <label>Date</label>
+            <input type="date" [(ngModel)]="leaveForm.leaveDate" name="leaveRecordDate" />
+          </div>
+          <div class="leave-field">
+            <label>Days taken</label>
+            <input type="number" min="0.5" step="0.5" [(ngModel)]="leaveForm.days" name="leaveRecordDays" />
+          </div>
+          <div class="leave-field leave-field-wide">
+            <label>Reason (optional)</label>
+            <input type="text" [(ngModel)]="leaveForm.reason" name="leaveRecordReason" placeholder="Annual leave, compassionate leave, etc." />
+          </div>
+        </div>
+        <div class="leave-actions">
+          <button type="button" class="btn btn-primary" (click)="recordLeave()" [disabled]="leaveLoading">Save leave record</button>
+        </div>
+      </div>
+
+      <div class="panel leave-summary-panel">
+        <div class="leave-summary-head">
+          <h3 class="leave-section-title">Leave balances dashboard</h3>
+          <span class="muted">{{ leaveRows.length }} employee(s)</span>
+        </div>
+        <div class="table-wrap">
+          <table class="leave-table" *ngIf="leaveRows.length>0">
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Category</th>
+                <th>Department</th>
+                <th class="col-num">Accrued</th>
+                <th class="col-num">Taken</th>
+                <th class="col-num">Remaining</th>
+                <th class="col-num">Payout</th>
+                <th>Flag</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of leaveRows">
+                <td>{{ r.fullName }}</td>
+                <td>{{ r.staffType }}</td>
+                <td>{{ r.department || 'Unassigned' }}</td>
+                <td class="col-num">{{ r.accruedDays }}</td>
+                <td class="col-num">{{ r.takenDays }}</td>
+                <td class="col-num">{{ r.remainingDays }}</td>
+                <td class="col-num">{{ formatMoney(r.leaveLiabilityPayout || 0) }}</td>
+                <td><span class="run-pill run-pill-warn" *ngIf="r.excessAccrued">Excess accrued</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="empty-state" *ngIf="leaveRows.length===0">No leave data for selected filters.</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="leave-summary-head">
+            <h3 class="leave-section-title">Department summary</h3>
+            <button type="button" class="btn btn-secondary btn-compact" (click)="exportLeaveCsv('department')" [disabled]="leaveDeptRows.length===0">Export Excel</button>
+          </div>
+          <div class="table-wrap">
+            <table class="leave-table" *ngIf="leaveDeptRows.length>0">
+              <thead><tr><th>Category</th><th>Department</th><th class="col-num">Employees</th><th class="col-num">Used</th><th class="col-num">Outstanding</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let r of leaveDeptRows">
+                  <td>{{ r.category }}</td>
+                  <td>{{ r.department }}</td>
+                  <td class="col-num">{{ r.employees }}</td>
+                  <td class="col-num">{{ r.usedDays }}</td>
+                  <td class="col-num">{{ r.outstandingDays }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="leave-summary-head">
+            <h3 class="leave-section-title">Leave liability report</h3>
+            <div class="leave-actions-inline">
+              <button type="button" class="btn btn-secondary btn-compact" (click)="exportLeaveCsv('liability')" [disabled]="leaveLiabilityRows.length===0">Export Excel</button>
+              <button type="button" class="btn btn-secondary btn-compact" (click)="exportLeavePdf('liability')" [disabled]="leaveLiabilityRows.length===0">Export PDF</button>
+              <button type="button" class="btn btn-primary btn-compact" (click)="createLiabilityAuditSnapshot()" [disabled]="leaveLiabilityRows.length===0 || !canEditLeaveCompliance">Audit snapshot</button>
+            </div>
+          </div>
+          <div class="leave-liability-totals" *ngIf="leaveLiabilityTotals">
+            <span><strong>{{ leaveLiabilityTotals.employees }}</strong> staff</span>
+            <span><strong>{{ leaveLiabilityTotals.totalOutstandingDays }}</strong> outstanding days</span>
+            <span><strong>{{ formatMoney(leaveLiabilityTotals.totalPayout || 0) }}</strong> estimated payout</span>
+          </div>
+          <div class="table-wrap">
+            <table class="leave-table" *ngIf="leaveLiabilityRows.length>0">
+              <thead><tr><th>Name</th><th>Category</th><th class="col-num">Remaining</th><th class="col-num">Daily rate</th><th class="col-num">Payout</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let r of leaveLiabilityRows">
+                  <td>{{ r.fullName }}</td>
+                  <td>{{ r.staffType }}</td>
+                  <td class="col-num">{{ r.remainingDays }}</td>
+                  <td class="col-num">{{ formatMoney(r.dailyRate || 0) }}</td>
+                  <td class="col-num">{{ formatMoney(r.payoutAmount || 0) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="leave-summary-head">
+          <h3 class="leave-section-title">Employee leave history</h3>
+          <button type="button" class="btn btn-secondary btn-compact" (click)="exportLeaveCsv('history')" [disabled]="leaveHistoryRows.length===0">Export Excel</button>
+        </div>
+        <div class="table-wrap">
+          <table class="leave-table" *ngIf="leaveHistoryRows.length>0">
+            <thead><tr><th>Date</th><th>Name</th><th>Category</th><th>Department</th><th class="col-num">Days</th><th>Reason</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let r of leaveHistoryRows">
+                <td>{{ r.leaveDate | date:'yyyy-MM-dd' }}</td>
+                <td>{{ r.staffName }}</td>
+                <td>{{ r.staffType }}</td>
+                <td>{{ r.department || 'Unassigned' }}</td>
+                <td class="col-num">{{ r.days }}</td>
+                <td>{{ r.reason || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="leave-summary-head">
+          <h3 class="leave-section-title">Termination payout audit trail</h3>
+          <span class="muted">{{ leaveLiabilityAuditRows.length }} snapshot row(s)</span>
+        </div>
+        <div class="table-wrap">
+          <table class="leave-table" *ngIf="leaveLiabilityAuditRows.length>0">
+            <thead><tr><th>Snapshot date</th><th>Name</th><th>Category</th><th class="col-num">Remaining</th><th class="col-num">Daily rate</th><th class="col-num">Payout</th><th>Captured</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let r of leaveLiabilityAuditRows">
+                <td>{{ r.asOfDate | date:'yyyy-MM-dd' }}</td>
+                <td>{{ r.fullName }}</td>
+                <td>{{ r.staffType }}</td>
+                <td class="col-num">{{ r.remainingDays }}</td>
+                <td class="col-num">{{ formatMoney(r.dailyRate || 0) }}</td>
+                <td class="col-num">{{ formatMoney(r.payoutAmount || 0) }}</td>
+                <td>{{ r.createdAt | date:'yyyy-MM-dd HH:mm' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ---------------- Reports (modern) ---------------- -->
     <div *ngIf="tab==='reports'" class="tab-panel payroll-reports-page">
       <div class="reports-hero">

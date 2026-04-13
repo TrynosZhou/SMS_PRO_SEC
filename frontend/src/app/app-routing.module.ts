@@ -310,6 +310,7 @@ const routes: Routes = [
       { path: 'structures', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'structures', structurePage: 'list' } },
       { path: 'assignments', component: SalaryAssignmentsComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
       { path: 'process', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'process' } },
+      { path: 'leave', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'leave' } },
       { path: 'payslips', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'payslips' } },
       { path: 'reports', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'reports' } },
     ],
@@ -321,6 +322,7 @@ const routes: Routes = [
   { path: 'payroll/structures', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'structures', structurePage: 'list' } },
   { path: 'payroll/assignments', component: SalaryAssignmentsComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance' } },
   { path: 'payroll/process', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'process' } },
+  { path: 'payroll/leave', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'leave' } },
   { path: 'payroll/payslips', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'payslips' } },
   { path: 'payroll/reports', component: PayrollManagementComponent, canActivate: [AuthGuard, ModuleAccessGuard], data: { module: 'finance', tab: 'reports' } },
   {

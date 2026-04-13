@@ -8,6 +8,9 @@ import { PayrollSalaryComponent, SalaryComponentType } from '../entities/Payroll
 import { PayrollRun, PayrollRunStatus } from '../entities/PayrollRun';
 import { PayrollRunLine } from '../entities/PayrollRunLine';
 import { PayrollPayslip } from '../entities/PayrollPayslip';
+import { PayrollLeaveRecord, PayrollLeaveStaffType } from '../entities/PayrollLeaveRecord';
+import { PayrollLeavePolicy } from '../entities/PayrollLeavePolicy';
+import { PayrollLeavePayoutAudit } from '../entities/PayrollLeavePayoutAudit';
 import { Teacher } from '../entities/Teacher';
 import { ensurePayrollTables } from '../utils/ensurePayrollTables';
 import { createPayslipPDF } from '../utils/payrollPdfGenerator';
@@ -78,6 +81,97 @@ function formatPeriodLabel(month: number, year: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
 
+const MIN_ANNUAL_LEAVE_DAYS = 30;
+const EXCESS_LEAVE_ALERT_DAYS = 45;
+const DEFAULT_TEACHING_TERM_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+type LeavePolicyResolved = {
+  annualLeaveDaysPerYear: number;
+  excessAccruedThresholdDays: number;
+  maxAccrualDays: number | null;
+  carryForwardCapDays: number | null;
+  teachingTermMonths: number[];
+  notes: string | null;
+};
+
+type UnifiedStaff = {
+  staffType: PayrollLeaveStaffType;
+  staffId: string;
+  employeeNumber: string;
+  fullName: string;
+  department: string | null;
+  startDate: Date;
+  salaryType: string | null;
+  dailyRate: number;
+};
+
+function toDateOnly(input?: any): Date | null {
+  if (!input) return null;
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function diffDaysInclusive(start: Date, end: Date): number {
+  const ms = 24 * 60 * 60 * 1000;
+  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+  if (e < s) return 0;
+  return Math.floor((e - s) / ms) + 1;
+}
+
+function teachingEligibleDays(start: Date, end: Date, termMonths: Set<number>): number {
+  if (end < start) return 0;
+  let cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  let days = 0;
+  while (cur <= last) {
+    const month = cur.getMonth() + 1;
+    if (termMonths.has(month)) {
+      days += 1;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
+}
+
+function round2(v: number): number {
+  return Math.round((v + Number.EPSILON) * 100) / 100;
+}
+
+function sanitizeTermMonths(raw: any): number[] {
+  const arr = Array.isArray(raw) ? raw : DEFAULT_TEACHING_TERM_MONTHS;
+  const clean = Array.from(new Set(arr.map((m) => Number(m)).filter((m) => Number.isFinite(m) && m >= 1 && m <= 12))).sort(
+    (a, b) => a - b
+  );
+  return clean.length > 0 ? clean : DEFAULT_TEACHING_TERM_MONTHS;
+}
+
+async function getLeavePolicyResolved(): Promise<LeavePolicyResolved> {
+  const repo = AppDataSource.getRepository(PayrollLeavePolicy);
+  let row = await repo.findOne({ where: {}, order: { createdAt: 'DESC' } });
+  if (!row) {
+    row = repo.create({
+      annualLeaveDaysPerYear: MIN_ANNUAL_LEAVE_DAYS,
+      excessAccruedThresholdDays: EXCESS_LEAVE_ALERT_DAYS,
+      teachingTermMonths: DEFAULT_TEACHING_TERM_MONTHS,
+      maxAccrualDays: null,
+      carryForwardCapDays: null,
+      notes: null,
+    });
+    row = await repo.save(row);
+  }
+  const annual = Math.max(MIN_ANNUAL_LEAVE_DAYS, Number(row.annualLeaveDaysPerYear || MIN_ANNUAL_LEAVE_DAYS));
+  return {
+    annualLeaveDaysPerYear: annual,
+    excessAccruedThresholdDays: Number(row.excessAccruedThresholdDays || EXCESS_LEAVE_ALERT_DAYS),
+    maxAccrualDays: row.maxAccrualDays != null ? Number(row.maxAccrualDays) : null,
+    carryForwardCapDays: row.carryForwardCapDays != null ? Number(row.carryForwardCapDays) : null,
+    teachingTermMonths: sanitizeTermMonths(row.teachingTermMonths),
+    notes: row.notes || null,
+  };
+}
+
 const MONTH_NAMES_LONG = [
   'January',
   'February',
@@ -122,6 +216,47 @@ async function buildPayslipPdfBufferForRunLine(
     dateOfJoining = new Date(emp.createdAt).toISOString().slice(0, 10);
   }
 
+  // Leave accrual snapshot shown directly on payslip (preview + final PDF)
+  const asOfDate = new Date(run.runYear, Math.max(0, run.runMonth - 1), new Date(run.runYear, run.runMonth, 0).getDate());
+  let leaveAccruedDays = 0;
+  let leaveTakenDays = 0;
+  let leaveBalanceDays = 0;
+  if (emp) {
+    const policy = await getLeavePolicyResolved();
+    const isTeaching = String(emp.designation || '').toLowerCase().includes('teacher') || String(emp.salaryType || '').toLowerCase().includes('teacher');
+    const start = toDateOnly(emp.salaryEffectiveFrom) || toDateOnly(emp.createdAt) || asOfDate;
+    if (asOfDate >= start) {
+      const termMonths = new Set<number>(policy.teachingTermMonths);
+      const eligibleDays = isTeaching ? teachingEligibleDays(start, asOfDate, termMonths) : diffDaysInclusive(start, asOfDate);
+      leaveAccruedDays = round2((eligibleDays / 365) * policy.annualLeaveDaysPerYear);
+      if (policy.maxAccrualDays != null && Number.isFinite(policy.maxAccrualDays)) {
+        leaveAccruedDays = Math.min(leaveAccruedDays, Number(policy.maxAccrualDays));
+      }
+    }
+
+    // Leave used by this employee up to asOfDate
+    const leaveRepo = AppDataSource.getRepository(PayrollLeaveRecord);
+    const staffType: PayrollLeaveStaffType = isTeaching ? 'teaching' : 'ancillary';
+    const staffId = isTeaching
+      ? (await AppDataSource.getRepository(Teacher).findOne({ where: { teacherId: emp.employeeNumber } }))?.id || emp.id
+      : emp.id;
+    const rows = await leaveRepo.find({
+      where: { staffType, staffId },
+    });
+    leaveTakenDays = round2(
+      rows
+        .filter((r) => {
+          const d = toDateOnly(r.leaveDate);
+          return !!d && d <= asOfDate;
+        })
+        .reduce((sum, r) => sum + Number(r.days || 0), 0)
+    );
+    leaveBalanceDays = round2(leaveAccruedDays - leaveTakenDays);
+    if (policy.carryForwardCapDays != null && Number.isFinite(policy.carryForwardCapDays)) {
+      leaveBalanceDays = Math.min(leaveBalanceDays, Number(policy.carryForwardCapDays));
+    }
+  }
+
   return createPayslipPDF({
     settings: settings || null,
     periodLabel: run.periodLabel,
@@ -133,6 +268,10 @@ async function buildPayslipPdfBufferForRunLine(
     deductions,
     extraAllowances: Number(line.extraAllowances || 0),
     extraDeductions: Number(line.extraDeductions || 0),
+    leaveAccruedDays,
+    leaveTakenDays,
+    leaveBalanceDays,
+    leaveAsOfDate: asOfDate.toISOString().slice(0, 10),
   });
 }
 
@@ -998,6 +1137,469 @@ export const getPayrollDepartmentReport = async (req: AuthRequest, res: Response
   } catch (error: any) {
     console.error('getPayrollDepartmentReport error:', error);
     return res.status(500).json({ message: 'Failed to fetch department report', error: error?.message || String(error) });
+  }
+};
+
+async function getUnifiedStaffForLeave(): Promise<UnifiedStaff[]> {
+  const teacherRepo = AppDataSource.getRepository(Teacher);
+  const payrollEmployeeRepo = AppDataSource.getRepository(PayrollEmployee);
+  const salaryStructureRepo = AppDataSource.getRepository(PayrollSalaryStructure);
+
+  const [teachers, payrollEmployees, structures] = await Promise.all([
+    teacherRepo.find({ where: { isActive: true }, relations: ['user', 'department'], order: { lastName: 'ASC', firstName: 'ASC' } }),
+    payrollEmployeeRepo.find({ where: { employmentStatus: EmploymentStatus.ACTIVE }, order: { fullName: 'ASC' } }),
+    salaryStructureRepo.find({ where: { isActive: true }, order: { effectiveFrom: 'DESC', createdAt: 'DESC' } }),
+  ]);
+
+  const firstStructureByType = new Map<string, PayrollSalaryStructure>();
+  for (const s of structures) {
+    const t = String(s.salaryType || '').trim().toLowerCase();
+    if (!t || firstStructureByType.has(t)) continue;
+    firstStructureByType.set(t, s);
+  }
+
+  const pickBasicSalary = (salaryType: string | null, fallbackType?: string): number => {
+    const keys = [salaryType, fallbackType].filter(Boolean).map((x) => String(x).trim().toLowerCase());
+    for (const k of keys) {
+      const st = firstStructureByType.get(k);
+      if (st) return Number(st.basicSalary || 0);
+    }
+    return 0;
+  };
+
+  const teaching: UnifiedStaff[] = teachers.map((t) => {
+    const start = toDateOnly((t.user as any)?.createdAt) || new Date();
+    const basic = pickBasicSalary(null, 'teacher');
+    return {
+      staffType: 'teaching',
+      staffId: t.id,
+      employeeNumber: t.teacherId || `T-${t.id.slice(0, 8)}`,
+      fullName: `${t.firstName || ''} ${t.lastName || ''}`.trim() || t.teacherId || 'Teacher',
+      department: t.department?.name || null,
+      startDate: start,
+      salaryType: 'teacher',
+      dailyRate: round2(basic / 30),
+    };
+  });
+
+  const ancillary: UnifiedStaff[] = payrollEmployees.map((e) => {
+    const start = toDateOnly(e.salaryEffectiveFrom) || toDateOnly(e.createdAt) || new Date();
+    const basic = pickBasicSalary(e.salaryType, 'ancillary');
+    return {
+      staffType: 'ancillary',
+      staffId: e.id,
+      employeeNumber: e.employeeNumber,
+      fullName: e.fullName,
+      department: e.department || null,
+      startDate: start,
+      salaryType: e.salaryType || 'ancillary',
+      dailyRate: round2(basic / 30),
+    };
+  });
+
+  return [...teaching, ...ancillary];
+}
+
+function accruedDaysForStaff(staff: UnifiedStaff, asOfDate: Date, policy: LeavePolicyResolved): number {
+  if (asOfDate < staff.startDate) return 0;
+  const termMonths = new Set<number>(policy.teachingTermMonths);
+  const days =
+    staff.staffType === 'teaching'
+      ? teachingEligibleDays(staff.startDate, asOfDate, termMonths)
+      : diffDaysInclusive(staff.startDate, asOfDate);
+  const accrued = round2((days / 365) * policy.annualLeaveDaysPerYear);
+  if (policy.maxAccrualDays != null && Number.isFinite(policy.maxAccrualDays)) {
+    return Math.min(accrued, Number(policy.maxAccrualDays));
+  }
+  return accrued;
+}
+
+export const getLeaveDashboard = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+
+    const asOfDate = toDateOnly(req.query.asOfDate) || new Date();
+    const category = String(req.query.category || '').trim().toLowerCase();
+    const employeeId = String(req.query.employeeId || '').trim();
+    const from = toDateOnly(req.query.from);
+    const to = toDateOnly(req.query.to);
+
+    const leaveRepo = AppDataSource.getRepository(PayrollLeaveRecord);
+    const policy = await getLeavePolicyResolved();
+    const staff = await getUnifiedStaffForLeave();
+    const filtered = staff.filter((s) => {
+      if (category && category !== 'all' && s.staffType !== category) return false;
+      if (employeeId && s.staffId !== employeeId) return false;
+      return true;
+    });
+
+    const allLeaveRows = await leaveRepo.find();
+    const leaveByStaff = new Map<string, PayrollLeaveRecord[]>();
+    for (const row of allLeaveRows) {
+      const key = `${row.staffType}:${row.staffId}`;
+      const list = leaveByStaff.get(key) || [];
+      list.push(row);
+      leaveByStaff.set(key, list);
+    }
+
+    const rows = filtered.map((s) => {
+      const key = `${s.staffType}:${s.staffId}`;
+      const records = leaveByStaff.get(key) || [];
+      const takenAllTime = round2(records.reduce((sum, r) => sum + Number(r.days || 0), 0));
+      const takenInRange = round2(
+        records
+          .filter((r) => {
+            const d = toDateOnly(r.leaveDate);
+            if (!d) return false;
+            if (from && d < from) return false;
+            if (to && d > to) return false;
+            return true;
+          })
+          .reduce((sum, r) => sum + Number(r.days || 0), 0)
+      );
+      const accrued = accruedDaysForStaff(s, asOfDate, policy);
+      let remaining = round2(accrued - takenAllTime);
+      if (policy.carryForwardCapDays != null && Number.isFinite(policy.carryForwardCapDays)) {
+        remaining = Math.min(remaining, Number(policy.carryForwardCapDays));
+      }
+      const leaveLiabilityPayout = round2(Math.max(remaining, 0) * (s.dailyRate || 0));
+      return {
+        ...s,
+        accruedDays: accrued,
+        takenDays: takenAllTime,
+        takenDaysInRange: takenInRange,
+        remainingDays: remaining,
+        excessAccrued: remaining > policy.excessAccruedThresholdDays,
+        leaveLiabilityPayout,
+      };
+    });
+
+    rows.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    return res.json({
+      asOfDate: asOfDate.toISOString().slice(0, 10),
+      policy: {
+        annualLeaveDaysPerYear: policy.annualLeaveDaysPerYear,
+        minimumAnnualLeaveDays: MIN_ANNUAL_LEAVE_DAYS,
+        excessThresholdDays: policy.excessAccruedThresholdDays,
+        maxAccrualDays: policy.maxAccrualDays,
+        carryForwardCapDays: policy.carryForwardCapDays,
+        teachingTermMonths: policy.teachingTermMonths,
+        notes: policy.notes,
+      },
+      rows,
+    });
+  } catch (error: any) {
+    console.error('getLeaveDashboard error:', error);
+    return res.status(500).json({ message: 'Failed to fetch leave dashboard', error: error?.message || String(error) });
+  }
+};
+
+export const createLeaveRecord = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+
+    const leaveRepo = AppDataSource.getRepository(PayrollLeaveRecord);
+    const staffType = String(req.body?.staffType || '').trim().toLowerCase() as PayrollLeaveStaffType;
+    const staffId = String(req.body?.staffId || '').trim();
+    const days = Number(req.body?.days || 0);
+    const leaveDate = toDateOnly(req.body?.leaveDate) || new Date();
+    const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+
+    if (!['teaching', 'ancillary'].includes(staffType) || !staffId) {
+      return res.status(400).json({ message: 'staffType (teaching|ancillary) and staffId are required.' });
+    }
+    if (!Number.isFinite(days) || days <= 0) {
+      return res.status(400).json({ message: 'days must be a positive number.' });
+    }
+
+    const staff = await getUnifiedStaffForLeave();
+    const match = staff.find((s) => s.staffType === staffType && s.staffId === staffId);
+    if (!match) {
+      return res.status(404).json({ message: 'Staff member not found in existing records.' });
+    }
+
+    const rec = leaveRepo.create({
+      staffType,
+      staffId,
+      staffName: match.fullName,
+      department: match.department || null,
+      leaveDate,
+      days: round2(days),
+      reason,
+      createdBy: req.user?.id || null,
+    });
+    const saved = await leaveRepo.save(rec);
+    return res.status(201).json({ message: 'Leave recorded successfully', record: saved });
+  } catch (error: any) {
+    console.error('createLeaveRecord error:', error);
+    return res.status(500).json({ message: 'Failed to record leave', error: error?.message || String(error) });
+  }
+};
+
+export const getLeaveRecords = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+
+    const leaveRepo = AppDataSource.getRepository(PayrollLeaveRecord);
+    const staffType = String(req.query.staffType || '').trim().toLowerCase();
+    const staffId = String(req.query.staffId || '').trim();
+    const from = toDateOnly(req.query.from);
+    const to = toDateOnly(req.query.to);
+
+    const all = await leaveRepo.find({ order: { leaveDate: 'DESC', createdAt: 'DESC' } });
+    const records = all.filter((r) => {
+      if (staffType && staffType !== 'all' && r.staffType !== staffType) return false;
+      if (staffId && r.staffId !== staffId) return false;
+      const d = toDateOnly(r.leaveDate);
+      if (from && d && d < from) return false;
+      if (to && d && d > to) return false;
+      return true;
+    });
+    return res.json({ records });
+  } catch (error: any) {
+    console.error('getLeaveRecords error:', error);
+    return res.status(500).json({ message: 'Failed to fetch leave records', error: error?.message || String(error) });
+  }
+};
+
+export const getLeaveDepartmentSummary = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+
+    const asOfDate = toDateOnly(req.query.asOfDate) || new Date();
+    const from = toDateOnly(req.query.from);
+    const to = toDateOnly(req.query.to);
+    const category = String(req.query.category || '').trim().toLowerCase();
+
+    const leaveRepo = AppDataSource.getRepository(PayrollLeaveRecord);
+    const policy = await getLeavePolicyResolved();
+    const records = await leaveRepo.find();
+    const staff = await getUnifiedStaffForLeave();
+    const filteredStaff = staff.filter((s) => !category || category === 'all' || s.staffType === category);
+
+    const byStaffKey = new Map<string, PayrollLeaveRecord[]>();
+    for (const r of records) {
+      const key = `${r.staffType}:${r.staffId}`;
+      const list = byStaffKey.get(key) || [];
+      list.push(r);
+      byStaffKey.set(key, list);
+    }
+
+    const byDept = new Map<string, { department: string; category: PayrollLeaveStaffType; employees: number; usedDays: number; outstandingDays: number }>();
+    for (const s of filteredStaff) {
+      const key = `${s.staffType}:${s.department || 'Unassigned'}`;
+      const recs = byStaffKey.get(`${s.staffType}:${s.staffId}`) || [];
+      const used = round2(
+        recs
+          .filter((r) => {
+            const d = toDateOnly(r.leaveDate);
+            if (!d) return false;
+            if (from && d < from) return false;
+            if (to && d > to) return false;
+            return true;
+          })
+          .reduce((sum, r) => sum + Number(r.days || 0), 0)
+      );
+      let outstanding = round2(accruedDaysForStaff(s, asOfDate, policy) - recs.reduce((sum, r) => sum + Number(r.days || 0), 0));
+      if (policy.carryForwardCapDays != null && Number.isFinite(policy.carryForwardCapDays)) {
+        outstanding = Math.min(outstanding, Number(policy.carryForwardCapDays));
+      }
+      const cur = byDept.get(key) || {
+        department: s.department || 'Unassigned',
+        category: s.staffType,
+        employees: 0,
+        usedDays: 0,
+        outstandingDays: 0,
+      };
+      cur.employees += 1;
+      cur.usedDays = round2(cur.usedDays + used);
+      cur.outstandingDays = round2(cur.outstandingDays + outstanding);
+      byDept.set(key, cur);
+    }
+
+    const rows = Array.from(byDept.values()).sort((a, b) => a.department.localeCompare(b.department));
+    return res.json({ rows });
+  } catch (error: any) {
+    console.error('getLeaveDepartmentSummary error:', error);
+    return res.status(500).json({ message: 'Failed to fetch leave department summary', error: error?.message || String(error) });
+  }
+};
+
+export const getLeaveLiabilityReport = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+
+    const asOfDate = toDateOnly(req.query.asOfDate) || new Date();
+    const category = String(req.query.category || '').trim().toLowerCase();
+    const employeeId = String(req.query.employeeId || '').trim();
+
+    const leaveRepo = AppDataSource.getRepository(PayrollLeaveRecord);
+    const records = await leaveRepo.find();
+    const staff = await getUnifiedStaffForLeave();
+    const policy = await getLeavePolicyResolved();
+    const filteredStaff = staff.filter((s) => {
+      if (category && category !== 'all' && s.staffType !== category) return false;
+      if (employeeId && s.staffId !== employeeId) return false;
+      return true;
+    });
+
+    const rows = filteredStaff.map((s) => {
+      const recs = records.filter((r) => r.staffType === s.staffType && r.staffId === s.staffId);
+      const accrued = accruedDaysForStaff(s, asOfDate, policy);
+      const taken = round2(recs.reduce((sum, r) => sum + Number(r.days || 0), 0));
+      let remaining = round2(accrued - taken);
+      if (policy.carryForwardCapDays != null && Number.isFinite(policy.carryForwardCapDays)) {
+        remaining = Math.min(remaining, Number(policy.carryForwardCapDays));
+      }
+      const payout = round2(Math.max(remaining, 0) * (s.dailyRate || 0));
+      return {
+        staffType: s.staffType,
+        staffId: s.staffId,
+        employeeNumber: s.employeeNumber,
+        fullName: s.fullName,
+        department: s.department || 'Unassigned',
+        remainingDays: remaining,
+        dailyRate: s.dailyRate || 0,
+        payoutAmount: payout,
+      };
+    });
+
+    const totalPayout = round2(rows.reduce((sum, r) => sum + r.payoutAmount, 0));
+    const totalOutstandingDays = round2(rows.reduce((sum, r) => sum + r.remainingDays, 0));
+    rows.sort((a, b) => b.payoutAmount - a.payoutAmount);
+    return res.json({
+      asOfDate: asOfDate.toISOString().slice(0, 10),
+      totals: { employees: rows.length, totalOutstandingDays, totalPayout },
+      rows,
+    });
+  } catch (error: any) {
+    console.error('getLeaveLiabilityReport error:', error);
+    return res.status(500).json({ message: 'Failed to fetch leave liability report', error: error?.message || String(error) });
+  }
+};
+
+export const getLeavePolicy = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const policy = await getLeavePolicyResolved();
+    return res.json({ policy });
+  } catch (error: any) {
+    console.error('getLeavePolicy error:', error);
+    return res.status(500).json({ message: 'Failed to fetch leave policy', error: error?.message || String(error) });
+  }
+};
+
+export const updateLeavePolicy = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const repo = AppDataSource.getRepository(PayrollLeavePolicy);
+    let row = await repo.findOne({ where: {}, order: { createdAt: 'DESC' } });
+    if (!row) {
+      row = repo.create();
+    }
+    const annual = Number(req.body?.annualLeaveDaysPerYear ?? row.annualLeaveDaysPerYear ?? MIN_ANNUAL_LEAVE_DAYS);
+    if (!Number.isFinite(annual) || annual < MIN_ANNUAL_LEAVE_DAYS) {
+      return res.status(400).json({ message: `annualLeaveDaysPerYear must be at least ${MIN_ANNUAL_LEAVE_DAYS} days/year.` });
+    }
+    const termMonths = sanitizeTermMonths(req.body?.teachingTermMonths ?? row.teachingTermMonths);
+    row.annualLeaveDaysPerYear = annual;
+    row.excessAccruedThresholdDays = Number(req.body?.excessAccruedThresholdDays ?? row.excessAccruedThresholdDays ?? EXCESS_LEAVE_ALERT_DAYS);
+    row.maxAccrualDays =
+      req.body?.maxAccrualDays === null || req.body?.maxAccrualDays === '' ? null : Number(req.body?.maxAccrualDays ?? row.maxAccrualDays ?? null);
+    row.carryForwardCapDays =
+      req.body?.carryForwardCapDays === null || req.body?.carryForwardCapDays === '' ? null : Number(req.body?.carryForwardCapDays ?? row.carryForwardCapDays ?? null);
+    row.teachingTermMonths = termMonths;
+    row.notes = req.body?.notes != null ? String(req.body.notes).trim() : row.notes;
+    const saved = await repo.save(row);
+    return res.json({ message: 'Leave policy updated', policy: await getLeavePolicyResolved(), raw: saved });
+  } catch (error: any) {
+    console.error('updateLeavePolicy error:', error);
+    return res.status(500).json({ message: 'Failed to update leave policy', error: error?.message || String(error) });
+  }
+};
+
+export const createLeaveLiabilityAudit = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const asOfDate = toDateOnly(req.body?.asOfDate || req.query.asOfDate) || new Date();
+    const category = String(req.body?.category || req.query.category || '').trim().toLowerCase();
+    const employeeId = String(req.body?.employeeId || req.query.employeeId || '').trim();
+    const notes = req.body?.notes ? String(req.body.notes).trim() : null;
+
+    const leaveRepo = AppDataSource.getRepository(PayrollLeaveRecord);
+    const auditRepo = AppDataSource.getRepository(PayrollLeavePayoutAudit);
+    const policy = await getLeavePolicyResolved();
+    const staff = await getUnifiedStaffForLeave();
+    const records = await leaveRepo.find();
+
+    const rows = staff
+      .filter((s) => (!category || category === 'all' || s.staffType === category) && (!employeeId || s.staffId === employeeId))
+      .map((s) => {
+        const recs = records.filter((r) => r.staffType === s.staffType && r.staffId === s.staffId);
+        const accrued = accruedDaysForStaff(s, asOfDate, policy);
+        const taken = round2(recs.reduce((sum, r) => sum + Number(r.days || 0), 0));
+        let remaining = round2(accrued - taken);
+        if (policy.carryForwardCapDays != null && Number.isFinite(policy.carryForwardCapDays)) {
+          remaining = Math.min(remaining, Number(policy.carryForwardCapDays));
+        }
+        const payout = round2(Math.max(remaining, 0) * (s.dailyRate || 0));
+        return { s, remaining, payout };
+      });
+
+    const saved = await auditRepo.save(
+      rows.map((x) =>
+        auditRepo.create({
+          staffType: x.s.staffType,
+          staffId: x.s.staffId,
+          employeeNumber: x.s.employeeNumber,
+          fullName: x.s.fullName,
+          department: x.s.department,
+          asOfDate,
+          remainingDays: x.remaining,
+          dailyRate: x.s.dailyRate || 0,
+          payoutAmount: x.payout,
+          notes,
+          createdBy: req.user?.id || null,
+        })
+      )
+    );
+    return res.status(201).json({ message: 'Leave liability audit snapshot saved', count: saved.length });
+  } catch (error: any) {
+    console.error('createLeaveLiabilityAudit error:', error);
+    return res.status(500).json({ message: 'Failed to save liability audit snapshot', error: error?.message || String(error) });
+  }
+};
+
+export const getLeaveLiabilityAudits = async (req: AuthRequest, res: Response) => {
+  try {
+    await ensurePayrollTables();
+    if (!AppDataSource.isInitialized) await AppDataSource.initialize();
+    const repo = AppDataSource.getRepository(PayrollLeavePayoutAudit);
+    const category = String(req.query.category || '').trim().toLowerCase();
+    const employeeId = String(req.query.employeeId || '').trim();
+    const from = toDateOnly(req.query.from);
+    const to = toDateOnly(req.query.to);
+    const all = await repo.find({ order: { createdAt: 'DESC' } });
+    const rows = all.filter((r) => {
+      if (category && category !== 'all' && r.staffType !== category) return false;
+      if (employeeId && r.staffId !== employeeId) return false;
+      const d = toDateOnly(r.asOfDate);
+      if (from && d && d < from) return false;
+      if (to && d && d > to) return false;
+      return true;
+    });
+    return res.json({ rows });
+  } catch (error: any) {
+    console.error('getLeaveLiabilityAudits error:', error);
+    return res.status(500).json({ message: 'Failed to fetch liability audit history', error: error?.message || String(error) });
   }
 };
 
